@@ -24,6 +24,13 @@ const WEAPON_FIX = {
   staff: { scale: 0.42, rotX: 19.5 * D, rotY: 1 * D, rotZ: 5.7 * D, y: 0 },  // scepter: vertical, tip-UP
   bow:   { scale: 0.42, rotX: 16.1 * D, rotY: 1.3 * D, rotZ: 9 * D, y: 0 },  // kaman: vertical at the side
   axe:   { scale: 0.40, rotX: 47.9 * D, rotY: 3.9 * D, rotZ: 8.7 * D, y: 0.05 }, // tabarzin: head up-forward
+  // new weapons — initial angles seeded from the closest existing weapon; calibrated below
+  lance:   { scale: 0.90, rotX: 0.5 * D, rotY: 0.1 * D, rotZ: 24.2 * D, y: 0 },  // like spear: dead vertical, tip-UP, long
+  halberd: { scale: 0.85, rotX: 0.5 * D, rotY: 0.1 * D, rotZ: 24.2 * D, y: 0 },  // like spear: vertical, tip-UP
+  hammer:  { scale: 0.42, rotX: 180 * D, rotZ: 25 * D, y: 0.05 },                // q_knight hand (no flip): head-UP, slight cant
+  dagger:  { scale: 0.38, rotX: 162 * D, y: 0 },                                 // like sword: hangs tip-DOWN at hip
+  banner:  { scale: 0.90, rotX: 0.5 * D, rotY: 0.1 * D, rotZ: 24.2 * D, y: 0 },  // like spear: dead vertical, tip-UP
+  lantern: { scale: 0.40, rotX: 0.5 * D, rotY: 0.1 * D, rotZ: 24.2 * D, y: 0 },  // vertical, upright glowing at the side
 };
 function weaponModel(kind) {
   const scene = cloneAssetScene('a_wpn_' + kind);
@@ -67,6 +74,22 @@ function assetCharacter(assetKey, { tint = null, height = 1.7, weapon = null, we
   }
   inst.play('idle');
   return { group, rig: {}, anim: inst, animType: 'gltf', headH: height };
+}
+
+// dev-only: build a rigged soldier holding any weapon kind, for hand-angle calibration.
+// Returns null if the GLB asset isn't loaded (so callers can detect preload state).
+export function buildWeaponTestModel(weapon, asset = 'a_soldier_heavy', height = 1.8) {
+  return assetCharacter(asset, { weapon, height });
+}
+
+// rigged hero commander that stands on the tower it leads (idle clip + bone-attached signature weapon).
+// Returns null when the hero GLB isn't loaded (caller skips the figure — ring-only, as before).
+const HERO_HEIGHT = { rostam: 1.95, sohrab: 1.78, gordafarid: 1.68, tahmineh: 1.7, zal: 1.82, simurgh: 1.9 };
+export function heroModel(heroDef) {
+  if (!heroDef) return null;
+  const key = 'Hero_' + heroDef.id.replace(/-/g, '_');
+  const noAttach = !heroDef.weapon || heroDef.weapon === 'talon' || heroDef.weapon === 'token';
+  return assetCharacter(key, { height: HERO_HEIGHT[heroDef.id] || 1.78, weapon: noAttach ? null : heroDef.weapon });
 }
 
 function mesh(geo, mat) { const m = new THREE.Mesh(geo, mat); m.castShadow = true; return m; }
@@ -706,6 +729,9 @@ const HUMAN_SPECS = {
 // differentiated by tint, height and our Persian weapons. (Kings/princes keep
 // their crowned procedural identity; the sorceress keeps her veiled one.)
 const ASSET_ENEMIES = {
+  // boss-tier antagonists — unique GLBs, no tint (keep their own palette), tried before the procedural branch
+  turanianKing: { asset: 'a_afrasiab', weapon: 'sword', height: 2.0 },  // Afrāsiyāb
+  warKing: { asset: 'a_arjasp', weapon: 'axe', height: 1.95 },          // Arjāsp
   turanianWarrior: { asset: 'q_knight', tint: 0xc09060, weapon: 'spear', height: 1.78 },
   turanianRaider: { asset: 'q_knight', tint: 0xb89a50, weapon: 'sword', height: 1.72 },
   turanianRaider2: { asset: 'q_knight', tint: 0x96a85e, weapon: 'spear', height: 1.72 },
@@ -713,7 +739,7 @@ const ASSET_ENEMIES = {
   turanianPrince: { asset: 'q_knight', tint: 0x5a8ab0, weapon: 'sword', height: 1.8 },
   darkChampion: { asset: 'q_knight', tint: 0x52525e, weapon: 'banner', height: 1.92 },
   steelChampion: { asset: 'q_knight', tint: 0xaab2c0, weapon: 'mace', height: 1.98 },
-  warlord: { asset: 'q_knight', tint: 0x8c3a32, weapon: 'lance', height: 1.95 },
+  warlord: { asset: 'a_kamus', weapon: 'lance', height: 1.95 }, // Kāmus-e Kushāni (dismounted GLB)
   courtier: { asset: 'q_knight', tint: 0x9a6e9a, weapon: 'dagger', height: 1.72 },
   traitor: { asset: 'q_knight', tint: 0x6e6354, weapon: 'dagger', height: 1.72 },
   shadowedIranian: { asset: 'q_knight', tint: 0x5e7282, weapon: 'bow', height: 1.74 },
@@ -731,6 +757,8 @@ export function buildEnemyModel(modelKey) {
   const mats = MATS();
   switch (modelKey) {
     case 'zahhak': {
+      const za = assetCharacter('a_zahhak', { height: 2.3, weapon: 'sword' });
+      if (za) return { ...za, headH: 2.3 }; // GLB has the shoulder serpents baked into the mesh
       const h = buildHumanoid({ armor: 'royal', clothColor: 0x2a1f3a, crown: true, cloak: true, cloakColor: 0x1c1428, weapon: 'sword', beard: 'full', scale: 1.35 });
       const serpents = [];
       for (const side of [-1, 1]) {
@@ -764,8 +792,10 @@ export function buildEnemyModel(modelKey) {
       return { ...h, animType: 'biped', headH: 2.3 };
     }
     case 'serpent': return { ...buildSerpentBody({ mat: mats.scaleDark, ridgeMat: colorMat(0x2a3324, 0.7), segs: 7, r0: 0.18, len: 2.0, scale: 1 }), animType: 'serpent', headH: 0.6 };
-    case 'divSepid': return buildDiv({ hide: 'divHideWhite', scale: 2.1, horns: 4, hunch: 0.3, spikes: true });
+    case 'divSepid': return assetCharacter('a_divsepid', { height: 3.4 }) || buildDiv({ hide: 'divHideWhite', scale: 2.1, horns: 4, hunch: 0.3, spikes: true });
     case 'divCommander': {
+      const arz = assetCharacter('a_arzhang', { height: 2.6, weapon: 'banner' });
+      if (arz) return arz;
       const d = buildDiv({ hide: 'divHide', scale: 1.7, horns: 2 });
       const w = makeWeapon('banner');
       w.position.set(0, -0.5, 0);
@@ -773,6 +803,8 @@ export function buildEnemyModel(modelKey) {
       return d;
     }
     case 'akvan': {
+      const ak = assetCharacter('a_akvan', { height: 2.2 });
+      if (ak) return { ...ak, animType: 'fly' }; // GLB has the swirling wind baked in
       const d = buildDiv({ hide: 'divHideDark', scale: 1.5, horns: 2, club: false, hunch: 0.1 });
       const veil = new THREE.Mesh(new THREE.SphereGeometry(0.9, 10, 8), mats.shadowVeil);
       veil.position.y = 0.9;
@@ -780,10 +812,20 @@ export function buildEnemyModel(modelKey) {
       d.rig.veil = veil;
       return { ...d, animType: 'fly' };
     }
-    case 'divBrute': return buildDiv({ hide: 'divHide', scale: 1.85, horns: 2, hunch: 0.4, spikes: true });
-    case 'divScout': return buildDiv({ hide: 'divHideDark', scale: 1.25, horns: 1, club: false, hunch: 0.35 });
-    case 'dragon': return buildDragon(1.7);
-    case 'worm': return buildWorm(2.0);
+    case 'divBrute': return assetCharacter('a_kharvazan', { height: 3.0 }) || buildDiv({ hide: 'divHide', scale: 1.85, horns: 2, hunch: 0.4, spikes: true });
+    case 'divScout': return assetCharacter('a_olad', { height: 2.0 }) || buildDiv({ hide: 'divHideDark', scale: 1.25, horns: 1, club: false, hunch: 0.35 });
+    case 'dragon': {
+      const d = assetCharacter('a_dragon', { height: 1.5, walkStride: 1.0 });
+      if (!d) return buildDragon(1.7);
+      const hasClips = d.anim?.actions && Object.keys(d.anim.actions).length > 0;
+      return hasClips ? d : { group: d.group, rig: {}, animType: 'crawl', headH: d.headH }; // static GLB → procedural sway
+    }
+    case 'worm': {
+      const w = assetCharacter('a_worm', { height: 1.5, walkStride: 0.9 });
+      if (!w) return buildWorm(2.0);
+      const hasClips = w.anim?.actions && Object.keys(w.anim.actions).length > 0;
+      return hasClips ? w : { group: w.group, rig: {}, animType: 'crawl', headH: w.headH };
+    }
     // White War Elephant (پیل سپید). walkStride 2.6 calibrated by min planted-paw
     // drift at speed 1.0 (slow ponderous plod ~0.38 cycles/s); faces +Z, no rotFix.
     case 'elephant': return assetCharacter('a_elephant', { height: 3.75, walkStride: 2.6 }) || buildElephant(1.5);
@@ -792,6 +834,8 @@ export function buildEnemyModel(modelKey) {
     // 5.4 a naive peak-to-peak stride would give). enemy.js plants the paws at the lion's speed.
     case 'lion': return assetCharacter('a_lion', { height: 1.86, walkStride: 0.96 }) || buildLion(1.2);
     case 'sorceress': {
+      const sor = assetCharacter('a_sorceress', { height: 1.7, weapon: 'staff' });
+      if (sor) return sor;
       const h = buildHumanoid({ female: true, armor: 'cloth', clothColor: 0x6e2a4a, hairStyle: 'long', hair: 'hairBlack', weapon: 'staff', cloak: true, cloakColor: 0x44183a, scale: 1.0 });
       const glow = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), mats.shadowVeil);
       glow.position.y = 1.0;

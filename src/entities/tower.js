@@ -11,6 +11,7 @@ import { Projectile, lashEffect } from './projectile.js';
 import { FXC } from '../fx/particles.js';
 import { MATS } from '../models/materials.js';
 import { colorMat } from '../models/humanoid.js';
+import { heroModel } from '../models/creature.js';
 import { settings } from '../core/settings.js';
 
 // hero.command style -> tower roles it amplifies
@@ -103,6 +104,24 @@ export class Tower {
     ring.position.y = 0.9;
     this.group.add(ring);
     this._heroRing = ring;
+    this._addHeroFigure();
+  }
+
+  // the hero stands on the platform of the tower they command (idle clip + signature weapon)
+  _addHeroFigure() {
+    this._removeHeroFigure();
+    const m = heroModel(this.hero);
+    if (!m) return; // GLB not loaded → ring-only (graceful)
+    const r = this.model.radius || 1;
+    const ox = r * 0.82, oz = r * 0.18;
+    m.group.position.set(ox, 0.05, oz);              // on the platform, off to one side
+    m.group.rotation.y = Math.atan2(ox, oz);         // face outward, away from the tower body
+    this.group.add(m.group);
+    this._heroModel = m;
+  }
+
+  _removeHeroFigure() {
+    if (this._heroModel) { this._heroModel.group.removeFromParent(); this._heroModel = null; }
   }
 
   _spawnGarrison() {
@@ -220,6 +239,7 @@ export class Tower {
   unassignHero() {
     this.hero = null;
     if (this._heroRing) { this._heroRing.removeFromParent(); this._heroRing = null; }
+    this._removeHeroFigure();
     const keepHpFrac = this.hp / this.maxHp;
     this.maxHp = this._computeMaxHp();
     this.hp = this.maxHp * keepHpFrac;
@@ -454,6 +474,7 @@ export class Tower {
 
   update(dt, time) {
     if (!this.alive) return;
+    if (this._heroModel?.anim) this._heroModel.anim.mixer.update(dt); // hero idle clip
     this.silencedT -= dt; this.disabledT -= dt; this.garrisonDisabledT -= dt;
     if (this._brazenT > 0) this._brazenT -= dt;
 
@@ -468,6 +489,23 @@ export class Tower {
     for (const gl of this.model.animated.glows || []) {
       const s = 1 + Math.sin(time * 2.2 + this.id) * 0.25;
       gl.scale.set(s, s, s);
+    }
+
+    // ambient flame column — fire altars/gates burn perpetually, not only when firing
+    if (this.def.role === 'fire' && !reduced && Math.random() < dt * 34) {
+      const p = this.pos, h = this.model.height;
+      const n = 1 + (Math.random() * 2 | 0);
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2, r = Math.random() * 0.32;
+        const hot = Math.random();
+        const c = hot > 0.62 ? FXC.flameCore : hot > 0.32 ? FXC.ember : FXC.spark;
+        this.game.particles.spawn(
+          p.x + Math.cos(a) * r, p.y + h * 0.5 + Math.random() * 0.35, p.z + Math.sin(a) * r,
+          (Math.random() - 0.5) * 0.4, 2.3 + Math.random() * 1.5, (Math.random() - 0.5) * 0.4,
+          0.7 + Math.random() * 0.5, 0.3 + Math.random() * 0.22,
+          c[0], c[1], c[2], -1.1, 0.5,
+        );
+      }
     }
 
     // damaged smoke

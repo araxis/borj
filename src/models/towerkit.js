@@ -7,6 +7,7 @@
 // layers enable staged destruction: crown falls first, then mid, then base ruins.
 import * as THREE from 'three';
 import { MeshBuilder, MATS } from './materials.js';
+import { cloneAssetScene } from '../core/assets.js';
 
 // ---------- low-level parts (operate on a MeshBuilder) ----------
 
@@ -662,7 +663,78 @@ const RECIPES = {
   },
 };
 
+// Crown FX the engine attaches to a bare tower GLB (the GLBs are modeled with empty
+// braziers / bare poles / flat crowns on purpose — flame + banner MOTION is engine-provided).
+const GLB_FX = {
+  fireAltar: { flame: 1.35, fy: 0.86 },       // flame in the empty brazier dish
+  jamshidCourt: { flame: 1.15, fy: 0.88 },
+  standardHall: { bannerBig: true },          // the Derafsh on the bare pole
+  derafshHall: { bannerBig: true },
+  radianceCourt: { torches: 4 },              // corner sconces
+  nestTower: { feathers: 3 },                 // glow-quills on the nest rim
+  catapult: { none: true }, maceHall: { none: true }, horizonWatch: { none: true }, // weapon is the crown
+  grandArch: { none: true },                  // the bare arch is the hero element
+};
+
+// Build a tower from a GLB body + engine FX, in the buildTower-compatible shape. The GLB
+// lives under the `crown` layer so the entity's staged destruction topples it. Returns null if
+// the asset isn't loaded → buildTower falls back to the procedural recipe. Never-break.
+export function assetTower(modelKey, ageIdx = 0) {
+  const scene = cloneAssetScene('a_twr_' + modelKey);
+  if (!scene) return null;
+  scene.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(scene);
+  const size = box.getSize(new THREE.Vector3());
+  const targetH = 4.2 + ageIdx * 0.5;          // grows with age, ~matches the procedural towers
+  const s = targetH / (size.y || 1);
+  scene.scale.setScalar(s);
+  scene.position.y = -box.min.y * s;           // sit flat on the pad
+  scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+
+  const crown = new THREE.Group();
+  crown.add(scene);
+  const group = new THREE.Group();
+  group.add(crown);
+  const radius = Math.max(size.x, size.z) * s * 0.5;
+  const animated = { banners: [], flames: [], spinners: [], glows: [] };
+  const fx = GLB_FX[modelKey] || {};
+
+  if (fx.flame) {
+    const f = makeFlame(fx.flame + ageIdx * 0.12);
+    f.position.set(0, targetH * (fx.fy || 0.85), 0);
+    crown.add(f); animated.flames.push(f);
+  }
+  if (fx.bannerBig) {
+    const b = makeBanner(ageIdx >= 4 ? 'clothGold' : 'clothRed', 1.1, 1.7, targetH * 0.5);
+    b.position.set(0, targetH * 0.9, 0);
+    crown.add(b); animated.banners.push(b);
+  }
+  if (fx.torches) {
+    for (let i = 0; i < fx.torches; i++) {
+      const a = (i / fx.torches) * Math.PI * 2 + Math.PI / 4;
+      const t = makeTorch(Math.cos(a) * radius * 0.78, targetH * 0.9, Math.sin(a) * radius * 0.78, 0.8);
+      crown.add(t.group); animated.flames.push(t.flame);
+    }
+  }
+  if (fx.feathers) {
+    for (let i = 0; i < fx.feathers; i++) {
+      const a = (i / fx.feathers) * Math.PI * 2;
+      const q = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.7, 5), MATS().gold);
+      q.position.set(Math.cos(a) * radius * 0.45, targetH * 1.02, Math.sin(a) * radius * 0.45);
+      crown.add(q); animated.glows.push(q);
+    }
+  }
+  if (!fx.none && !fx.flame && !fx.bannerBig && !fx.torches && !fx.feathers) {
+    const b = makeBanner('clothRed', 0.7, 1.1, 1.5 + ageIdx * 0.12); // default rim banner
+    b.position.set(radius * 0.55, targetH * 0.94, 0);
+    crown.add(b); animated.banners.push(b);
+  }
+  return { group, layers: { base: new THREE.Group(), mid: new THREE.Group(), crown }, animated, height: targetH, radius };
+}
+
 export function buildTower(modelKey, ageIdx = 0) {
+  const a = assetTower(modelKey, ageIdx);           // GLB body if loaded, else procedural
+  if (a) { a.group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); return a; }
   const recipe = RECIPES[modelKey] || RECIPES.watchtower;
   const t = recipe(ageIdx);
   t.group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });

@@ -34,6 +34,13 @@ const NAMES = [
 ];
 const PROP_FILES = Object.fromEntries(NAMES.map((n) => [n, DIR + n + '.glb']));
 
+// Persian village kit (CC-BY) — bespoke adobe buildings that upgrade the KayKit village
+// fabric. Whole-building props at native scale → place with a per-building `unit` (targetW/baseW)
+// and tint:null to keep the authored adobe/turquoise palette. Gated on propReady → never-break.
+const PERSIAN_DIR = 'assets/buildings/persian/';
+const PERSIAN_NAMES = ['MudbrickHouse', 'BadgirHouse', 'Caravanserai', 'ChaharTaq', 'MarketStall'];
+const PERSIAN_FILES = Object.fromEntries(PERSIAN_NAMES.map((n) => [n, PERSIAN_DIR + n + '.glb']));
+
 // Quaternius Ultimate Stylized Nature pack (CC0) — 68 static .gltf foliage props.
 // Loaded into the SAME cache as the building kit; callers use unit≈1.0 and tint:null to
 // keep natural bark/leaf colors. NATURE_UNIT is the default nature scale.
@@ -130,7 +137,7 @@ let started = false;
 export function loadAllProps() {
   if (started) return;
   started = true;
-  const entries = Object.entries({ ...PROP_FILES, ...NATURE_FILES, ...NATURE2_FILES, ...THINGS_FILES, ...REALISTIC_FILES });
+  const entries = Object.entries({ ...PROP_FILES, ...PERSIAN_FILES, ...NATURE_FILES, ...NATURE2_FILES, ...THINGS_FILES, ...REALISTIC_FILES });
   // Bound concurrent fetches with a small worker pool. Firing all ~120 gltf at once made
   // dozens simultaneously re-request the same shared trim textures (a 3 MB ORM), flooding
   // the server's connection pool and intermittently dropping a texture load. ≤8 in flight
