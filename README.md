@@ -1,5 +1,7 @@
 # Borj — Shahnameh Tower Defense
 
+**▶ [Play it in your browser →](https://araxis.github.io/borj/)**
+
 A browser-based 3D tower-defense game rooted in ancient Persian/Iranian epic culture and
 Ferdowsi's *Shahnameh*. Defend mythic cities, fortresses, and caravan roads with 32 tower
 lines, 36 hero-commanders, 30 ledger-faithful adversaries, soldier squads, tower fusion,
@@ -38,6 +40,7 @@ authoritative source for every hero, enemy, and place.
 
 ## Credits & licenses
 
-All third-party assets are free-licensed and bundled locally (no runtime downloads). See
+The source code is licensed under the [MIT License](LICENSE). All third-party **assets** are
+free-licensed and bundled locally (no runtime downloads), and retain their own licenses — see
 [`CREDITS.md`](CREDITS.md) for full attribution (KayKit, Quaternius, Poly Haven, ambientCG,
 Kevin MacLeod, Meshy.ai, and others).
