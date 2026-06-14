@@ -1,0 +1,18 @@
+node_modules/
+dist/
+memory/
+.claude/
+.vite/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+*.tmp
+
+# dev scratch / downloaded references (not part of the game)
+ref_*.jpg
+thumb_*.jpg
+decode_anim.cjs
+
+# raw source asset library (huge 4K textures/.blend/.bin) — the game ships the optimized copies in public/
+/atlases/
