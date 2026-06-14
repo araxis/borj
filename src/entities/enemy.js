@@ -450,6 +450,13 @@ export class Enemy {
     else if (this.model.animType === 'quad' && rig.legs) animQuad(rig, time + this.id, animSpeed);
     else if (this.model.animType === 'serpent' && rig.segments) animSerpent(rig, time + this.id, animSpeed);
     else if (this.model.animType === 'fly' && rig.veil) rig.veil.scale.setScalar(1 + Math.sin(time * 3) * 0.12);
+    else if (this.model.animType === 'crawl') {
+      // static GLB crawler (no skeletal rig) — fake life with a slither weave + undulation
+      const mg = this.model.group, ph = time * 2.6 + this.id, m = this.blockedBy ? 0.35 : 1;
+      mg.rotation.z = Math.sin(ph) * 0.06 * m;             // side-to-side body roll
+      mg.rotation.y = Math.sin(ph * 0.5 + 1) * 0.06 * m;   // head weave
+      mg.position.y = Math.abs(Math.sin(ph * 2)) * 0.04 * m; // subtle vertical undulation
+    }
     animShoulderSerpents(rig, time);
 
     // health bar faces camera

@@ -50,6 +50,44 @@ const MODEL_FILES = {
   a_soldier_light: 'assets/models/Soldier_Light.glb',   // scout-archer (Archery_* clips)
   a_soldier_female: 'assets/models/Soldier_Female.glb', // woman warrior (Gordāfarid)
   a_soldier_robed: 'assets/models/Soldier_Robed.glb',   // robed mobed / fire-keeper
+  // Boss-tier humanoid antagonists (rigged + animated) — replace procedural buildEnemyModel branches
+  a_zahhak: 'assets/models/Zahhak.glb',         // serpent-shouldered tyrant (serpents baked into mesh)
+  a_afrasiab: 'assets/models/Afrasiab.glb',     // King of Turān → turanianKing branch
+  a_arjasp: 'assets/models/Arjasp.glb',         // invading war-king → warKing branch
+  a_kamus: 'assets/models/Kamus.glb',           // Kushani warlord → warlord branch
+  // Batch B divs (rigged + animated) — replace procedural buildDiv/sorceress branches
+  a_divsepid: 'assets/animals/DivSepid.glb',      // White Div → divSepid
+  a_arzhang: 'assets/animals/ArzhangDiv.glb',     // div-commander → divCommander
+  a_akvan: 'assets/animals/AkvanDiv.glb',         // wind-demon → akvan (flying)
+  a_kharvazan: 'assets/animals/KharvazanDiv.glb', // road-brute → divBrute
+  a_olad: 'assets/animals/OladDiv.glb',           // captive scout → divScout
+  a_sorceress: 'assets/models/Sorceress.glb',     // Māzandarān witch → sorceress
+  // Batch C crawlers — STATIC (no rig available yet); procedural crawl-sway, auto-upgrade if clips appear
+  a_dragon: 'assets/animals/Azhdaha.glb',         // Azhdahā dragon → dragon
+  a_worm: 'assets/animals/Worm.glb',              // Kerm-e Haftvād → worm
+  // Heroes — rigged commanders that stand on the tower they lead (key Hero_<id>, hyphens → underscores)
+  Hero_rostam: 'assets/models/Hero_Rostam.glb',
+  Hero_zal: 'assets/models/Hero_Zal.glb',
+  Hero_kaveh: 'assets/models/Hero_Kaveh.glb',
+  Hero_kay_khosrow: 'assets/models/Hero_KayKhosrow.glb',
+  Hero_tahmineh: 'assets/models/Hero_Tahmineh.glb',
+  Hero_gordafarid: 'assets/models/Hero_Gordafarid.glb',
+  Hero_sohrab: 'assets/models/Hero_Sohrab.glb',
+  Hero_esfandiyar: 'assets/models/Hero_Esfandiyar.glb',
+  Hero_fereydun: 'assets/models/Hero_Fereydun.glb',
+  Hero_simurgh: 'assets/models/Hero_Simurgh.glb',   // BIRD, static (no clips) — perches on the tower
+  // Towers (static GLB bodies; engine attaches flame/banner/age-turrets) — key a_twr_<def.model>
+  a_twr_watchtower: 'assets/towers/Watchtower.glb',
+  a_twr_palaceBalcony: 'assets/towers/PalaceBalcony.glb',
+  a_twr_horizonWatch: 'assets/towers/HorizonWatch.glb',
+  a_twr_maceHall: 'assets/towers/MaceHall.glb',
+  a_twr_catapult: 'assets/towers/Catapult.glb',
+  a_twr_fireAltar: 'assets/towers/FireAltar.glb',
+  a_twr_sealTower: 'assets/towers/SealTower.glb',
+  a_twr_nestTower: 'assets/towers/NestTower.glb',
+  a_twr_standardHall: 'assets/towers/StandardHall.glb',
+  a_twr_radianceCourt: 'assets/towers/RadianceCourt.glb',
+  a_twr_grandArch: 'assets/towers/GrandArch.glb',
   // Static Persian weapon props (CC-BY) — cloned onto hand bones, replacing procedural makeWeapon per kind
   a_wpn_sword: 'assets/weapons/Shamshir.glb',
   a_wpn_mace: 'assets/weapons/Gorz.glb',
@@ -57,6 +95,12 @@ const MODEL_FILES = {
   a_wpn_bow: 'assets/weapons/Kaman.glb',
   a_wpn_axe: 'assets/weapons/Tabarzin.glb',
   a_wpn_staff: 'assets/weapons/Staff.glb',
+  a_wpn_lance: 'assets/weapons/Lance.glb',       // cavalry lance — vertical, tip-up
+  a_wpn_halberd: 'assets/weapons/Halberd.glb',   // crescent pole-axe — vertical, tip-up
+  a_wpn_hammer: 'assets/weapons/Hammer.glb',     // forge war-hammer — head up/forward
+  a_wpn_dagger: 'assets/weapons/Khanjar.glb',    // khanjar — hangs tip-down like the sword
+  a_wpn_banner: 'assets/weapons/Drafsh.glb',     // drafsh war-standard — dead vertical, tip-up
+  a_wpn_lantern: 'assets/weapons/Fanus.glb',     // fanus lantern — carried forward, hanging
   // NOTE: the Quaternius Modular Characters (people/p1) are NOT registered — investigated and
   // rejected (see memory/progress.md). Blockers: the free pack's PEASANT outfits are HEADLESS
   // (no head mesh/part), the bound T-pose needs reposing (solved: rotateOnWorldAxis(X,-90°) on
@@ -69,6 +113,7 @@ const MODEL_FILES = {
 const ROT_FIX = {
   kk_knight: Math.PI, kk_barbarian: Math.PI,
   fox: -Math.PI / 2,
+  a_dragon: Math.PI / 2, // Azhdahā head faces -X natively → +Z so it crawls head-first (worm already faces +Z)
 };
 export function rotFix(key) { return ROT_FIX[key] ?? 0; }
 

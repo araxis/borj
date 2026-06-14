@@ -48,7 +48,30 @@ const rangeRing = new THREE.Mesh(
 );
 rangeRing.rotation.x = -Math.PI / 2;
 rangeRing.visible = false;
-engine.scene.add(padRing, rangeRing);
+
+// tight pulsing ring hugging the selected tower's footprint — disambiguates which tower is selected in a cluster
+const selRing = new THREE.Mesh(
+  new THREE.RingGeometry(0.84, 1.0, 40),
+  new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }),
+);
+selRing.rotation.x = -Math.PI / 2;
+selRing.visible = false;
+
+// faint threads from a selected buff/aura tower to the towers it is currently boosting
+const AURA_LINE_MAX = 48;
+const auraLinePos = new Float32Array(AURA_LINE_MAX * 2 * 3);
+const auraLineGeom = new THREE.BufferGeometry();
+auraLineGeom.setAttribute('position', new THREE.BufferAttribute(auraLinePos, 3));
+const auraLines = new THREE.LineSegments(
+  auraLineGeom,
+  new THREE.LineBasicMaterial({ color: 0xffc23a, transparent: true, opacity: 0.55, depthWrite: false }),
+);
+auraLines.frustumCulled = false;
+auraLines.visible = false;
+
+engine.scene.add(padRing, rangeRing, selRing, auraLines);
+// gentle opacity pulse on the active selection ring
+engine.onUpdate(() => { if (selRing.visible) selRing.material.opacity = 0.65 + Math.sin(engine.elapsed * 5) * 0.2; });
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -100,12 +123,96 @@ function pickGround(x, y) {
   return hits.length ? hits[0].point : null;
 }
 
+// range-ring colour by role / damage type, so selection reads the tower's nature at a glance
+const RING_COLORS = {
+  archer: 0x2fa7a0,   // teal — arrows
+  siege: 0xd08a3a,    // amber — impact
+  fire: 0xff6a1f,     // ember
+  magic: 0x9a6cff,    // violet
+  trap: 0x86d83f,     // venom
+  support: 0x4fd07a,  // green
+  aura: 0xffc23a,     // gold
+  economy: 0xffc23a,  // gold
+  barracks: 0x6f9fd0, // steel
+};
+const BUFF_RING = 0x4fd07a; // effect radius of pure aura / heal towers
+
+function ringFor(def, stats) {
+  if (!def) return null;
+  const range = (stats?.range ?? def.range) || 0;
+  const damage = (stats?.damage ?? def.damage) || 0;
+  const aura = stats?.aura ?? def.aura;
+  const heal = stats?.heal ?? def.heal;
+  const repair = stats?.repair ?? def.repair;
+  // effect radius for buff/support towers (mirrors _recomputeAuras: (range||11)*1.1)
+  let effectR = 0;
+  if (aura) effectR = Math.max(effectR, (def.range || 11) * 1.1);
+  if (heal) effectR = Math.max(effectR, heal.radius);
+  if (repair) effectR = Math.max(effectR, repair.radius);
+  // pure buff/heal towers don't attack — show their effect radius, not a zero attack ring
+  if (damage <= 0 && effectR > 0) return { radius: effectR, color: BUFF_RING };
+  if (range > 0) {
+    const color = def.dmgType === 'true' ? 0xffe08a : (RING_COLORS[def.role] || 0x2fa7a0);
+    return { radius: range, color };
+  }
+  if (effectR > 0) return { radius: effectR, color: BUFF_RING };
+  return null;
+}
+
 function showRangeFor(def, pos, heroOrTower) {
-  const range = heroOrTower?.getStats ? heroOrTower.getStats().range : def?.range;
-  if (!range) { rangeRing.visible = false; return; }
-  rangeRing.scale.setScalar(range);
+  const stats = heroOrTower?.getStats ? heroOrTower.getStats() : null;
+  const info = ringFor(def || heroOrTower?.def, stats);
+  if (!info) { rangeRing.visible = false; return; }
+  rangeRing.material.color.setHex(info.color);
+  rangeRing.scale.setScalar(info.radius);
   rangeRing.position.set(pos.x, pos.y + 0.25, pos.z);
   rangeRing.visible = true;
+}
+
+// faint threads from a selected buff/aura tower to the towers it is currently boosting
+function showAuraLinks(tower, color) {
+  auraLines.visible = false;
+  if (!tower?.alive || !game) return;
+  const def = tower.def;
+  const stats = tower.getStats ? tower.getStats() : null;
+  const aura = stats?.aura ?? def.aura;
+  const repair = stats?.repair ?? def.repair;
+  let radius = 0;
+  if (aura) radius = Math.max(radius, (def.range || 11) * 1.1); // matches _recomputeAuras reach
+  if (repair) radius = Math.max(radius, repair.radius);
+  if (!radius) return; // not a tower-to-tower aura source
+  auraLines.material.color.setHex(color);
+  const sx = tower.pos.x, sy = tower.pos.y + 1.3, sz = tower.pos.z;
+  let n = 0;
+  for (const o of game.towers) {
+    if (o === tower || !o.alive) continue;
+    if (o.pos.distanceTo(tower.pos) > radius) continue;
+    if (n >= AURA_LINE_MAX) break;
+    const i = n * 6;
+    auraLinePos[i] = sx; auraLinePos[i + 1] = sy; auraLinePos[i + 2] = sz;
+    auraLinePos[i + 3] = o.pos.x; auraLinePos[i + 4] = o.pos.y + 1.3; auraLinePos[i + 5] = o.pos.z;
+    n++;
+  }
+  if (!n) return;
+  auraLineGeom.setDrawRange(0, n * 2);
+  auraLineGeom.attributes.position.needsUpdate = true;
+  auraLines.visible = true;
+}
+
+// full visual selection set: range ring + footprint highlight + aura links
+function showSelection(tower) {
+  showRangeFor(null, tower.pos, tower);
+  selRing.scale.setScalar((tower.model?.radius || 1.1) * 1.35);
+  selRing.position.set(tower.pos.x, tower.pos.y + 0.12, tower.pos.z);
+  selRing.visible = true;
+  const info = ringFor(tower.def, tower.getStats ? tower.getStats() : null);
+  showAuraLinks(tower, info ? info.color : 0xffc23a);
+}
+
+function hideSelection() {
+  rangeRing.visible = false;
+  selRing.visible = false;
+  auraLines.visible = false;
 }
 
 // pointer interactions
@@ -119,7 +226,7 @@ canvas.addEventListener('pointermove', (e) => {
       padRing.position.set(pad.pos.x, pad.pos.y + 0.35, pad.pos.z);
       padRing.visible = true;
       showRangeFor(hud.mode.def, pad.pos);
-    } else { padRing.visible = false; if (!hud.selectedEntity) rangeRing.visible = false; }
+    } else { padRing.visible = false; if (!hud.selectedEntity) hideSelection(); }
   }
 });
 canvas.addEventListener('pointerup', (e) => {
@@ -136,14 +243,14 @@ canvas.addEventListener('pointerup', (e) => {
       if (pad.tower) { hud.toast(t('hud.padOccupied')); return; }
       const tower = game.buildTower(mode.def.id, pad);
       if (tower) {
-        if (!e.shiftKey) { hud.setMode({ kind: 'none' }); padRing.visible = false; rangeRing.visible = false; }
+        if (!e.shiftKey) { hud.setMode({ kind: 'none' }); padRing.visible = false; hideSelection(); }
         return;
       }
       return;
     }
     // clicked elsewhere: exit build mode
     hud.setMode({ kind: 'none' });
-    padRing.visible = false; rangeRing.visible = false;
+    padRing.visible = false; hideSelection();
     return;
   }
   if (mode.kind === 'assign') {
@@ -172,17 +279,18 @@ canvas.addEventListener('pointerup', (e) => {
   if (picked?.kind === 'tower') {
     clearInspectPause();
     hud.showTower(picked.entity);
-    showRangeFor(null, picked.entity.pos, picked.entity);
+    showSelection(picked.entity);
     rts.followEntity(null);
   } else if (picked?.kind === 'enemy') {
     // tactical inspection: pause the battle, focus the enemy, open its story card
     if (!paused) { inspectPaused = true; setPaused(true); }
+    hideSelection();
     hud.showEnemy(picked.entity);
     rts.followEntity(picked.entity);
   } else {
     clearInspectPause();
     hud.closePanel();
-    rangeRing.visible = false;
+    hideSelection();
     rts.follow = null;
   }
 });
@@ -190,7 +298,7 @@ canvas.addEventListener('pointerup', (e) => {
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
   if (e.code === 'Space' && game) { e.preventDefault(); togglePause(); }
-  if (e.code === 'Escape' && hud) { hud.setMode({ kind: 'none' }); hud.closePanel(); padRing.visible = false; rangeRing.visible = false; }
+  if (e.code === 'Escape' && hud) { hud.setMode({ kind: 'none' }); hud.closePanel(); padRing.visible = false; hideSelection(); }
   if (e.code === 'KeyR' && !e.ctrlKey) rts.reset();
   // G = toggle sandbox/test mode (unlimited gold, no life loss, all heroes)
   if (e.code === 'KeyG' && game && hud) {
@@ -240,7 +348,7 @@ function startBattle(mapDef, endless, sandbox = false) {
     },
     onCodex: () => codex.show(),
     onSettings: () => settingsUI.show(),
-    onSelectionCleared: () => { rangeRing.visible = false; clearInspectPause(); },
+    onSelectionCleared: () => { hideSelection(); clearInspectPause(); },
   });
   paused = false;
   currentSpeed = 1;
@@ -281,7 +389,7 @@ function cleanupBattle() {
   if (hud) { hud.destroy(); hud = null; }
   if (game) { game.dispose(); game = null; }
   padRing.visible = false;
-  rangeRing.visible = false;
+  hideSelection();
   engine.speed = 1;
   paused = false;
 }
@@ -296,7 +404,45 @@ $('#loading').classList.add('hidden');
 menus.showMain();
 
 // debug/QA handle (harmless in production; used by automated browser tests)
-window.__dbg = { engine, get game() { return game; }, get hud() { return hud; }, startMap: startBattle };
+import { buildWeaponTestModel, buildEnemyModel, heroModel } from './models/creature.js';
+const __clearTest = () => {
+  for (let i = engine.scene.children.length - 1; i >= 0; i--)
+    if (engine.scene.children[i].userData.__wt) engine.scene.children[i].removeFromParent();
+};
+window.__dbg = {
+  engine, get game() { return game; }, get hud() { return hud; }, startMap: startBattle,
+  // weapon hand-angle calibration: spawn a rigged soldier holding any kind at world origin
+  weaponTest: (weapon, asset = 'a_soldier_heavy') => {
+    __clearTest();
+    const m = buildWeaponTestModel(weapon, asset, 1.8);
+    if (!m) return { fallback: true, note: 'GLB not loaded → would use procedural makeWeapon' };
+    m.group.userData.__wt = true;
+    engine.scene.add(m.group);
+    window.__wt = m; // ref for posing (m.anim.mixer.update) + inspection
+    return { ok: true, weapon, asset };
+  },
+  // enemy/boss model preview: build a buildEnemyModel branch + play a clip
+  enemyTest: (modelKey, clip = 'idle') => {
+    __clearTest();
+    const m = buildEnemyModel(modelKey);
+    if (!m) return { fallback: true };
+    m.group.userData.__wt = true;
+    engine.scene.add(m.group);
+    window.__wt = m;
+    if (m.anim?.play) m.anim.play(clip);
+    return { ok: true, modelKey, animType: m.animType, headH: m.headH, glb: m.animType === 'gltf' };
+  },
+  // hero figure preview: build a hero commander model with its signature weapon
+  heroTest: (id, weapon) => {
+    __clearTest();
+    const m = heroModel({ id, weapon });
+    if (!m) return { fallback: true, note: 'Hero GLB not loaded' };
+    m.group.userData.__wt = true;
+    engine.scene.add(m.group);
+    window.__wt = m;
+    return { ok: true, id, hasAnim: !!m.anim, clips: m.anim?.actions ? Object.keys(m.anim.actions) : null };
+  },
+};
 
 // first user gesture unlocks audio (browser policy)
 window.addEventListener('pointerdown', function unlockOnce() {

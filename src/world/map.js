@@ -339,6 +339,20 @@ function buildCurtainWall(map, rng) {
 
 // A walled caravanserai-style compound or two, off-road near the citadel — gives the
 // "defended town" density so the citadel never sits alone.
+// Place a whole Persian building (GLB, arbitrary native scale) at a target world width, sat on
+// the ground (lift by -baseY*unit), tint:null to keep its adobe/turquoise palette. Gated → never-break.
+function placeBuilding(map, name, x, z, ry, targetW) {
+  if (!propReady(name)) return false;
+  const base = propBase(name);
+  const unit = targetW / (base.baseW || 1);
+  const p = getProp(name, { unit, tint: null });
+  if (!p) return false;
+  p.position.set(x, map.heightAt(x, z) - (base.baseY || 0) * unit, z);
+  p.rotation.y = ry;
+  map.kitGroup.add(p);
+  return true;
+}
+
 function buildVillage(map, rng) {
   if (!propReady('wall')) return;
   const base = propBase('wall');
@@ -387,6 +401,28 @@ function buildVillage(map, rng) {
   for (const p of props) {
     const pr = getProp(p.piece);
     if (pr) { pr.position.set(p.x, p.y, p.z); pr.rotation.y = rng() * Math.PI * 2; map.kitGroup.add(pr); }
+  }
+
+  // ---- Persian adobe buildings (CC-BY GLBs) — fill the compounds + a town anchor; gated, falls back to bare walls ----
+  placed.forEach((c, ci) => {
+    const nH = 2 + (rng() < 0.5 ? 1 : 0); // 2-3 dwellings scattered inside each compound
+    for (let h = 0; h < nH; h++) {
+      const a = rng() * 6.28318, rr = 3.5 + rng() * 3.5;
+      const hx = c.x + Math.cos(a) * rr, hz = c.z + Math.sin(a) * rr;
+      if (map._isClear(hx, hz, 2.5)) placeBuilding(map, rng() < 0.55 ? 'MudbrickHouse' : 'BadgirHouse', hx, hz, rng() * 6.28318, 4.4 + rng() * 1.4);
+    }
+    if (ci === 0) { // the "defended town" anchor — just outside the compound, gate facing back in
+      for (const [ox, oz] of [[16, 0], [-16, 0], [0, 16], [0, -16]]) {
+        if (map._isClear(c.x + ox, c.z + oz, 8)) { placeBuilding(map, 'Caravanserai', c.x + ox, c.z + oz, Math.atan2(-ox, -oz), 12); break; }
+      }
+    }
+  });
+  // one chahar-taq fire-temple pavilion landmark per map (sparse)
+  if (placed.length) {
+    const c = placed[placed.length - 1];
+    for (const [ox, oz] of [[0, -19], [19, 0], [-19, 0], [0, 19]]) {
+      if (map._isClear(c.x + ox, c.z + oz, 6)) { placeBuilding(map, 'ChaharTaq', c.x + ox, c.z + oz, rng() * 6.28318, 7); break; }
+    }
   }
 
   // ---- Quaternius props: forge smith-quarter + caravanserai clutter + frozen villagers ----
@@ -611,7 +647,12 @@ function dressMarket(map, rng) {
     if (rng() < 0.3) coins.push(near(1.2));
     if (rng() < 0.22) chests.push(near(1.6));
   });
-  instanceThings(map, 'Stall_Empty', stalls);
+  // Persian bazaar stalls upgrade the Quaternius Stall_Empty (gated → falls back if not loaded)
+  if (propReady('MarketStall')) {
+    for (const [sx, sy, sz, sry] of stalls) placeBuilding(map, 'MarketStall', sx, sz, sry, 3.0);
+  } else {
+    instanceThings(map, 'Stall_Empty', stalls);
+  }
   instanceThings(map, 'Stall_Cart_Empty', carts);
   instanceThings(map, 'Barrel', barrels);
   instanceThings(map, 'Crate_Wooden', crates);
