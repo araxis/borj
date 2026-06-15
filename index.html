@@ -4,14 +4,31 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Borj — Shahnameh Tower Defense</title>
+  <link rel="preload" as="image" href="assets/ui/splash-bg.webp" fetchpriority="high" />
   <link rel="stylesheet" href="./src/ui/style.css" />
+  <style>.splash-bg{background-image:linear-gradient(rgba(10,7,3,0.5),rgba(10,7,3,0.78)),url('assets/ui/splash-bg.webp');opacity:1}</style>
 </head>
 <body>
   <canvas id="scene"></canvas>
   <div id="ui"></div>
   <div id="loading">
-    <div class="spin"></div>
-    <div>Preparing the defense…</div>
+    <div class="splash-bg" aria-hidden="true"></div>
+    <div class="splash">
+      <div class="splash-sun">
+        <div class="splash-rays"></div>
+        <div class="splash-orb"></div>
+      </div>
+      <div class="splash-title">
+        <span class="splash-fa">برج</span>
+        <span class="splash-en">Shahnameh Tower Defense</span>
+      </div>
+      <div class="splash-bar"><i></i></div>
+      <div class="splash-tip">Preparing the defense…</div>
+    </div>
+    <div class="splash-embers" aria-hidden="true">
+      <span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
   </div>
   <script type="module" src="./src/main.js"></script>
 </body>
