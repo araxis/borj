@@ -445,7 +445,7 @@ body.rtl .rp-section h4 { letter-spacing: 0; }
 .backdock { position: sticky; top: 0; height: 0; z-index: 6; pointer-events: none; }
 .iconback {
   pointer-events: auto;
-  position: absolute; top: 4px; inset-inline-start: 0; padding: 0;
+  position: absolute; top: 4px; left: 0; padding: 0;
   width: 42px; height: 42px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
   background: radial-gradient(120% 120% at 50% 22%, #41300f, #251a0d);
@@ -453,10 +453,9 @@ body.rtl .rp-section h4 { letter-spacing: 0; }
   box-shadow: 0 2px 9px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(244,205,110,0.22), inset 0 1px 0 rgba(255,236,190,0.28);
   transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease, background 0.16s ease;
 }
-.iconback svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; margin-inline-end: 2px; }
+.iconback svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; margin-right: 2px; }
 .iconback:hover { border-color: var(--gold); transform: translateY(-1px); background: radial-gradient(120% 120% at 50% 22%, #503b14, #2c2010); box-shadow: 0 3px 13px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(244,205,110,0.42), 0 0 15px rgba(216,169,62,0.4); }
 .iconback:active { transform: translateY(0); }
-body.rtl .iconback svg { transform: scaleX(-1); margin-inline-end: 0; margin-inline-start: 2px; }
 
 .intro-flourish { width: 210px; height: 14px; margin: 6px auto 16px; position: relative; }
 .intro-flourish::before { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--bronze) 28%, var(--bronze) 72%, transparent); opacity: 0.7; }
