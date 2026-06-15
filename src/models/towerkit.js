@@ -668,6 +668,8 @@ const RECIPES = {
 const GLB_FX = {
   fireAltar: { flame: 1.35, fy: 0.86 },       // flame in the empty brazier dish
   jamshidCourt: { flame: 1.15, fy: 0.88 },
+  trialGate: { flame: 1.2, fy: 0.9 },         // Siyavash fire-ordeal gate (pylon flame)
+  rebellionForge: { flame: 1.3, fy: 0.6 },    // Kaveh's forge furnace
   standardHall: { bannerBig: true },          // the Derafsh on the bare pole
   derafshHall: { bannerBig: true },
   radianceCourt: { torches: 4 },              // corner sconces
