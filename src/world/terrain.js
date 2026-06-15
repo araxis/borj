@@ -65,7 +65,7 @@ export function makeHeightField(seedNum, biome) {
     let h = (n - 0.45) * 2 * amp;
     // raise outer rim into hills/mountains for a natural arena
     const edge = Math.max(Math.abs(x), Math.abs(z)) / (WORLD_SIZE / 2);
-    if (edge > 0.72) h += (edge - 0.72) * (edge - 0.72) * 90 * (0.5 + amp * 0.18);
+    if (edge > 0.72) h += (edge - 0.72) * (edge - 0.72) * 6 * (0.5 + amp * 0.18); // barely-there edge, no rim-ridge border
     return h;
   };
 }
@@ -98,7 +98,16 @@ export function buildTerrain(heightAt, biome, flattenFn) {
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true, roughness: 0.95, metalness: 0,
     map: detailTexture(), // high-frequency soil detail multiplied under the vertex colors
+    transparent: true,    // outer edge alpha-fades so the board dissolves into the surrounding apron (no hard border)
   });
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vTed;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vTed = max(abs(position.x), abs(position.z));');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vTed;')
+      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n  gl_FragColor.a *= 1.0 - smoothstep(60.0, 73.0, vTed);');
+  };
   // progressive upgrade: real CC0 ground photo-texture replaces the canvas detail. The two
   // photos are the SAME for every map, so load them ONCE and reuse (was re-loaded per map →
   // a 2-texture/map GPU leak). vertexColors carry the base color until they finish loading.

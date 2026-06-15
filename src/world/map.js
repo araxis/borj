@@ -152,7 +152,7 @@ export class GameMap {
     }
 
     // distant mountain ranges ringing the land
-    buildWorldApron(this.group, this.biome); // surrounding landscape so the board isn't a floating slab
+    buildWorldApron(this.group, this.biome, (x, z) => this.heightAt(x, z)); // surrounding landscape, mirrors the board surface
     buildBackdrop(this.group, this.biome, mapDef.id); // per-stage distant scenery panorama on the horizon
 
     // spawn gates at each path start
