@@ -205,15 +205,25 @@ export function buildWorldApron(group, biome) {
     if (edge < BOARD) h = -10;                                  // tucked far under the board, hidden
     else {
       const lip = 6 * Math.max(0, 1 - t * 8);                  // rise to meet the board rim, then settle flat
-      h = lip + (noise + 0.2) * 2.0;                           // gentle FLAT ground — no rolling hills
+      h = lip + (noise + 0.2) * 2.0;                           // gentle FLAT ground — no hills
     }
     pos.setY(i, h);
-    c.copy(ground).lerp(near, Math.min(1, t * 2.4)).lerp(far, Math.max(0, t - 0.5) * 1.2).lerp(fog, Math.min(0.82, t * 0.95));
+    c.copy(ground).lerp(near, Math.min(1, t * 2.4)).lerp(far, Math.max(0, t - 0.5) * 1.2).lerp(fog, Math.min(1, t * 1.15));
     colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
-  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 }));
+  // fade the far edge to transparent so the flat ground dissolves into the backdrop/sky — no hard seam, no mesa
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, transparent: true, depthWrite: false });
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying float vApr;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vApr = max(abs(position.x), abs(position.z));');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying float vApr;')
+      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n  gl_FragColor.a *= 1.0 - smoothstep(150.0, 285.0, vApr);');
+  };
+  const mesh = new THREE.Mesh(geo, mat);
   mesh.position.y = -1;
   mesh.renderOrder = -4;
   group.add(mesh);
