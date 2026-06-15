@@ -187,6 +187,7 @@ export function buildDistantPeaks(group, biome, rng) {
 // it melts seamlessly into the skydome. One static mesh per map, biome-coloured.
 export function buildWorldApron(group, biome) {
   const fog = new THREE.Color(biome.mood?.fogColor ?? 0xb3c4d8);
+  const ground = new THREE.Color(biome.ground?.[1] ?? biome.ground?.[0] ?? 0x6f8050).lerp(fog, 0.12);
   const near = new THREE.Color(biome.rock ?? 0x6e7480).lerp(fog, 0.32);
   const far = new THREE.Color(biome.high ?? 0x9aa3ad).lerp(fog, 0.5);
   const SIZE = 680, BOARD = 75, FARV = 300, hills = biome.hills ?? 3;
@@ -203,9 +204,12 @@ export function buildWorldApron(group, biome) {
     const noise = Math.sin(x * 0.07 + z * 0.041) + Math.sin(x * 0.026 - z * 0.083) * 0.7 + Math.cos(x * 0.12 + z * 0.017) * 0.5;
     let h;
     if (edge < BOARD) h = -10;                                  // tucked far under the board, hidden
-    else { h = ridge * (24 + (noise + 1.6) * 9) * (0.7 + hills * 0.1); if (t < 0.08) h *= t / 0.08; }
+    else {
+      const lip = 7 * Math.max(0, 1 - t * 6);                  // rise to meet the board rim — no slab-edge drop
+      h = lip + ridge * (24 + (noise + 1.6) * 9) * (0.7 + hills * 0.1);
+    }
     pos.setY(i, h);
-    c.copy(near).lerp(far, Math.min(1, t * 1.4)).lerp(fog, Math.min(0.82, t * 0.95));
+    c.copy(ground).lerp(near, Math.min(1, t * 2.4)).lerp(far, Math.max(0, t - 0.5) * 1.2).lerp(fog, Math.min(0.82, t * 0.95));
     colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
