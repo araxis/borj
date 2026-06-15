@@ -10,5 +10,10 @@ export default defineConfig({
   },
   server: {
     port: 5180,
+    // ignore Chrome download temp files + raw (pre-optimize) Meshy drops so the watcher never
+    // chokes on a locked .crdownload (EBUSY) or churns over the huge raw GLBs.
+    watch: {
+      ignored: ['**/*.crdownload', '**/assets/palaces/Meshy_AI_*'],
+    },
   },
 });

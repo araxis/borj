@@ -13,8 +13,12 @@ import { HEROES, HERO_RANKS } from '../data/heroes.js';
 import { findFusion } from '../data/fusions.js';
 import { animateBanner } from '../models/towerkit.js';
 import { animIdle } from '../models/humanoid.js';
-import { CitadelGuard } from '../world/citadels.js';
+import { CitadelGuard, buildLandCitadel } from '../world/citadels.js';
 import { Ambient } from '../world/ambient.js';
+import { Squad } from '../entities/soldier.js';
+import { SOLDIERS_BY_ID } from '../data/soldiers.js';
+import { palaceDef } from '../data/palaces.js';
+import { hasPalace, loadPalace } from '../core/assets.js';
 import { makeRng } from '../world/noise.js';
 import { audio } from '../core/audio.js';
 import { loadProfile, markMapCompleted, unlockHero, recordEndless, getHeroRank, setHeroRank } from '../core/save.js';
@@ -35,6 +39,9 @@ export class Game {
     this.debris = new DebrisSystem(this.scene, (x, z) => this.map.heightAt(x, z));
     this.ambient = new Ambient(this.scene, this.map, makeRng('amb:' + mapDef.id));
     this.citadelGuard = new CitadelGuard(this, this.map.citadel);
+    // palaces lazy-load per map; if the GLB wasn't ready at map-build the procedural citadel showed —
+    // load it and swap it in (rebinding the guard) when it arrives.
+    if (hasPalace(mapDef.id) && !this.map.citadel.isPalace) loadPalace(mapDef.id, () => this._swapToPalace());
     this.debris.onBounce = (pos) => this.particles.burst(pos, 3, { speed: 1, life: 0.4, size: 0.35, color: [0.5, 0.45, 0.38], grav: 3 });
 
     // difficulty: 'normal' is ×1 everywhere (tuned baseline); easy/hard scale gold, lives, enemy HP.
@@ -46,6 +53,7 @@ export class Game {
     this.waveActive = false;
     this.phase = 'build'; // build | combat | won | lost
     this.towers = [];
+    this.palaceSquads = []; // squads summoned by the palace's Muster action
     this.enemies = [];
     this.projectiles = [];
     this.spawnQueue = [];
@@ -137,6 +145,87 @@ export class Game {
     if (tower.hero) this.assignedHeroes.delete(tower.hero.id);
     tower.unassignHero();
     this.emit('towersChanged');
+  }
+
+  // ---------- palace command actions ----------
+  // a defensive point just in front of the palace, toward the incoming lanes
+  _palaceFront(cit) {
+    const p = cit.group.position;
+    const dir = new THREE.Vector3(-p.x, 0, -p.z);
+    if (dir.lengthSq() > 0.01) dir.normalize(); else dir.set(0, 0, -1);
+    const rad = (cit.footprint || 15) + 3;
+    const x = p.x + dir.x * rad, z = p.z + dir.z * rad;
+    return new THREE.Vector3(x, this.map.heightAt(x, z), z);
+  }
+
+  // Rally to the Keep: pull every tower's garrison to defend in front of the palace.
+  palaceRally(cit) {
+    const pt = this._palaceFront(cit);
+    let n = 0;
+    for (const tw of this.towers) {
+      if (!tw.alive) continue;
+      for (const sq of tw.squads) { sq.setRally(pt.clone()); n++; }
+    }
+    if (!n) this.emit('toast', 'palace.noGarrison');
+    return n;
+  }
+
+  // Muster: summon a defensive squad at the palace (gold + cooldown), capped at 2 standing squads.
+  palaceMuster(cit) {
+    const cfg = palaceDef(cit.placeId).muster;
+    if ((cit.musterCd || 0) > 0) return false;
+    if (!this.canAfford(cfg.cost)) { this.emit('toast', 'hud.notEnoughGold'); return false; }
+    const sDef = SOLDIERS_BY_ID[cfg.unit];
+    if (!sDef) return false;
+    this.gold -= cfg.cost;
+    cit.musterCd = cfg.cd;
+    const owner = { pos: cit.group.position.clone(), alive: true };
+    const sq = new Squad(this, owner, sDef, cfg.count);
+    sq.setRally(this._palaceFront(cit));
+    this.palaceSquads.push(sq);
+    while (this.palaceSquads.length > 2) {
+      const old = this.palaceSquads.shift();
+      for (const m of old.members) m.destroy();
+    }
+    this.emit('goldChanged', this.gold);
+    return true;
+  }
+
+  // King's Boon: a stage-themed ability. Alborz/Simurgh → restore HP to towers + soldiers.
+  palaceBoon(cit) {
+    const cfg = palaceDef(cit.placeId).boon;
+    if ((cit.boonCd || 0) > 0) return false;
+    if (!this.canAfford(cfg.cost)) { this.emit('toast', 'hud.notEnoughGold'); return false; }
+    this.gold -= cfg.cost;
+    cit.boonCd = cfg.cd;
+    if (cfg.type === 'heal') {
+      const amt = cfg.amount || 0.45;
+      for (const tw of this.towers) if (tw.alive) tw.hp = Math.min(tw.maxHp, tw.hp + tw.maxHp * amt);
+      for (const sq of [...this.towers.flatMap((t) => t.squads), ...this.palaceSquads]) {
+        for (const m of sq.members) if (m.alive) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * amt);
+      }
+    }
+    const p = cit.group.position;
+    this.particles?.burst?.(p.clone().setY(p.y + (cit.height || 16) * 0.5), 32, { speed: 3, life: 1.2, size: 0.7, color: [1, 0.86, 0.46], grav: -1 });
+    this.audio?.victory?.();
+    this.emit('goldChanged', this.gold);
+    return true;
+  }
+
+  // swap the procedural citadel for the now-loaded palace GLB, preserving placement + guard wiring
+  _swapToPalace() {
+    const m = this.map;
+    if (!m || !m.citadel || m.citadel.isPalace) return;
+    const cit = buildLandCitadel(this.mapDef.id);
+    if (!cit.isPalace) return; // still not ready — keep the procedural citadel
+    m.group.remove(m.citadel.group);
+    cit.group.position.copy(m.exitPos);
+    const s = m.paths[0].samples;
+    const inDir = s[s.length - 8] || s[0];
+    cit.group.rotation.y = Math.atan2(inDir.pos.x - m.exitPos.x, inDir.pos.z - m.exitPos.z);
+    m.group.add(cit.group);
+    m.citadel = cit;
+    this.citadelGuard = new CitadelGuard(this, cit);
   }
 
   // ---------- hero upgrade tree (persistent across battles) ----------
@@ -541,6 +630,12 @@ export class Game {
       }
     }
     for (const t of this.towers) t.update(dt, time);
+    for (const sq of this.palaceSquads) sq.update(dt, time);
+    const _pal = this.map.citadel;
+    if (_pal && _pal.isPalace) {
+      if (_pal.musterCd > 0) _pal.musterCd -= dt;
+      if (_pal.boonCd > 0) _pal.boonCd -= dt;
+    }
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       this.projectiles[i].update(dt);
       if (!this.projectiles[i].alive) this.projectiles.splice(i, 1);

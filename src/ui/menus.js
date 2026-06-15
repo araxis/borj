@@ -7,6 +7,7 @@ import { PLACES_BY_ID, PLACE_ATLAS } from '../data/places.js';
 import { HEROES, HERO_ATLAS } from '../data/heroes.js';
 import { loadProfile } from '../core/save.js';
 import { audio } from '../core/audio.js';
+import { loadPalace } from '../core/assets.js';
 import { currentDifficulty, setDifficulty, DIFFICULTY_ORDER } from '../core/difficulty.js';
 
 export class Menus {
@@ -121,6 +122,7 @@ export class Menus {
   showMapIntro(mapDef, endless) {
     this.hideAll();
     this.mapIntro.classList.add('visible');
+    loadPalace(mapDef.id); // warm the giant palace GLB while the player reads the intro
     const place = PLACES_BY_ID[mapDef.id];
     applyAtlasCell($('#miImg'), PLACE_ATLAS, place.atlas);
     $('#miName').textContent = tName(place);
