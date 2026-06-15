@@ -18,3 +18,12 @@ export function el(tag, attrs = {}, ...children) {
 export const $ = (sel) => document.querySelector(sel);
 
 export function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); return node; }
+
+// Ornate corner "back" control shared by every overlay dialog. Wrapped in a sticky,
+// zero-height dock so it stays pinned to the dialog's top corner while the panel scrolls.
+const BACK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4.5 8 12l7 7.5"/></svg>';
+export function backMedallion(attrs = {}) {
+  return el('div', { class: 'backdock' },
+    el('button', { class: 'iconback', html: BACK_SVG, ...attrs }),
+  );
+}

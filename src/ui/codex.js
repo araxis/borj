@@ -1,6 +1,6 @@
 // Codex — browsable encyclopedia of heroes, adversaries, places, towers, soldiers.
 // Every entry shows ledger-exact name, story reference, and descriptions in EN/FA.
-import { el, $, clear } from './dom.js';
+import { el, $, clear, backMedallion } from './dom.js';
 import { t, tf, tName, tNameAlt, tOpt, toggleLang } from '../core/i18n.js';
 import { applyAtlasCell } from '../core/atlas.js';
 import { HEROES, HERO_ATLAS } from '../data/heroes.js';
@@ -17,13 +17,11 @@ export class Codex {
   constructor() {
     this.overlay = el('div', { class: 'overlay', id: 'codexOverlay' },
       el('div', { class: 'dialog frame', style: { width: 'min(960px, 92vw)' } },
+        backMedallion({ id: 'codexClose', 'aria-label': t('settings.back') }),
         el('h2', { class: 'ornament-title', id: 'codexTitle' }, t('codex.title')),
         el('div', { id: 'codexTabs' }),
         el('div', { id: 'codexGrid' }),
         el('div', { id: 'codexDetail' }),
-        el('div', { style: { textAlign: 'center', marginTop: '18px' } },
-          el('button', { class: 'gbtn', id: 'codexClose' }, t('settings.back')),
-        ),
       ),
     );
     document.body.append(this.overlay);

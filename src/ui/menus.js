@@ -1,5 +1,5 @@
 // Main menu, campaign selection, map intro, and victory/defeat screens.
-import { el, $, clear } from './dom.js';
+import { el, $, clear, backMedallion } from './dom.js';
 import { t, tf, tName, tNameAlt, tNum, tOpt, toggleLang, onLangChange } from '../core/i18n.js';
 import { applyAtlasCell } from '../core/atlas.js';
 import { MAPS } from '../data/campaign.js';
@@ -34,26 +34,25 @@ export class Menus {
     );
     this.campaignMenu = el('div', { class: 'overlay', id: 'campaignMenu' },
       el('div', { class: 'dialog frame' },
+        backMedallion({ id: 'cmBack', 'aria-label': t('settings.back') }),
         el('h2', { class: 'ornament-title', id: 'cmTitle' }, t('campaign.title')),
         el('p', { class: 'subtitle', id: 'cmHint' }, t('campaign.endlessHint')),
         el('div', { id: 'campaignGrid' }),
-        el('div', { style: { textAlign: 'center', marginTop: '16px' } },
-          el('button', { class: 'gbtn', id: 'cmBack' }, t('settings.back')),
-        ),
       ),
     );
     this.mapIntro = el('div', { class: 'overlay', id: 'mapIntro' },
-      el('div', { class: 'dialog frame', style: { textAlign: 'center', maxWidth: '640px' } },
+      el('div', { class: 'dialog frame mapintro', style: { textAlign: 'center', maxWidth: '640px' } },
+        backMedallion({ id: 'miBack', 'aria-label': t('settings.back') }),
         el('div', { class: 'rp-portrait', id: 'miImg', style: { maxWidth: '420px', margin: '0 auto' } }),
         el('div', { class: 'rp-name', id: 'miName' }),
         el('div', { class: 'rp-faname', id: 'miFa' }),
         el('p', { class: 'storyref', id: 'miRef', style: { color: '#a8c4c0', fontStyle: 'italic', margin: '6px 0' } }),
         el('div', { class: 'introtext', id: 'miText' }),
         el('div', { class: 'introtext', id: 'miText2', style: { fontSize: '0.9rem', color: '#bfae88', fontStyle: 'italic' } }),
-        el('div', { class: 'diffrow', id: 'miDiff' }),
-        el('div', { class: 'end-actions' },
-          el('button', { class: 'gbtn primary', id: 'miStart' }, t('campaign.start')),
-          el('button', { class: 'gbtn', id: 'miBack' }, t('settings.back')),
+        el('div', { class: 'intro-flourish', 'aria-hidden': 'true' }),
+        el('div', { class: 'diffpick', id: 'miDiff' }),
+        el('div', { class: 'intro-launch' },
+          el('button', { class: 'gbtn primary launch', id: 'miStart' }, t('campaign.start')),
         ),
       ),
     );
@@ -142,13 +141,15 @@ export class Menus {
     const box = $('#miDiff');
     if (!box) return;
     clear(box);
-    box.append(el('span', { class: 'difflabel' }, t('difficulty.label')));
+    box.append(el('div', { class: 'diff-cap' }, t('difficulty.label')));
+    const seg = el('div', { class: 'diff-seg' });
     const cur = currentDifficulty();
     for (const d of DIFFICULTY_ORDER) {
-      const b = el('button', { class: 'gbtn small' + (d === cur ? ' active' : '') }, t('difficulty.' + d));
+      const b = el('button', { class: 'diff-opt' + (d === cur ? ' active' : '') }, t('difficulty.' + d));
       b.onclick = () => { audio.ui(); setDifficulty(d); this._renderDiff(); };
-      box.append(b);
+      seg.append(b);
     }
+    box.append(seg);
   }
 
   showEnd({ victory, unlockedHeroes = [], wave, endless, mapDef, onRetry, onContinueEndless, onExit }) {

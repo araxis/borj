@@ -1,5 +1,5 @@
 // Settings overlay — audio, graphics, accessibility, language, save reset.
-import { el, $, clear } from './dom.js';
+import { el, $, clear, backMedallion } from './dom.js';
 import { t, getLang, setLang } from '../core/i18n.js';
 import { settings } from '../core/settings.js';
 import { resetProfile } from '../core/save.js';
@@ -9,11 +9,9 @@ export class SettingsUI {
   constructor() {
     this.overlay = el('div', { class: 'overlay', id: 'settingsOverlay' },
       el('div', { class: 'dialog frame', style: { width: 'min(520px, 92vw)' } },
+        backMedallion({ id: 'setClose', 'aria-label': t('settings.back') }),
         el('h2', { class: 'ornament-title', id: 'setTitle' }, t('settings.title')),
         el('div', { id: 'setBody' }),
-        el('div', { style: { textAlign: 'center', marginTop: '18px' } },
-          el('button', { class: 'gbtn', id: 'setClose' }, t('settings.back')),
-        ),
       ),
     );
     document.body.append(this.overlay);
@@ -38,7 +36,6 @@ export class SettingsUI {
 
   _render() {
     $('#setTitle').textContent = t('settings.title');
-    $('#setClose').textContent = t('settings.back');
     const b = clear($('#setBody'));
 
     const qualSel = el('select', {},

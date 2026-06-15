@@ -400,8 +400,12 @@ onLangChange(() => { /* HUD and menus re-render via their own subscriptions */ }
 preloadAssets(); // GLTF characters/animals load in the background; procedural fallback until ready
 loadAllProps(); // static building kit (curtain walls, village, docks…) warm before first map build
 import('./models/materials.js').then((m) => m.enhanceMaterials());
-$('#loading').classList.add('hidden');
-menus.showMain();
+menus.showMain(); // ready behind the splash
+// the hero backdrop is painted at parse-time via the inline <style> in index.html + the
+// preload link, so it appears with the splash instead of after the JS bundle loads.
+// hold the splash for the intro animation, then fade to the menu (skip on reduced-motion)
+const _splashHold = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 400 : 2400;
+setTimeout(() => $('#loading').classList.add('hidden'), _splashHold);
 
 // debug/QA handle (harmless in production; used by automated browser tests)
 import { buildWeaponTestModel, buildEnemyModel, heroModel } from './models/creature.js';
