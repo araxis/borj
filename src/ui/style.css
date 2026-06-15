@@ -362,7 +362,10 @@ body.rtl .rp-section h4 { letter-spacing: 0; }
 .overlay {
   position: absolute; inset: 0; display: none;
   align-items: center; justify-content: center;
-  background: radial-gradient(ellipse at center, rgba(20, 15, 8, 0.82), rgba(8, 6, 3, 0.95));
+  /* the hero vista + readability scrim are layered on via the document-relative inline <style>
+     in index.html (so the url resolves both in dev and on Pages); this solid tone is the fallback. */
+  background-color: #0b0805;
+  background-size: cover; background-position: center;
   z-index: 30;
 }
 .overlay.visible { display: flex; }
@@ -385,8 +388,9 @@ body.rtl .rp-section h4 { letter-spacing: 0; }
 .title-rule::before { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
 .title-rule::after { content: '✦'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -52%); color: var(--gold); background: transparent; font-size: 0.9rem; }
 
-/* campaign map grid */
-#campaignGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+/* campaign map grid — wide panel so the 20 maps lay out in a roomy multi-column grid */
+#campaignMenu .dialog { width: min(1120px, 94vw); max-width: 94vw; }
+#campaignGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
 .mapcard {
   border: 1px solid #5e4720; border-radius: 9px; overflow: hidden; cursor: pointer;
   background: var(--card-bg); transition: transform 0.15s, border-color 0.15s; position: relative;
@@ -405,7 +409,7 @@ body.rtl .rp-section h4 { letter-spacing: 0; }
 #codexGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
 .codexcard { border: 1px solid #5e4720; border-radius: 8px; overflow: hidden; cursor: pointer; background: var(--card-bg); transition: transform 0.13s, border-color 0.13s; }
 .codexcard:hover { transform: translateY(-2px); border-color: var(--gold); }
-.codexcard .cimg { width: 100%; aspect-ratio: 0.95; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
+.codexcard .cimg { position: relative; overflow: hidden; width: 100%; aspect-ratio: 0.95; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
 .codexcard .cname { padding: 5px 6px; font-size: 0.75rem; color: var(--gold-bright); text-align: center; line-height: 1.2; }
 #codexDetail { display: none; }
 #codexDetail.visible { display: block; }
