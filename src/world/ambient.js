@@ -181,6 +181,41 @@ export function buildDistantPeaks(group, biome, rng) {
   }
 }
 
+// A vast surrounding landscape so the playable board never reads as a slab floating in the sky:
+// a square ground apron that sinks out of sight UNDER the board, then beyond the board edge rises
+// into distant hills/mountains and recedes toward the fog horizon, hazed toward the fog colour so
+// it melts seamlessly into the skydome. One static mesh per map, biome-coloured.
+export function buildWorldApron(group, biome) {
+  const fog = new THREE.Color(biome.mood?.fogColor ?? 0xb3c4d8);
+  const near = new THREE.Color(biome.rock ?? 0x6e7480).lerp(fog, 0.32);
+  const far = new THREE.Color(biome.high ?? 0x9aa3ad).lerp(fog, 0.5);
+  const SIZE = 680, BOARD = 75, FARV = 300, hills = biome.hills ?? 3;
+  const geo = new THREE.PlaneGeometry(SIZE, SIZE, 100, 100);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    const edge = Math.max(Math.abs(x), Math.abs(z));            // square distance, matches the board
+    const t = Math.max(0, Math.min(1, (edge - BOARD) / (FARV - BOARD))); // 0 at board edge → 1 at horizon
+    const ridge = Math.sin(Math.min(1, t * 1.3) * Math.PI);    // rise into mountains, then recede
+    const noise = Math.sin(x * 0.07 + z * 0.041) + Math.sin(x * 0.026 - z * 0.083) * 0.7 + Math.cos(x * 0.12 + z * 0.017) * 0.5;
+    let h;
+    if (edge < BOARD) h = -10;                                  // tucked far under the board, hidden
+    else { h = ridge * (24 + (noise + 1.6) * 9) * (0.7 + hills * 0.1); if (t < 0.08) h *= t / 0.08; }
+    pos.setY(i, h);
+    c.copy(near).lerp(far, Math.min(1, t * 1.4)).lerp(fog, Math.min(0.82, t * 0.95));
+    colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 }));
+  mesh.position.y = -1;
+  mesh.renderOrder = -4;
+  group.add(mesh);
+}
+
 // ---------- ambient life system ----------
 // ---- villager accessories: Persian commoner head coverings + carried market goods ----
 const SCARF_COL = [0x9a3b3b, 0x39568a, 0x6a4a7a, 0x7a6a2a, 0x8a4a2a];

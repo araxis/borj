@@ -7,7 +7,7 @@ import { BIOMES, makeHeightField, buildTerrain, WORLD_SIZE } from './terrain.js'
 import { samplePath, buildRoadMesh, ROAD_WIDTH } from './road.js';
 import { scatterProps, buildSpawnGate, buildPad, makeBanner } from './props.js';
 import { buildLandCitadel, citadelFootprint } from './citadels.js';
-import { planRiver, buildRiverMesh, buildBridge, buildDistantPeaks, RIVER_WIDTH } from './ambient.js';
+import { planRiver, buildRiverMesh, buildBridge, buildWorldApron, RIVER_WIDTH } from './ambient.js';
 import { getProp, instanceProp, propReady, propBase, propRotFix, placeM4, KIT_UNIT, KIT_TINT, THINGS_UNIT, REALISTIC_UNIT } from '../core/props3d.js';
 import { makeFlame } from '../models/towerkit.js';
 import { makeRng } from './noise.js';
@@ -151,7 +151,7 @@ export class GameMap {
     }
 
     // distant mountain ranges ringing the land
-    buildDistantPeaks(this.group, this.biome, rng);
+    buildWorldApron(this.group, this.biome); // surrounding landscape so the board isn't a floating slab
 
     // spawn gates at each path start
     this.gates = this.paths.map((p) => {

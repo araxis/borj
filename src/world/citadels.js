@@ -493,8 +493,8 @@ export function citadelStyleFor(placeId) { return STYLE_BY_PLACE[placeId] || 'ro
 
 // places with a giant custom palace GLB (a_palace_<id>); gated — the procedural citadel below stays
 // the never-break fallback until the model loads. Palaces clear a larger, flatter base.
-const PALACE_RADIUS = 15; // palace horizontal half-extent (world units)
-const PALACE_CLEAR = 18;  // terrain-flatten radius around the palace
+const PALACE_RADIUS = 19; // palace horizontal half-extent (world units) — a dominating central landmark
+const PALACE_CLEAR = 23;  // terrain-flatten radius around the palace
 
 
 export function citadelFootprint(placeId) {
