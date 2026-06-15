@@ -190,7 +190,7 @@ export function buildWorldApron(group, biome) {
   const ground = new THREE.Color(biome.ground?.[1] ?? biome.ground?.[0] ?? 0x6f8050).lerp(fog, 0.12);
   const near = new THREE.Color(biome.rock ?? 0x6e7480).lerp(fog, 0.32);
   const far = new THREE.Color(biome.high ?? 0x9aa3ad).lerp(fog, 0.5);
-  const SIZE = 680, BOARD = 75, FARV = 300, hills = biome.hills ?? 3;
+  const SIZE = 680, BOARD = 75, FARV = 300;
   const geo = new THREE.PlaneGeometry(SIZE, SIZE, 100, 100);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
@@ -200,13 +200,12 @@ export function buildWorldApron(group, biome) {
     const x = pos.getX(i), z = pos.getZ(i);
     const edge = Math.max(Math.abs(x), Math.abs(z));            // square distance, matches the board
     const t = Math.max(0, Math.min(1, (edge - BOARD) / (FARV - BOARD))); // 0 at board edge → 1 at horizon
-    const ridge = Math.sin(Math.min(1, t * 1.3) * Math.PI);    // rise into mountains, then recede
     const noise = Math.sin(x * 0.07 + z * 0.041) + Math.sin(x * 0.026 - z * 0.083) * 0.7 + Math.cos(x * 0.12 + z * 0.017) * 0.5;
     let h;
     if (edge < BOARD) h = -10;                                  // tucked far under the board, hidden
     else {
-      const lip = 7 * Math.max(0, 1 - t * 6);                  // rise to meet the board rim — no slab-edge drop
-      h = lip + ridge * (24 + (noise + 1.6) * 9) * (0.7 + hills * 0.1);
+      const lip = 6 * Math.max(0, 1 - t * 8);                  // rise to meet the board rim, then settle flat
+      h = lip + (noise + 0.2) * 2.0;                           // gentle FLAT ground — no rolling hills
     }
     pos.setY(i, h);
     c.copy(ground).lerp(near, Math.min(1, t * 2.4)).lerp(far, Math.max(0, t - 0.5) * 1.2).lerp(fog, Math.min(0.82, t * 0.95));
