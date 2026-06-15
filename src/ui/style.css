@@ -441,9 +441,11 @@ body.rtl .rp-section h4 { letter-spacing: 0; }
 /* map intro */
 #mapIntro .introtext { max-width: 560px; line-height: 1.65; font-size: 1.02rem; color: #e0d2ac; text-align: center; margin: 14px auto 18px; }
 
-/* map-intro: ornate corner back medallion, carved difficulty selector, launch CTA */
+/* shared corner back medallion (mapintro, campaign, codex, settings), carved difficulty selector, launch CTA */
+.backdock { position: sticky; top: 0; height: 0; z-index: 6; pointer-events: none; }
 .iconback {
-  position: absolute; top: 16px; inset-inline-start: 16px; z-index: 4; padding: 0;
+  pointer-events: auto;
+  position: absolute; top: 4px; inset-inline-start: 0; padding: 0;
   width: 42px; height: 42px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
   background: radial-gradient(120% 120% at 50% 22%, #41300f, #251a0d);

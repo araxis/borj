@@ -1,5 +1,5 @@
 // Main menu, campaign selection, map intro, and victory/defeat screens.
-import { el, $, clear } from './dom.js';
+import { el, $, clear, backMedallion } from './dom.js';
 import { t, tf, tName, tNameAlt, tNum, tOpt, toggleLang, onLangChange } from '../core/i18n.js';
 import { applyAtlasCell } from '../core/atlas.js';
 import { MAPS } from '../data/campaign.js';
@@ -34,18 +34,15 @@ export class Menus {
     );
     this.campaignMenu = el('div', { class: 'overlay', id: 'campaignMenu' },
       el('div', { class: 'dialog frame' },
+        backMedallion({ id: 'cmBack', 'aria-label': t('settings.back') }),
         el('h2', { class: 'ornament-title', id: 'cmTitle' }, t('campaign.title')),
         el('p', { class: 'subtitle', id: 'cmHint' }, t('campaign.endlessHint')),
         el('div', { id: 'campaignGrid' }),
-        el('div', { style: { textAlign: 'center', marginTop: '16px' } },
-          el('button', { class: 'gbtn', id: 'cmBack' }, t('settings.back')),
-        ),
       ),
     );
     this.mapIntro = el('div', { class: 'overlay', id: 'mapIntro' },
       el('div', { class: 'dialog frame mapintro', style: { textAlign: 'center', maxWidth: '640px' } },
-        el('button', { class: 'iconback', id: 'miBack', 'aria-label': t('settings.back'),
-          html: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4.5 8 12l7 7.5"/></svg>' }),
+        backMedallion({ id: 'miBack', 'aria-label': t('settings.back') }),
         el('div', { class: 'rp-portrait', id: 'miImg', style: { maxWidth: '420px', margin: '0 auto' } }),
         el('div', { class: 'rp-name', id: 'miName' }),
         el('div', { class: 'rp-faname', id: 'miFa' }),
