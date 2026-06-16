@@ -6,6 +6,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { settings } from './settings.js';
 
@@ -117,6 +118,12 @@ export class Engine {
     this.composer = new EffectComposer(this.renderer);
     this.renderPass = new RenderPass(this.scene, this.camera);
     this.composer.addPass(this.renderPass);
+    // ground-contact ambient occlusion — darkens the creases where towers/figures/props meet the
+    // terrain and each other, so nothing reads as floating. Expensive, so high-quality tier only.
+    this.gtao = new GTAOPass(this.scene, this.camera, window.innerWidth, window.innerHeight);
+    this.gtao.blendIntensity = 0.85;
+    this.gtao.updateGtaoMaterial({ radius: 2.0, distanceExponent: 1.0, thickness: 1.0, scale: 1.0, samples: 16, screenSpaceRadius: false });
+    this.composer.addPass(this.gtao);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.35, 0.6, 0.85);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
@@ -156,6 +163,7 @@ export class Engine {
     }
     this.bloom.enabled = settings.get('bloom') && q !== 'low';
     if (this.smaa) this.smaa.enabled = q !== 'low';   // skip AA pass on the low tier
+    if (this.gtao) this.gtao.enabled = q === 'high';  // contact AO is high-tier only (depth+normal prepass)
     this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
   }
 

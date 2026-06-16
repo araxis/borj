@@ -94,7 +94,12 @@ function rangeFor(biomeKey) {
   return null; // desert / steppe — no matching tile generated yet
 }
 
-const RING = { N: 12, tileW: 215, baseY: -9, peakBoost: 1.25 };
+// denser ring (20 narrower tiles) with per-tile jitter so the silhouette reads as a continuous,
+// irregular range of layered ridges rather than 12 identical stamps spaced evenly.
+const RING = { N: 20, tileW: 150, baseY: -9, peakBoost: 1.2 };
+
+// deterministic per-tile pseudo-random in [0,1) — stable across rebuilds (no Math.random pop)
+function ringRand(i, k) { const v = Math.sin((i + 1) * (12.9898 + k * 7.137)) * 43758.5453; return v - Math.floor(v); }
 
 function fillRing(ringGroup, biomeKey) {
   const cfg = rangeFor(biomeKey);
@@ -105,9 +110,13 @@ function fillRing(ringGroup, biomeKey) {
   for (let i = 0; i < RING.N; i++) {
     const tile = getProp(cfg.name, { unit: 1, tint: null });
     if (!tile) continue;
-    tile.scale.set(s, s * RING.peakBoost, s);
-    const ang = (i / RING.N) * Math.PI * 2;
-    tile.position.set(Math.cos(ang) * cfg.R, RING.baseY, Math.sin(ang) * cfg.R);
+    // jitter height, width, depth, spacing and base so no two tiles read alike → layered ridgeline
+    const hv = RING.peakBoost * (0.88 + ringRand(i, 1) * 0.6);
+    const wv = s * (0.82 + ringRand(i, 2) * 0.42);
+    tile.scale.set(wv, s * hv, wv);
+    const ang = (i / RING.N) * Math.PI * 2 + (ringRand(i, 3) - 0.5) * 0.13;
+    const R = cfg.R * (0.9 + ringRand(i, 4) * 0.22);
+    tile.position.set(Math.cos(ang) * R, RING.baseY + (ringRand(i, 5) - 0.5) * 4.5, Math.sin(ang) * R);
     tile.rotation.y = ang * 2.7 + i; // flat heightfield → any yaw reads; vary it so the tile never repeats identically
     tile.traverse((o) => {
       if (!o.isMesh) return;
