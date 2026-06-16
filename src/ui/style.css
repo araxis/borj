@@ -511,6 +511,32 @@ body.rtl .diff-cap { letter-spacing: 0.12em; }
 body.rtl .diff-opt { letter-spacing: 0; }
 
 .intro-launch { display: flex; justify-content: center; }
+
+/* ---- map-intro: the stage reveals line by line (portrait → name → lore → launch) ---- */
+#mapIntro.visible .mapintro > * { animation: introReveal 0.5s cubic-bezier(.2,.8,.25,1) both; }
+@keyframes introReveal { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+#mapIntro.visible .mapintro > *:nth-child(1) { animation-delay: .10s; }
+#mapIntro.visible .mapintro > *:nth-child(2) { animation-delay: .16s; }
+#mapIntro.visible .mapintro > *:nth-child(3) { animation-delay: .26s; }
+#mapIntro.visible .mapintro > *:nth-child(4) { animation-delay: .34s; }
+#mapIntro.visible .mapintro > *:nth-child(5) { animation-delay: .44s; }
+#mapIntro.visible .mapintro > *:nth-child(6) { animation-delay: .56s; }
+#mapIntro.visible .mapintro > *:nth-child(7) { animation-delay: .68s; }
+#mapIntro.visible .mapintro > *:nth-child(8) { animation-delay: .80s; }
+#mapIntro.visible .mapintro > *:nth-child(n+9) { animation-delay: .92s; }
+
+/* ---- end screen: the verdict lands cinematically — title strikes in, then sub, unlocks, actions ---- */
+#endScreen.visible .endtitle { animation: endTitleIn 0.6s cubic-bezier(.2,.9,.3,1.12) both; }
+#endScreen.visible .endtitle.win { animation: endTitleIn 0.6s cubic-bezier(.2,.9,.3,1.12) both, endWinGlow 2.6s ease-in-out 0.6s infinite; }
+@keyframes endTitleIn { from { opacity: 0; transform: scale(0.66); letter-spacing: 0.3em; } to { opacity: 1; transform: scale(1); letter-spacing: normal; } }
+@keyframes endWinGlow { 0%,100% { text-shadow: 0 0 24px rgba(216,169,62,0.45); } 50% { text-shadow: 0 0 40px rgba(244,205,110,0.85), 0 0 14px rgba(216,169,62,0.6); } }
+#endScreen.visible #endSub { animation: introReveal 0.5s ease 0.34s both; }
+#endScreen.visible .unlocks .ucard { animation: cardCascade 0.55s cubic-bezier(.2,.8,.25,1) both; }
+#endScreen.visible .unlocks .ucard:nth-child(1) { animation-delay: .50s; }
+#endScreen.visible .unlocks .ucard:nth-child(2) { animation-delay: .62s; }
+#endScreen.visible .unlocks .ucard:nth-child(3) { animation-delay: .74s; }
+#endScreen.visible .unlocks .ucard:nth-child(n+4) { animation-delay: .86s; }
+#endScreen.visible .end-actions { animation: introReveal 0.5s ease 0.7s both; }
 .gbtn.launch {
   padding: 0.72em 2.8em; font-size: 1.08rem; letter-spacing: 0.07em; font-weight: bold;
   background: linear-gradient(180deg, #cf9c30, #8a6418);
@@ -650,5 +676,8 @@ body.rtl .gbtn.launch { letter-spacing: 0; }
   .splash-rays, .splash-orb, .splash-orb::before, .splash-embers span, .splash-fa, .splash-tip { animation: none !important; }
   /* honour reduced-motion for the cinematic overlay/panel entrances too */
   .overlay.visible, .overlay.visible .dialog, .overlay.visible .mapcard, .overlay.visible .codexcard,
-  #rightPanel.visible, body.rtl #rightPanel.visible { animation: none !important; }
+  #rightPanel.visible, body.rtl #rightPanel.visible,
+  #mapIntro.visible .mapintro > *,
+  #endScreen.visible .endtitle, #endScreen.visible .endtitle.win, #endScreen.visible #endSub,
+  #endScreen.visible .unlocks .ucard, #endScreen.visible .end-actions { animation: none !important; }
 }
