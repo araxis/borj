@@ -4,6 +4,7 @@
 // walk/attack/hit/death animation without skeletal meshes (fast, instancing-friendly).
 import * as THREE from 'three';
 import { MATS } from './materials.js';
+import { easeInQuad, easeOutCubic, easeOutBack } from '../fx/ease.js';
 
 const colorMatCache = new Map();
 export function colorMat(hex, rough = 0.8, metal = 0) {
@@ -350,44 +351,55 @@ export function buildHumanoid(spec = {}) {
     headPivot.add(f);
   }
 
-  // arms (pivot at shoulder) with forearm wraps and hands
-  const armGeo = new THREE.CylinderGeometry(0.058, 0.05, 0.68, 8);
+  // arms: shoulder pivot → upper arm → ELBOW pivot → forearm/wrap/hand. The elbow lets the
+  // forearm flex independently so arms bend through a swing instead of staying ramrod-straight
+  // (a single rigid cylinder is the classic "stiff puppet" tell). Rest geometry is unchanged:
+  // with both pivots at angle 0 every piece sits exactly where the old one-piece arm did.
+  const upperGeo = new THREE.CylinderGeometry(0.058, 0.052, 0.34, 8);
+  const foreGeo = new THREE.CylinderGeometry(0.052, 0.05, 0.34, 8);
   for (const side of [-1, 1]) {
     const pivot = new THREE.Group();
     pivot.position.set(0.28 * side * sw, 0.64, 0);
-    const arm = mesh(armGeo, side === 1 ? aMat : cMat);
-    arm.position.y = -0.31;
-    pivot.add(arm);
+    const upper = mesh(upperGeo, side === 1 ? aMat : cMat);
+    upper.position.y = -0.17;
+    pivot.add(upper);
+    const fore = new THREE.Group();   // elbow
+    fore.position.y = -0.34;
+    pivot.add(fore);
+    const foreArm = mesh(foreGeo, side === 1 ? aMat : cMat);
+    foreArm.position.y = -0.17;
+    fore.add(foreArm);
     const wrap = mesh(new THREE.CylinderGeometry(0.06, 0.055, 0.17, 8), mats.woodDark);
-    wrap.position.y = -0.5;
-    pivot.add(wrap);
+    wrap.position.y = -0.16;
+    fore.add(wrap);
     const hand = mesh(new THREE.SphereGeometry(0.052, 8, 6), mats[skin]);
-    hand.position.y = -0.62;
-    pivot.add(hand);
+    hand.position.y = -0.28;
+    fore.add(hand);
     torso.add(pivot);
     rig[side === -1 ? 'armL' : 'armR'] = pivot;
+    rig[side === -1 ? 'foreL' : 'foreR'] = fore;
   }
-  // weapon in right hand
+  // weapon in right hand (mounted on the forearm so it tracks the elbow)
   if (weapon && weapon !== 'none') {
     const w = makeWeapon(weapon);
-    w.position.set(0, -0.6, 0.05);
+    w.position.set(0, -0.26, 0.05);
     if (weapon === 'bow') w.rotation.z = 0.2;
-    rig.armR.add(w);
+    rig.foreR.add(w);
     rig.weapon = w;
   }
   if (shield) {
     const sh = mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.05, 14), mats.bronze);
     sh.rotation.z = Math.PI / 2;
-    sh.position.set(-0.08, -0.44, 0.1);
-    rig.armL.add(sh);
+    sh.position.set(-0.08, -0.1, 0.1);
+    rig.foreL.add(sh);
     const boss = mesh(new THREE.SphereGeometry(0.065, 8, 6), mats.gold);
-    boss.position.set(-0.135, -0.44, 0.1);
-    rig.armL.add(boss);
+    boss.position.set(-0.135, -0.1, 0.1);
+    rig.foreL.add(boss);
     // rim ring
     const rim = mesh(new THREE.TorusGeometry(0.27, 0.018, 6, 18), mats.gold);
     rim.rotation.y = Math.PI / 2;
-    rim.position.set(-0.105, -0.44, 0.1);
-    rig.armL.add(rim);
+    rim.position.set(-0.105, -0.1, 0.1);
+    rig.foreL.add(rim);
   }
 
   group.scale.setScalar(scale);
@@ -405,36 +417,77 @@ export function animWalk(rig, t, speed = 1, stride = 0.55) {
   rig.legR.rotation.x = -stride * Math.cos(f + Math.PI);
   if (rig.shinL) rig.shinL.rotation.x = lift * Math.max(0, Math.sin(f - Math.PI));
   if (rig.shinR) rig.shinR.rotation.x = lift * Math.max(0, Math.sin(f));
-  // arms swing opposite the same-side leg
-  rig.armL.rotation.x = stride * 0.55 * Math.cos(f);
-  if (!rig._attacking) rig.armR.rotation.x = stride * 0.55 * Math.cos(f + Math.PI);
-  // body bob (one dip per step = 2× leg freq) + subtle counter-rotation + forward lean
-  rig.torso.position.y = (rig.tY || 0.78) + Math.abs(Math.sin(f)) * 0.03;
-  rig.torso.rotation.y = Math.sin(f) * 0.05;
+  // arms swing opposite the same-side leg, but TRAIL the legs slightly (phase lag) so the
+  // motion reads as loose limbs dragged by the body rather than rigid clockwork.
+  rig.armL.rotation.x = stride * 0.58 * Math.cos(f - 0.5);
+  if (!rig._attacking) rig.armR.rotation.x = stride * 0.58 * Math.cos(f + Math.PI - 0.5);
+  if (rig.foreL) rig.foreL.rotation.x = 0.25 + Math.max(0, Math.sin(f)) * 0.3;       // elbows held, swing a touch
+  if (rig.foreR && !rig._attacking) rig.foreR.rotation.x = 0.25 + Math.max(0, Math.sin(f + Math.PI)) * 0.3;
+  // body bob (one dip per step = 2× leg freq) + counter-rotation + WEIGHT TRANSFER roll onto
+  // the planted foot (z-roll synced to the stride) + forward lean that scales with pace.
+  rig.torso.position.y = (rig.tY || 0.78) + Math.abs(Math.sin(f)) * 0.035;
+  rig.torso.rotation.y = Math.sin(f) * 0.06;
+  rig.torso.rotation.z = Math.sin(f) * 0.05;            // hips/shoulders rock side to side
   rig.torso.rotation.x = 0.05 * Math.min(1.4, speed);
   if (rig.head) {
-    rig.head.rotation.y = Math.sin(t * 0.7) * 0.16;   // glances around
+    rig.head.rotation.y = Math.sin(t * 0.7) * 0.16;     // glances around
+    rig.head.rotation.z = -Math.sin(f) * 0.03;          // head stays level against the body roll
     rig.head.position.y = 0.82 + Math.abs(Math.sin(f)) * 0.008;
   }
-  if (rig.skirtF) { rig.skirtF.rotation.x = -stride * 0.4 * Math.cos(f); rig.skirtB.rotation.x = -stride * 0.4 * Math.cos(f + Math.PI); }
-  if (rig.cloak) rig.cloak.rotation.x = 0.12 + Math.abs(Math.sin(f)) * 0.14 * speed;
+  if (rig.skirtF) { rig.skirtF.rotation.x = -stride * 0.4 * Math.cos(f - 0.6); rig.skirtB.rotation.x = -stride * 0.4 * Math.cos(f + Math.PI - 0.6); }
+  if (rig.cloak) { rig.cloak.rotation.x = 0.12 + Math.abs(Math.sin(f)) * 0.16 * speed; rig.cloak.rotation.z = Math.sin(f - 0.7) * 0.06; }
 }
 
+// Idle is where lifelessness shows most — a frozen statue breaks immersion. Layer several slow,
+// out-of-phase oscillators (breath, weight-shift, look-around, micro-fidget) so the figure never
+// holds a pose and never visibly loops.
 export function animIdle(rig, t) {
   rig.legL.rotation.x = 0; rig.legR.rotation.x = 0;
   if (rig.shinL) rig.shinL.rotation.x = 0;
   if (rig.shinR) rig.shinR.rotation.x = 0;
-  rig.armL.rotation.x = Math.sin(t * 1.8) * 0.05;
-  if (!rig._attacking) rig.armR.rotation.x = Math.sin(t * 1.8 + 1) * 0.05;
-  rig.torso.position.y = (rig.tY || 0.78) + Math.sin(t * 1.8) * 0.008;
+  const breath = Math.sin(t * 1.5);                      // chest rise/fall
+  const shift = Math.sin(t * 0.42);                      // slow weight-shift between feet (~15s cycle)
+  if (!rig._attacking) rig.armR.rotation.x = breath * 0.05 + 0.03 + Math.sin(t * 0.9 + 2) * 0.02;
+  rig.armL.rotation.x = breath * 0.05 + 0.03 + Math.sin(t * 0.9) * 0.02;
+  if (rig.foreL) rig.foreL.rotation.x = 0.2 + breath * 0.03;
+  if (rig.foreR && !rig._attacking) rig.foreR.rotation.x = 0.2 + breath * 0.03;
+  rig.torso.position.y = (rig.tY || 0.78) + breath * 0.012;
+  rig.torso.rotation.z = shift * 0.045;                  // sway weight onto one hip, then the other
+  rig.torso.rotation.y = Math.sin(t * 0.31) * 0.05;
+  rig.torso.rotation.x = 0;
+  if (rig.head) {
+    // mostly still, with slow look-arounds layered from a few primes so it doesn't obviously repeat
+    rig.head.rotation.y = Math.sin(t * 0.37) * 0.17 + Math.sin(t * 0.11) * 0.1;
+    rig.head.rotation.x = Math.sin(t * 0.53) * 0.04 - 0.02;
+    rig.head.rotation.z = -shift * 0.03;
+  }
+  if (rig.cloak) rig.cloak.rotation.x = 0.12 + Math.sin(t * 0.8) * 0.025;
 }
 
-// progress 0..1 — wind-up then strike
+// progress 0..1 — a real swing arc: slow anticipatory wind-up (ease-in), a fast strike that
+// drives PAST neutral into follow-through (ease-out), then a small recoil that settles the pose.
+// The torso coils with the arm and uncoils into the blow so the whole body commits to the hit.
 export function animAttack(rig, progress) {
   rig._attacking = progress < 1;
-  const p = progress;
-  const swing = p < 0.4 ? -p / 0.4 * 1.4 : (1 - (p - 0.4) / 0.6) * -1.4 + (p - 0.4) / 0.6 * 0.9;
-  rig.armR.rotation.x = -swing;
+  const p = Math.min(1, Math.max(0, progress));
+  let armX, coil, lean;
+  if (p < 0.42) {
+    const k = easeInQuad(p / 0.42);          // wind up: slow, gathering — the anticipation beat
+    armX = 1.5 * k;                          // arm rotates up/back
+    coil = 0.22 * k;                         // shoulders rotate away to load the swing
+    lean = -0.05 * k;                        // weight shifts back
+  } else {
+    const k = (p - 0.42) / 0.58;
+    const strike = easeOutCubic(k);          // fast down-snap that decelerates into follow-through
+    armX = 1.5 - 2.6 * strike;               // through neutral to a committed −1.1 follow-through
+    coil = 0.22 - 0.36 * strike;             // uncoil past neutral, shoulders drive forward
+    lean = -0.05 + 0.14 * strike;            // weight pitches forward into the blow
+    if (k > 0.82) armX += (easeOutBack((k - 0.82) / 0.18) - 1) * 0.4; // brief recoil settle
+  }
+  rig.armR.rotation.x = armX;
+  if (rig.foreR) rig.foreR.rotation.x = 0.2 + Math.max(0, armX) * 0.4; // forearm cocks with the raise
+  if (rig.torso) { rig.torso.rotation.y = coil; rig.torso.rotation.x = lean; }
+  if (rig.head) rig.head.rotation.x = lean * 0.6;
   if (p >= 1) rig._attacking = false;
 }
 

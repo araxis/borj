@@ -103,9 +103,19 @@ export class Projectile {
       }
       if (this.t > 4) this._die();
     }
-    if (this.trail && Math.random() < 0.6) {
+    if (this.trail) {
+      // dense, glowing wake — a couple of soft additive embers every frame that linger and fade,
+      // instead of one sparse fleck 60% of frames (which barely read in motion).
       const p = this.mesh.position;
-      this.game.particles.spawn(p.x, p.y, p.z, 0, 0, 0, 0.3, 0.3, this.trail[0], this.trail[1], this.trail[2], 0, 0);
+      const [tr, tg, tb] = this.trail;
+      const n = this.kind === 'bolt' || this.kind === 'firepot' ? 2 : 1;
+      for (let i = 0; i < n; i++) {
+        this.game.particles.spawn(
+          p.x + (Math.random() - 0.5) * 0.06, p.y + (Math.random() - 0.5) * 0.06, p.z + (Math.random() - 0.5) * 0.06,
+          (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4,
+          0.5, 0.26, tr, tg, tb, 0, 1.5,
+        );
+      }
     }
   }
 
@@ -113,6 +123,20 @@ export class Projectile {
     const p = this.mesh.position;
     if (this.target?.alive && !this.hitSet.has(this.target)) this.onHit?.(this.target, p);
     else if (this.arc > 0) this.onHit?.(null, p); // splash lobs hit ground
+    // contact feedback: a spark burst at the point of impact, scaled by the projectile's heft.
+    const heavy = this.kind === 'stone' || this.kind === 'disc' || this.kind === 'bolt' || this.kind === 'firepot';
+    const col = this.trail || FXC.spark;
+    this.game.particles.burst(p, heavy ? 12 : 6, {
+      speed: heavy ? 4 : 2.4, up: heavy ? 2 : 1.2, life: 0.4, size: heavy ? 0.4 : 0.28,
+      color: col, grav: 6, spread: heavy ? 1.2 : 0.7, drag: 2,
+    });
+    // heavy ordnance lands with weight — a beat of hit-stop, a kick of shake, a bloom flash.
+    // Light darts skip this so rapid archers don't stutter the whole scene.
+    if (heavy && this.game.engine) {
+      this.game.engine.hitStop(0.03);
+      this.game.engine.addShake(0.14);
+      this.game.engine.bloomPulse(0.7);
+    }
     this._die();
   }
 

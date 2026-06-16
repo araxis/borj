@@ -462,6 +462,14 @@ export class Tower {
       : vfx === 'scriptWard' || vfx === 'gloryBeam' ? FXC.sacred
         : vfx === 'featherDart' ? FXC.feather
           : vfx === 'longArrow' ? FXC.gold : null;
+    // muzzle flash — a bright puff at the firing point gives the shot a visible origin
+    const mdir = target.group.position.clone().sub(from).normalize();
+    this.game.particles.burst(from.clone().addScaledVector(mdir, 0.4), 5, {
+      speed: 3, up: 0.4, life: 0.18, size: 0.42, color: trail || FXC.spark, grav: 0, spread: 0.5, drag: 4,
+    });
+    // recoil kick back along the firing axis (heavier ordnance kicks harder)
+    this._recoilDir = mdir.clone().setY(0).normalize().negate();
+    this._recoil = kind === 'stone' || kind === 'bolt' || kind === 'disc' ? 0.18 : 0.09;
     this.game.projectiles.push(new Projectile(this.game, {
       kind, from, target, arc,
       speed: kind === 'stone' ? 14 : kind === 'disc' ? 10 : 28,
@@ -483,9 +491,13 @@ export class Tower {
     // banner + flame idle animation
     const reduced = settings.get('reducedMotion');
     for (const b of this.model.animated.banners) animateBanner(b, time + this.id, reduced ? 0.3 : 1);
-    for (const f of this.model.animated.flames) {
-      const s = 1 + Math.sin(time * 9 + this.id) * 0.18 + Math.random() * 0.06;
-      f.scale.set(s, s * (1 + Math.sin(time * 13) * 0.1), s);
+    // flames now flicker entirely inside the procedural fire shader (updateFire) — the old
+    // per-frame scale-pulse here just fought it, so it's gone.
+    // tower recoil: the model kicks back along the firing axis on each shot, then eases home.
+    if (this._recoil > 0) {
+      this._recoil = Math.max(0, this._recoil * Math.pow(0.0009, dt) - dt * 0.03);
+      this.group.position.copy(this.pos).addScaledVector(this._recoilDir, this._recoil);
+      if (this._recoil <= 0) this.group.position.copy(this.pos);
     }
     for (const sp of this.model.animated.spinners) sp.rotation.y += dt * 0.8;
     for (const gl of this.model.animated.glows || []) {

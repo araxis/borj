@@ -150,7 +150,17 @@ export class Enemy {
     const p = this.group.position;
     const col = this.def.class === 'div' ? FXC.shadow : this.def.class === 'serpent' ? FXC.venom : FXC.dust;
     this.game.particles.burst(p, this.boss ? 36 : 14, { speed: 2.5, life: 0.9, size: 0.5, color: col, grav: 3 });
-    if (this.boss) { this.game.engine.addShake(0.5); this.game.audio.roar(); }
+    if (this.boss) {
+      // a fallen Div is a beat to feel: hit-stop, a hard shake, a bloom flash, a second debris plume
+      this.game.engine.addShake(1.4);
+      this.game.engine.hitStop(0.09);
+      this.game.engine.bloomPulse(0.9);
+      this.game.particles.burst(p, 28, { speed: 6, up: 3, life: 1.1, size: 0.7, color: FXC.ember, grav: 5, spread: 2 });
+      this.game.audio.roar();
+    } else {
+      // a small bright pop so even rank-and-file deaths register
+      this.game.particles.burst(p, 6, { speed: 3, up: 1.6, life: 0.5, size: 0.35, color: FXC.spark, grav: 4, spread: 0.8 });
+    }
     // princelyWrath: allies rage on nearby deaths
     for (const e of this.game.enemies) {
       if (e.alive && e.def.abilities?.includes('princelyWrath') && e.group.position.distanceTo(p) < 12) {
@@ -308,8 +318,10 @@ export class Enemy {
         if (!this._deathPlayed) { this._deathPlayed = true; anim.play('death', { fade: 0.12 }); }
         if (this.deadT < 0.5) this.group.position.y -= dt * 1.0; // sink away at the end
       } else {
-        // procedural topple with a small bounce, then sink
-        this.group.rotation.x = Math.min(Math.PI / 2, this.group.rotation.x + dt * 3.6);
+        // procedural topple with a small bounce, then sink — accelerates as it tips (gravity-like)
+        // rather than spinning over at a constant, mechanical rate.
+        const fallV = 2.2 + this.group.rotation.x * 3.5;
+        this.group.rotation.x = Math.min(Math.PI / 2, this.group.rotation.x + dt * fallV);
         if (this.deadT > 0.9) this.group.position.y += dt * 0.5;
         else this.group.position.y -= dt * (this.deadT < 0.5 ? 1.3 : 0.3);
       }

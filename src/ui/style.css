@@ -240,7 +240,11 @@ body.rtl .card .rankbadge { right: auto; left: 5px; }
   overflow: hidden;
 }
 body.rtl #rightPanel { right: auto; left: 12px; }
-#rightPanel.visible { display: flex; }
+/* the tower/hero detail panel slides in from the board edge each time it opens */
+#rightPanel.visible { display: flex; animation: rpSlide 0.34s cubic-bezier(.2,.85,.25,1) both; }
+body.rtl #rightPanel.visible { animation: rpSlideR 0.34s cubic-bezier(.2,.85,.25,1) both; }
+@keyframes rpSlide { from { opacity: 0; transform: translateX(38px); } to { opacity: 1; transform: none; } }
+@keyframes rpSlideR { from { opacity: 0; transform: translateX(-38px); } to { opacity: 1; transform: none; } }
 #rpClose { position: absolute; top: 8px; right: 10px; z-index: 3; width: 30px; height: 30px; border-radius: 50%;
   background: rgba(20,14,8,0.9); border: 1px solid var(--bronze); color: var(--gold-bright); font-size: 1.15rem; line-height: 1;
   cursor: pointer; display: flex; align-items: center; justify-content: center; }
@@ -369,6 +373,27 @@ body.rtl .rp-section h4 { letter-spacing: 0; }
   z-index: 30;
 }
 .overlay.visible { display: flex; }
+/* ---- cinematic overlay entrances ---- the backdrop fades up, the dialog rises and settles,
+   and grid cards (campaign maps / codex) cascade in. Because these animations are scoped to
+   `.overlay.visible`, they replay every time an overlay opens, not just on first mount. */
+.overlay.visible { animation: overlayFade 0.32s ease both; }
+.overlay.visible .dialog { animation: dialogRise 0.44s cubic-bezier(.2,.85,.25,1) both; }
+@keyframes overlayFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dialogRise { from { opacity: 0; transform: translateY(28px) scale(0.985); } to { opacity: 1; transform: none; } }
+.overlay.visible .mapcard, .overlay.visible .codexcard { animation: cardCascade 0.5s cubic-bezier(.2,.8,.25,1) both; }
+@keyframes cardCascade { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+/* staggered delays so the grid sweeps in row by row (the first two rows carry the effect) */
+.overlay.visible .mapcard:nth-child(1),  .overlay.visible .codexcard:nth-child(1)  { animation-delay: .10s; }
+.overlay.visible .mapcard:nth-child(2),  .overlay.visible .codexcard:nth-child(2)  { animation-delay: .14s; }
+.overlay.visible .mapcard:nth-child(3),  .overlay.visible .codexcard:nth-child(3)  { animation-delay: .18s; }
+.overlay.visible .mapcard:nth-child(4),  .overlay.visible .codexcard:nth-child(4)  { animation-delay: .22s; }
+.overlay.visible .mapcard:nth-child(5),  .overlay.visible .codexcard:nth-child(5)  { animation-delay: .26s; }
+.overlay.visible .mapcard:nth-child(6),  .overlay.visible .codexcard:nth-child(6)  { animation-delay: .30s; }
+.overlay.visible .mapcard:nth-child(7),  .overlay.visible .codexcard:nth-child(7)  { animation-delay: .34s; }
+.overlay.visible .mapcard:nth-child(8),  .overlay.visible .codexcard:nth-child(8)  { animation-delay: .38s; }
+.overlay.visible .mapcard:nth-child(9),  .overlay.visible .codexcard:nth-child(9)  { animation-delay: .42s; }
+.overlay.visible .mapcard:nth-child(10), .overlay.visible .codexcard:nth-child(10) { animation-delay: .46s; }
+.overlay.visible .mapcard:nth-child(n+11), .overlay.visible .codexcard:nth-child(n+11) { animation-delay: .50s; }
 /* codex & settings stack above menu overlays */
 #codexOverlay, #settingsOverlay { z-index: 45; }
 .dialog { max-width: min(960px, 92vw); max-height: 88vh; padding: 26px 30px; overflow-y: auto; scrollbar-width: thin; }
@@ -623,4 +648,7 @@ body.rtl .gbtn.launch { letter-spacing: 0; }
 @media (prefers-reduced-motion: reduce) {
   .card, .gbtn, .mapcard { transition: none; }
   .splash-rays, .splash-orb, .splash-orb::before, .splash-embers span, .splash-fa, .splash-tip { animation: none !important; }
+  /* honour reduced-motion for the cinematic overlay/panel entrances too */
+  .overlay.visible, .overlay.visible .dialog, .overlay.visible .mapcard, .overlay.visible .codexcard,
+  #rightPanel.visible, body.rtl #rightPanel.visible { animation: none !important; }
 }
