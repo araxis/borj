@@ -109,6 +109,7 @@ const MODEL_FILES = {
   a_twr_stableFort: 'assets/towers/StableFort.glb',
   a_twr_barracksHall: 'assets/towers/BarracksHall.glb',
   a_twr_warCamp: 'assets/towers/WarCamp.glb',
+  // (Per-stage main palaces are NOT here — they are large (~12 MB) and lazy-loaded per map; see PALACE_FILES below.)
   // Static Persian weapon props (CC-BY) — cloned onto hand bones, replacing procedural makeWeapon per kind
   a_wpn_sword: 'assets/weapons/Shamshir.glb',
   a_wpn_mace: 'assets/weapons/Gorz.glb',
@@ -207,6 +208,63 @@ export function cloneAssetScene(key) {
   if (!c || c === 'failed') return null;
   const s = c.scene.clone(true);
   s.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+  return s;
+}
+
+// ---- per-stage main palaces: large (~12 MB) GLBs, lazy-loaded on map entry (NOT boot-preloaded) ----
+const PALACE_FILES = {
+  alborz: 'assets/palaces/AlborzSimurghEyrie.glb',
+  zabulistan: 'assets/palaces/ZabulistanKeep.glb',
+  sistan: 'assets/palaces/SistanReedland.glb',
+  samangan: 'assets/palaces/SamanganPalace.glb',
+  'dez-sepid': 'assets/palaces/DezSepid.glb',
+  mazandaran: 'assets/palaces/MazandaranHold.glb',
+  damavand: 'assets/palaces/DamavandPrison.glb',
+  'siyavash-gate': 'assets/palaces/SiyavashGate.glb',
+  turan: 'assets/palaces/TuranCourt.glb',
+  balkh: 'assets/palaces/BalkhRoyalCity.glb',
+  'dez-roein': 'assets/palaces/DezRoein.glb',
+  'manijeh-garden': 'assets/palaces/ManijehGarden.glb',
+  estakhr: 'assets/palaces/EstakhrTerraces.glb',
+  madayen: 'assets/palaces/MadayenArch.glb',
+  'arash-watch': 'assets/palaces/ArashHorizonWatch.glb',
+  'dez-bahman': 'assets/palaces/DezBahman.glb',
+  'gang-dez': 'assets/palaces/GangDez.glb',
+  'gordafarid-fort': 'assets/palaces/GordafaridFort.glb',
+  kabul: 'assets/palaces/KabulPalace.glb',
+  makran: 'assets/palaces/MakranFort.glb',
+};
+const palaceCache = new Map();   // placeId -> 'loading' | 'failed' | { scene }
+const palaceWaiters = new Map(); // placeId -> [onReady...]
+
+export function hasPalace(placeId) { return !!PALACE_FILES[placeId]; }
+export function palaceReady(placeId) {
+  const c = palaceCache.get(placeId);
+  return !!c && c !== 'loading' && c !== 'failed';
+}
+// kick a lazy load (idempotent); onReady fires once the GLB is parsed (or immediately if already ready).
+export function loadPalace(placeId, onReady) {
+  if (!PALACE_FILES[placeId]) return;
+  if (palaceReady(placeId)) { onReady && onReady(); return; }
+  if (onReady) palaceWaiters.set(placeId, [...(palaceWaiters.get(placeId) || []), onReady]);
+  if (palaceCache.has(placeId)) return; // already loading / failed
+  palaceCache.set(placeId, 'loading');
+  loader.load(
+    PALACE_FILES[placeId],
+    (gltf) => {
+      palaceCache.set(placeId, { scene: gltf.scene });
+      (palaceWaiters.get(placeId) || []).forEach((fn) => fn());
+      palaceWaiters.delete(placeId);
+    },
+    undefined,
+    () => { palaceCache.set(placeId, 'failed'); palaceWaiters.delete(placeId); }, // missing → procedural citadel
+  );
+}
+export function clonePalaceScene(placeId) {
+  const c = palaceCache.get(placeId);
+  if (!c || c === 'loading' || c === 'failed') return null;
+  const s = c.scene.clone(true);
+  s.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return s;
 }
 

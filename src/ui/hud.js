@@ -9,6 +9,7 @@ import { PLACES_BY_ID, PLACE_ATLAS } from '../data/places.js';
 import { HERO_ATLAS } from '../data/heroes.js';
 import { ENEMY_ATLAS } from '../data/enemies.js';
 import { SOLDIERS_BY_ID } from '../data/soldiers.js';
+import { palaceDef } from '../data/palaces.js';
 import { FUSIONS } from '../data/fusions.js';
 import { heroBond } from '../entities/tower.js';
 import { audio } from '../core/audio.js';
@@ -565,6 +566,53 @@ export class HUD {
         heroList,
       ),
       ...this._loreSections({ id: def.id, sourceRef: def.sourceRef, detail: def.lore, detailFa: def.loreFa }),
+    );
+    this.openPanel();
+  }
+
+  // the central palace: lore + garrison/defense stats + command actions (rally now; muster/boon later)
+  showPalace(palace) {
+    this.selectedEntity = palace;
+    const place = PLACES_BY_ID[palace.placeId] || {};
+    const c = clear($('#rpContent'));
+    const d = palace.defense || {};
+    const rows = [
+      d.range ? [t('panel.range'), tNum(Math.round(d.range))] : null,
+      d.damage ? [t('panel.damage'), tNum(Math.round(d.damage))] : null,
+    ].filter(Boolean);
+
+    const cfg = palaceDef(palace.placeId);
+    const actions = el('div', { class: 'rp-actions' });
+    // Muster — summon a defensive squad
+    const muCd = Math.max(0, palace.musterCd || 0);
+    const muster = el('button', { class: 'gbtn primary' },
+      muCd > 0 ? `⏳ ${Math.ceil(muCd)}s` : `⚔ ${tOpt('palace.muster', 'Muster')} — ${tNum(cfg.muster.cost)} 🪙`);
+    muster.disabled = muCd > 0 || this.game.gold < cfg.muster.cost;
+    muster.onclick = () => { if (this.game.palaceMuster(palace)) this.showPalace(palace); };
+    actions.append(muster);
+    // King's Boon — stage-themed ability
+    const boCd = Math.max(0, palace.boonCd || 0);
+    const boon = el('button', { class: 'gbtn fuse' },
+      boCd > 0 ? `⏳ ${Math.ceil(boCd)}s` : `✶ ${tOpt('palace.boon', "King's Boon")} — ${tNum(cfg.boon.cost)} 🪙`);
+    boon.disabled = boCd > 0 || this.game.gold < cfg.boon.cost;
+    boon.onclick = () => { if (this.game.palaceBoon(palace)) this.showPalace(palace); };
+    actions.append(boon);
+    // Rally — pull tower garrisons to the keep
+    const rally = el('button', { class: 'gbtn' }, `⚑ ${tOpt('palace.rally', 'Rally to the Keep')}`);
+    rally.onclick = () => { this.game.palaceRally(palace); this.toast(tOpt('palace.rallied', 'The host rallies to the keep!')); };
+    actions.append(rally);
+
+    put(c,
+      this._portrait('place', place),
+      el('div', { class: 'rp-name' }, tName(place)),
+      el('div', { class: 'rp-faname' }, tNameAlt(place)),
+      el('div', { class: 'rp-tags' },
+        el('span', { class: 'tag' }, tOpt('palace.tag', 'Royal Seat')),
+        el('span', { class: 'tag story' }, `🏛 ${tOpt('palace.keep', 'Command Keep')}`),
+      ),
+      el('div', { class: 'rp-section' }, ...rows.map(([k, v]) => el('div', { class: 'statrow' }, el('span', {}, k), el('b', {}, v)))),
+      actions,
+      ...this._loreSections(place),
     );
     this.openPanel();
   }

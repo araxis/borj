@@ -15,6 +15,7 @@ import { colorMat } from '../models/humanoid.js';
 import { buildSoldierModel } from '../models/creature.js';
 import { Projectile, lashEffect } from '../entities/projectile.js';
 import { FXC } from '../fx/particles.js';
+import { clonePalaceScene, hasPalace } from '../core/assets.js';
 
 // landmarks are monumental: everything in a style is authored small, then the whole
 // architecture is scaled up; garrison guards are added AFTER scaling at human size
@@ -489,9 +490,67 @@ const STYLE_BY_PLACE = {
 };
 
 export function citadelStyleFor(placeId) { return STYLE_BY_PLACE[placeId] || 'royal-court'; }
-export function citadelFootprint(placeId) { return STYLES[citadelStyleFor(placeId)].footprint * CITADEL_SCALE; }
+
+// places with a giant custom palace GLB (a_palace_<id>); gated — the procedural citadel below stays
+// the never-break fallback until the model loads. Palaces clear a larger, flatter base.
+const PALACE_RADIUS = 25; // palace horizontal half-extent (world units) — a dominating central landmark
+const PALACE_CLEAR = 30;  // terrain-flatten radius around the palace
+const PALACE_MIN_HEIGHT = 26; // floor so even a squat palace model towers over the ~7–11u forest trees
+
+
+export function citadelFootprint(placeId) {
+  if (hasPalace(placeId)) return PALACE_CLEAR;
+  return STYLES[citadelStyleFor(placeId)].footprint * CITADEL_SCALE;
+}
+
+// Central palace from a giant custom GLB: scaled to a giant landmark, centered on the exit, base
+// ground-snapped. Returns a citadel-shaped object (group/muzzles/height/footprint/animated/defense);
+// null when the model isn't loaded so buildLandCitadel falls back to the procedural style.
+function buildPalaceCitadel(placeId) {
+  const scene = clonePalaceScene(placeId);
+  if (!scene) return null;
+  const box = new THREE.Box3().setFromObject(scene);
+  const size = box.getSize(new THREE.Vector3());
+  // fit the horizontal half-extent to PALACE_RADIUS, but never let the palace end up shorter than
+  // PALACE_MIN_HEIGHT — a squat model scales up off its height instead so it always towers over trees.
+  const s = Math.max(
+    PALACE_RADIUS / Math.max(0.001, Math.max(size.x, size.z) * 0.5),
+    PALACE_MIN_HEIGHT / Math.max(0.001, size.y),
+  );
+  scene.scale.setScalar(s);
+  const height = size.y * s;
+  const cx = (box.min.x + box.max.x) * 0.5, cz = (box.min.z + box.max.z) * 0.5;
+  scene.position.set(-cx * s, -box.min.y * s, -cz * s); // centered on exit, base at y=0
+  scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+
+  const outer = new THREE.Group();
+  outer.add(scene); // the GLB carries its own rocky base; the terrain flatten seats it
+
+  const style = STYLES[citadelStyleFor(placeId)];
+  const built = {
+    group: outer,
+    muzzles: [
+      new THREE.Vector3(0, height * 0.74, 0),
+      new THREE.Vector3(PALACE_RADIUS * 0.45, height * 0.5, PALACE_RADIUS * 0.1),
+      new THREE.Vector3(-PALACE_RADIUS * 0.45, height * 0.5, PALACE_RADIUS * 0.1),
+    ],
+    height,
+    footprint: PALACE_RADIUS,
+    animated: { banners: [], flames: [], guards: [], glows: [], spinners: [] },
+    defense: { ...style.defense },
+    styleId: 'palace-' + placeId,
+    isPalace: true,
+    placeId,
+  };
+
+  // the palace stands on its own — no stationary garrison figures on it. Its command actions
+  // (Muster / Rally) summon soldiers in FRONT of the keep instead.
+  return built;
+}
 
 export function buildLandCitadel(placeId) {
+  const palace = buildPalaceCitadel(placeId);
+  if (palace) return palace;
   const styleId = citadelStyleFor(placeId);
   const style = STYLES[styleId];
   const built = style.build();

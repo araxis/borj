@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { MATS, MeshBuilder } from '../models/materials.js';
 import { makeBanner, makeFlame } from '../models/towerkit.js';
 import { colorMat } from '../models/humanoid.js';
-import { instanceProp, propReady } from '../core/props3d.js';
+import { instanceProp, propReady, propBase, FOREST_TREE_NAMES, forestEnrichReady } from '../core/props3d.js';
 
 export { makeBanner }; // re-export for map-level roadside banners
 
@@ -126,6 +126,165 @@ const m4 = (x, y, z, ry = 0, s = 1) => {
   return m;
 };
 
+// Mazandaran's dense Hyrcanian forest: realistic Meshy tree GLBs (sloppy-decimated to ~22k tris,
+// instanced) replace the toy kit trees. Each tree's bbox is normalized via propBase so it sits
+// base-on-ground at a target height; per-type multipliers tune the few that read short. Buckets
+// by tree name → one instanceProp per type (≤11 InstancedMesh groups for the whole forest).
+// Gated on the WHOLE set being ready so the look is consistent; returns count placed (0 ⇒ caller
+// falls back to the kit/procedural trees → never-break).
+const TREE_N1_H = { n1_07: 0.82, n1_08: 0.72 }; // the smaller-read trees stay shorter
+// n1_06 is dropped from placement (oversaturated lime + cartoon trunk + a baked ground disc — it
+// breaks the deep-green Hyrcanian palette); it still loads so the readiness gate stays simple.
+const TREE_N1_SKIP = new Set(['n1_06']);
+// Visually-cataloged clean broad canopies (no facet-blobbing, no ground disc) — the LARGEST
+// instances are drawn from these so the prominent foreground trees always read crisp; the sloppy-
+// decimated ones (faceted up close) only take the smaller scales.
+const TREE_N1_BIG = new Set(['n1_01', 'n1_02', 'n1_04', 'n1_09']);
+const TREE_BIG_THRESHOLD = 9.5; // u — at/above this target height, prefer the clean broad trees
+function placeForestTrees(group, pts, rng, foliageSpots) {
+  const ready = FOREST_TREE_NAMES.filter((n) => propReady(n) && !TREE_N1_SKIP.has(n));
+  if (ready.length < 6) return 0; // not enough of the set loaded yet → caller falls back to kit trees
+  const bigReady = ready.filter((n) => TREE_N1_BIG.has(n));
+  const buckets = new Map();
+  for (const [x, y, z] of pts) {
+    const baseTargetH = 7 + rng() * 4; // ~7–11 u — capped below tower height so foreground isn't chunky
+    // the tallest instances come from the clean broad set; everything else from the full pool
+    const pool = (baseTargetH >= TREE_BIG_THRESHOLD && bigReady.length) ? bigReady : ready;
+    const name = pool[(rng() * pool.length) | 0];
+    const base = propBase(name);
+    if (!base) continue;
+    const targetH = baseTargetH * (TREE_N1_H[name] || 1);
+    const s = targetH / base.baseH;
+    const m = new THREE.Matrix4().makeRotationY(rng() * 6.28318);
+    m.scale(new THREE.Vector3(s, s, s));
+    // lift so the lowest vertex rests on the ground, then SINK ~0.6 u to bury Meshy's flat
+    // ground-plane disc baked at each tree's base (it can't be stripped — single-mesh GLB).
+    m.setPosition(x, y - base.baseY * s - 0.6, z);
+    let a = buckets.get(name); if (!a) { a = []; buckets.set(name, a); }
+    a.push(m);
+    foliageSpots.push([x, z, 2.6]);
+  }
+  let placed = 0;
+  for (const [name, mats] of buckets) {
+    const g = instanceProp(name, mats, { unit: 1, tint: null });
+    if (g) { group.add(g); placed += mats.length; }
+  }
+  return placed;
+}
+
+// Replace the kit-tree fallback in a forest map's tree sub-group with the realistic GLB trees once
+// they've loaded (called by map.js from loadForestTrees's onReady). Reuses the SAME ground points so
+// trees keep their positions — only the form swaps in. Disposes the old InstancedMesh instance
+// buffers (shared geometry/materials are left intact). No-op if already GLB or nothing loaded.
+export function swapForestTrees(swap) {
+  if (!swap || swap.placed) return false;
+  // Build the GLB trees into a temp group FIRST: only tear down the kit fallback once we know the
+  // replacement actually placed (a partial tree load must not leave an empty forest).
+  const fresh = new THREE.Group();
+  if (!placeForestTrees(fresh, swap.pts, Math.random, [])) return false;
+  for (let i = swap.group.children.length - 1; i >= 0; i--) {
+    const c = swap.group.children[i];
+    c.traverse((o) => { if (o.isInstancedMesh) o.dispose(); });
+    swap.group.remove(c);
+  }
+  while (fresh.children.length) swap.group.add(fresh.children[0]);
+  swap.placed = true;
+  return true;
+}
+
+// ---- forest-floor enrichment: realistic Meshy flowers / mushrooms / boulders + a few extra canopy
+// trees (n2 set). Instanced per type from pre-generated ground points; each normalized base-on-ground
+// at a target height with a sink to bury Meshy's baked ground disc. Mirrors the tree load+swap. ----
+const ENRICH_FLOWERS = ['mf01', 'mf02', 'mf03', 'mf04', 'mf05', 'mf06', 'mf07', 'mf08', 'mf09', 'mf10', 'mf11', 'mf12'];
+const ENRICH_MUSH = ['mm01', 'mm02', 'mm03', 'mm04', 'mm05', 'mm06', 'mm07'];
+const ENRICH_ROCKS = ['mr01', 'mr02', 'mr03', 'mr04', 'mr05', 'mr07', 'mr08'];
+const ENRICH_TREES = ['mt01', 'mt02', 'mt03'];
+
+// place one instanced enrichment category from points; returns count placed.
+function placeEnrichCat(group, pool, pts, rng, hLo, hHi, sink, castShadow) {
+  const ready = pool.filter((n) => propReady(n));
+  if (!ready.length || !pts.length) return 0;
+  const buckets = new Map();
+  for (const [x, y, z] of pts) {
+    const name = ready[(rng() * ready.length) | 0];
+    const base = propBase(name);
+    if (!base) continue;
+    const s = (hLo + rng() * (hHi - hLo)) / base.baseH;
+    const m = new THREE.Matrix4().makeRotationY(rng() * 6.28318);
+    m.scale(new THREE.Vector3(s, s, s));
+    m.setPosition(x, y - base.baseY * s - sink, z);
+    let a = buckets.get(name); if (!a) { a = []; buckets.set(name, a); }
+    a.push(m);
+  }
+  let placed = 0;
+  for (const [name, mats] of buckets) {
+    const g = instanceProp(name, mats, { unit: 1, tint: null, castShadow });
+    if (g) { group.add(g); placed += mats.length; }
+  }
+  return placed;
+}
+
+// Deliberate one-off landmarks (curated, well-spaced — NOT scattered): each placed at points
+// pre-generated in scatterProps and carried in data.landmarks. h = target height; face=true aims
+// the piece's opening toward the map centre (the arch reads as a gateway).
+const LANDMARK_PLAN = [
+  { name: 'ms01', count: 1, minR: 10, h: 7.5, sink: 0.5, face: true }, // ivy stone arch — forest gateway
+  { name: 'mt06', count: 1, minR: 9, h: 5.5, sink: 0.4 },             // giant ancient stump — clearing centerpiece
+  { name: 'ms02', count: 1, minR: 9, h: 4.5, sink: 0.4 },             // ancient ruins
+  { name: 'ms04', count: 1, minR: 11, h: 17, sink: 0.7 },            // haunted spire — tall landmark
+  { name: 'mt05', count: 2, minR: 6, h: 2.6, sink: 0.25 },           // mossy fallen logs
+  { name: 'mr06', count: 2, minR: 7, h: 6, sink: 0.5 },              // standing stones / menhirs
+  { name: 'mx01', count: 3, minR: 6, h: 11, sink: 0.5 },             // tall dead snags
+  { name: 'mx02', count: 3, minR: 6, h: 11, sink: 0.5 },
+];
+
+function placeForestLandmarks(group, landmarks, rng) {
+  let n = 0;
+  for (const lm of landmarks) {
+    if (!propReady(lm.name) || !lm.pts.length) continue;
+    const base = propBase(lm.name);
+    if (!base) continue;
+    const mats = [];
+    for (const [x, y, z] of lm.pts) {
+      const s = lm.h / base.baseH;
+      const ry = lm.face ? Math.atan2(-x, -z) : rng() * 6.28318;
+      const m = new THREE.Matrix4().makeRotationY(ry);
+      m.scale(new THREE.Vector3(s, s, s));
+      m.setPosition(x, y - base.baseY * s - lm.sink, z);
+      mats.push(m);
+    }
+    const g = instanceProp(lm.name, mats, { unit: 1, tint: null });
+    if (g) { group.add(g); n += mats.length; }
+  }
+  return n;
+}
+
+function placeForestEnrich(group, data, rng) {
+  let n = 0;
+  n += placeEnrichCat(group, ENRICH_TREES, data.trees, rng, 9, 13, 0.6, true);     // extra canopy trees
+  n += placeEnrichCat(group, ENRICH_ROCKS, data.rocks, rng, 1.4, 3.4, 0.3, true);  // mossy boulders
+  n += placeEnrichCat(group, ENRICH_FLOWERS, data.flowers, rng, 0.8, 1.7, 0.12, false); // flower clumps
+  n += placeEnrichCat(group, ENRICH_MUSH, data.mush, rng, 0.6, 1.4, 0.18, false);  // mushroom clusters
+  n += placeForestLandmarks(group, data.landmarks || [], rng);                     // curated landmarks
+  return n;
+}
+
+// Populate the forest enrichment sub-group once the n2 set has loaded (additive — no kit fallback to
+// tear down). Math.random for variation; positions come from the build-time `data` point sets.
+export function swapForestEnrich(e) {
+  if (!e || e.placed) return false;
+  const fresh = new THREE.Group();
+  if (!placeForestEnrich(fresh, e.data, Math.random)) return false;
+  for (let i = e.group.children.length - 1; i >= 0; i--) {
+    const c = e.group.children[i];
+    c.traverse((o) => { if (o.isInstancedMesh) o.dispose(); });
+    e.group.remove(c);
+  }
+  while (fresh.children.length) e.group.add(fresh.children[0]);
+  e.placed = true;
+  return true;
+}
+
 export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId = 'plains') {
   const anim = { windmills: [], campfires: [], flames: [] };
   // centers [x, z, keepoutRadius] of the big stylized foliage (cypress / canopy trees / palm) so
@@ -167,11 +326,23 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
   {
     const plan = TREE_PLAN[biomeId];
     let placed = 0;
-    if (plan && kitOn(plan[0].pool)) {
+    // Mazandaran (forest): dense realistic Meshy tree GLBs replace the kit trees. All forest trees
+    // (GLB, or the kit/procedural fallback) go into a dedicated sub-group so map.js can swap JUST the
+    // trees for the GLBs once the dedicated loader finishes (without re-running the whole scatter).
+    let treeTarget = group;
+    if (biomeId === 'forest') {
+      const forestGroup = new THREE.Group();
+      group.add(forestGroup);
+      treeTarget = forestGroup;
+      const forestPts = place(108, 3.5);
+      placed = placeForestTrees(forestGroup, forestPts, rng, foliageSpots);
+      anim.forestSwap = { group: forestGroup, pts: forestPts, placed: placed > 0 };
+    }
+    if (!placed && plan && kitOn(plan[0].pool)) {
       for (const seg of plan) {
         const pts = place(seg.count, seg.minR);
         for (const p of pts) foliageSpots.push([p[0], p[2], 3.5]);
-        placed += placeKit(group, pts, rng, NV[seg.pool], (r) => seg.lo + r() * (seg.hi - seg.lo));
+        placed += placeKit(treeTarget, pts, rng, NV[seg.pool], (r) => seg.lo + r() * (seg.hi - seg.lo));
       }
     }
     if (!placed && biomeProps.tree) {
@@ -187,11 +358,27 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
       }
       const leaf = colorMat(0x4a6e35, 0.95);
       const leaf2 = colorMat(0x547a3a, 0.95);
-      group.add(instanced(new THREE.CylinderGeometry(0.14, 0.24, 1.7, 8).translate(0, 0.8, 0), MATS().wood, trunkM));
-      group.add(instanced(new THREE.SphereGeometry(1.3, 12, 9).translate(0, 2.7, 0), leaf, folM));
-      group.add(instanced(new THREE.SphereGeometry(1.0, 11, 8).translate(0, 2.5, 0), leaf2, folM2));
-      group.add(instanced(new THREE.SphereGeometry(0.85, 10, 8).translate(0, 2.3, 0), leaf, folM3));
+      treeTarget.add(instanced(new THREE.CylinderGeometry(0.14, 0.24, 1.7, 8).translate(0, 0.8, 0), MATS().wood, trunkM));
+      treeTarget.add(instanced(new THREE.SphereGeometry(1.3, 12, 9).translate(0, 2.7, 0), leaf, folM));
+      treeTarget.add(instanced(new THREE.SphereGeometry(1.0, 11, 8).translate(0, 2.5, 0), leaf2, folM2));
+      treeTarget.add(instanced(new THREE.SphereGeometry(0.85, 10, 8).translate(0, 2.3, 0), leaf, folM3));
     }
+  }
+  // forest-floor enrichment (Mazandaran + Manijeh Garden): realistic flowers / mushrooms / boulders +
+  // extra canopy trees. Loads on the dedicated forest path; if not ready at build, map.js swaps it in.
+  if (biomeId === 'forest') {
+    const enrichGroup = new THREE.Group();
+    group.add(enrichGroup);
+    const enrichData = {
+      trees: place(20, 7),    // extra big canopy accents, mixed in with the n1 trees
+      rocks: place(13, 3),    // realistic mossy boulders
+      flowers: place(58, 2),  // dense flower clumps in the clearings
+      mush: place(32, 2.4),   // mushroom clusters
+      // curated landmarks — one/few each, well-spaced (large minR) so they read as deliberate features
+      landmarks: LANDMARK_PLAN.map((l) => ({ name: l.name, h: l.h, sink: l.sink, face: l.face, pts: place(l.count, l.minR) })),
+    };
+    const ePlaced = forestEnrichReady() ? placeForestEnrich(enrichGroup, enrichData, rng) : 0;
+    anim.forestEnrich = { group: enrichGroup, data: enrichData, placed: ePlaced > 0 };
   }
   // date palms with arching fronds
   if (biomeProps.palm) {

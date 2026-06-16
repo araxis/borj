@@ -119,6 +119,33 @@ const REALISTIC_FILES = {
   dandelion_01: 'assets/trees/t5/dandelion_01_4k.gltf',
 };
 
+// Custom Meshy.ai forest trees (CC-BY) for Mazandaran's dense Hyrcanian forest. Raw Meshy
+// exports were 200–400 MB photogrammetry meshes (1–2M tris) that the seam-preserving simplifier
+// refused to reduce; sloppy-decimated to ~22k tris + webp-512 so they CAN be instanced (≤0.65 MB
+// each, ~7 MB for the set). tint:null keeps their own baked bark/leaf textures; each tree's bbox
+// is normalized at placement (propBase) so it sits base-on-ground at a target height. Gated on
+// propReady → forest falls back to the Quaternius kit trees until these load (never-break).
+const FOREST_TREE_DIR = 'assets/trees/n1/';
+export const FOREST_TREE_NAMES = ['n1_01', 'n1_02', 'n1_03', 'n1_04', 'n1_05', 'n1_06', 'n1_07', 'n1_08', 'n1_09', 'n1_10', 'n1_11'];
+const FOREST_TREE_FILES = Object.fromEntries(FOREST_TREE_NAMES.map((n) => [n, FOREST_TREE_DIR + n + '.glb']));
+
+// Custom Meshy.ai forest ENRICHMENT set (CC-BY) — realistic flowers (mf), mushrooms (mm), rocks
+// (mr) and a few extra canopy trees (mt) that dress the forest floor. Same sloppy-decimation
+// pipeline as the trees (200 MB photogrammetry → ~0.4 MB each, instanceable). Loaded on the same
+// dedicated forest path; gated on propReady so a slow load just means less ground cover (never-break).
+const FOREST_ENRICH_DIR = 'assets/trees/n2/';
+export const FOREST_ENRICH_NAMES = [
+  'mf01', 'mf02', 'mf03', 'mf04', 'mf05', 'mf06', 'mf07', 'mf08', 'mf09', 'mf10', 'mf11', 'mf12', // flowers
+  'mm01', 'mm02', 'mm03', 'mm04', 'mm05', 'mm06', 'mm07',                                         // mushrooms
+  'mr01', 'mr02', 'mr03', 'mr04', 'mr05', 'mr07', 'mr08',                                         // rocks
+  'mt01', 'mt02', 'mt03',                                                                         // extra canopy trees
+];
+// Deliberate one-off landmarks (placed at curated, well-spaced points — not scattered): ivy stone
+// arch, ancient ruins, haunted spire, mossy fallen log, giant stump, standing stone, dead snags.
+export const FOREST_LANDMARK_NAMES = ['ms01', 'ms02', 'ms04', 'mt05', 'mt06', 'mr06', 'mx01', 'mx02'];
+const _enrichAll = FOREST_ENRICH_NAMES.concat(FOREST_LANDMARK_NAMES);
+const FOREST_ENRICH_FILES = Object.fromEntries(_enrichAll.map((n) => [n, FOREST_ENRICH_DIR + n + '.glb']));
+
 // already-brown wood/clutter warms only slightly; grey stone gets the full sandstone lerp
 const WOOD = new Set(['fence', 'fence-wood', 'fence-top', 'barrels', 'detail-barrel', 'detail-crate', 'detail-crate-small', 'detail-crate-ropes', 'ladder', 'overhang', 'overhang-fence']);
 // stone lerps hard toward sandstone (kills the grey cobblestone cast even at close range);
@@ -137,6 +164,9 @@ let started = false;
 export function loadAllProps() {
   if (started) return;
   started = true;
+  // FOREST_TREE_FILES are deliberately NOT in this boot pool: they're only needed on forest maps,
+  // and queuing 11 trees behind ~200 props would mean Mazandaran builds before they load (→ toy
+  // fallback). They load on a dedicated priority path (loadForestTrees) when a forest map opens.
   const entries = Object.entries({ ...PROP_FILES, ...PERSIAN_FILES, ...NATURE_FILES, ...NATURE2_FILES, ...THINGS_FILES, ...REALISTIC_FILES });
   // Bound concurrent fetches with a small worker pool. Firing all ~120 gltf at once made
   // dozens simultaneously re-request the same shared trim textures (a 3 MB ORM), flooding
@@ -167,6 +197,42 @@ export function loadAllProps() {
 
 export function propReady(name) { const c = cache.get(name); return !!c && c !== 'failed'; }
 export function propBase(name) { const c = cache.get(name); return (c && c !== 'failed') ? c : null; }
+
+// Dedicated priority loader for the Mazandaran forest trees — all 11 fired at once (they're small:
+// ~7 MB total) so they're ready within a couple seconds of a forest map opening, rather than dead-
+// last behind the ~200-prop boot pool. Idempotent (skips cached); onReady fires once every tree has
+// resolved (loaded OR failed) so a single bad file can't hang the swap. Never-break: failed → null.
+// Fire a named set of GLBs at once (idempotent; skips cached). onReady runs when every entry has
+// resolved (loaded OR failed) so one bad file can't hang a swap. The `started` guard is held in a
+// 1-element array so callers share mutable state. Never-break: failed → cache 'failed' → null.
+function loadGlbSet(names, files, started, onReady) {
+  const settled = () => names.every((n) => cache.has(n));
+  if (settled()) { onReady && onReady(); return; }
+  if (started[0]) { const iv = setInterval(() => { if (settled()) { clearInterval(iv); onReady && onReady(); } }, 200); return; }
+  started[0] = true;
+  const check = () => { if (settled()) onReady && onReady(); };
+  for (const name of names) {
+    if (cache.has(name)) { check(); continue; }
+    loader.load(files[name], (gltf) => {
+      try {
+        gltf.scene.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(gltf.scene);
+        const size = box.getSize(new THREE.Vector3());
+        gltf.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.geometry) o.geometry.userData.cached = true; } });
+        cache.set(name, { scene: gltf.scene, baseW: size.x || 1, baseH: size.y || 1, baseD: size.z || 1, baseY: box.min.y || 0 });
+      } finally { check(); }
+    }, undefined, () => { cache.set(name, 'failed'); check(); });
+  }
+}
+
+// Dedicated priority loaders for the forest assets — fired when a forest map opens so they're ready
+// within a couple seconds rather than dead-last behind the ~200-prop boot pool. Small sets (~7 MB
+// trees, ~25 MB enrichment). Both idempotent + never-break.
+const _forestStarted = [false], _enrichStarted = [false];
+export function forestTreesReady() { return FOREST_TREE_NAMES.filter((n) => propReady(n)).length >= 6; }
+export function forestEnrichReady() { return _enrichAll.filter((n) => propReady(n)).length >= _enrichAll.length - 4; }
+export function loadForestTrees(onReady) { loadGlbSet(FOREST_TREE_NAMES, FOREST_TREE_FILES, _forestStarted, onReady); }
+export function loadForestEnrich(onReady) { loadGlbSet(_enrichAll, FOREST_ENRICH_FILES, _enrichStarted, onReady); }
 
 function tintedMaterial(srcMat, tint, factor) {
   const key = `${srcMat.uuid}|${tint}|${factor}`;

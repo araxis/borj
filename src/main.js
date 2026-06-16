@@ -99,21 +99,26 @@ function isDescendant(parent, child) {
 
 function pickEntity(x, y) {
   if (!game) return null;
-  // nearest hit wins between towers and enemy pick-proxies
-  const towerGroups = game.towers.filter((t) => t.alive).map((t) => t.group);
-  const towerHits = pick(x, y, towerGroups);
+  // nearest hit wins between towers, enemy pick-proxies, and the central palace landmark
+  const towerHits = pick(x, y, game.towers.filter((t) => t.alive).map((t) => t.group));
   const proxies = game.enemies.filter((e) => e.alive).map((e) => e.pickProxy);
   const enemyHits = pick(x, y, proxies);
+  const cit = game.map.citadel;
+  const palaceHits = cit && cit.isPalace ? pick(x, y, [cit.group]) : [];
   const tDist = towerHits.length ? towerHits[0].distance : Infinity;
   const eDist = enemyHits.length ? enemyHits[0].distance : Infinity;
-  if (eDist < tDist) {
+  const pDist = palaceHits.length ? palaceHits[0].distance : Infinity;
+  const m = Math.min(tDist, eDist, pDist);
+  if (m === Infinity) return null;
+  if (eDist === m) {
     const en = enemyHits[0].object.userData.enemy;
     if (en?.alive) return { kind: 'enemy', entity: en };
   }
-  if (towerHits.length) {
+  if (tDist === m) {
     const tw = game.towers.find((t) => isDescendant(t.group, towerHits[0].object));
     if (tw) return { kind: 'tower', entity: tw };
   }
+  if (pDist === m && palaceHits.length) return { kind: 'palace', entity: cit };
   return null;
 }
 
@@ -215,6 +220,15 @@ function hideSelection() {
   auraLines.visible = false;
 }
 
+// selection visual for the central palace — a wide gold footprint ring, no range/aura links
+function showSelectionPalace(cit) {
+  rangeRing.visible = false;
+  auraLines.visible = false;
+  selRing.scale.setScalar((cit.footprint || 15) * 1.12);
+  selRing.position.set(cit.group.position.x, cit.group.position.y + 0.15, cit.group.position.z);
+  selRing.visible = true;
+}
+
 // pointer interactions
 let downPos = null;
 canvas.addEventListener('pointerdown', (e) => { if (e.button === 0) downPos = { x: e.clientX, y: e.clientY }; });
@@ -280,6 +294,11 @@ canvas.addEventListener('pointerup', (e) => {
     clearInspectPause();
     hud.showTower(picked.entity);
     showSelection(picked.entity);
+    rts.followEntity(null);
+  } else if (picked?.kind === 'palace') {
+    clearInspectPause();
+    hud.showPalace(picked.entity);
+    showSelectionPalace(picked.entity);
     rts.followEntity(null);
   } else if (picked?.kind === 'enemy') {
     // tactical inspection: pause the battle, focus the enemy, open its story card
@@ -414,7 +433,7 @@ const __clearTest = () => {
     if (engine.scene.children[i].userData.__wt) engine.scene.children[i].removeFromParent();
 };
 window.__dbg = {
-  engine, get game() { return game; }, get hud() { return hud; }, startMap: startBattle,
+  engine, rts, get game() { return game; }, get hud() { return hud; }, startMap: startBattle,
   // weapon hand-angle calibration: spawn a rigged soldier holding any kind at world origin
   weaponTest: (weapon, asset = 'a_soldier_heavy') => {
     __clearTest();

@@ -59,6 +59,10 @@ export const PLACES = [
     detail: "Mazandaran is the setting of Kay Kavus's disastrous ambition and Rostam's rescue mission. Its image should show forest, cave, fog, and div-haunted terrain because the Seven Labours unfold through this hostile world.",
     detailFa: 'مازندران صحنه‌ی بلندپروازی شوم کیکاووس و مأموریت نجات رستم است؛ جنگل و غار و مه و زمینِ دیوزده.',
     biome: 'forest', campaign: true,
+    // wild Caspian forest: no Persian-garden sarv here (merged over biome.props in map.js). The
+    // realistic broadleaf GLB trees carry the canopy; the teardrop cypress reads toy beside them.
+    // Fewer kit boulders too — the realistic Meshy enrichment scatters its own mossy rocks.
+    props: { cypress: 0, rock: 6 },
   },
   {
     id: 'alborz', name: 'Alborz Mountain Realm', faName: 'البرز', atlas: { col: 1, row: 2 },
