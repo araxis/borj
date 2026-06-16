@@ -493,8 +493,9 @@ export function citadelStyleFor(placeId) { return STYLE_BY_PLACE[placeId] || 'ro
 
 // places with a giant custom palace GLB (a_palace_<id>); gated — the procedural citadel below stays
 // the never-break fallback until the model loads. Palaces clear a larger, flatter base.
-const PALACE_RADIUS = 19; // palace horizontal half-extent (world units) — a dominating central landmark
-const PALACE_CLEAR = 23;  // terrain-flatten radius around the palace
+const PALACE_RADIUS = 25; // palace horizontal half-extent (world units) — a dominating central landmark
+const PALACE_CLEAR = 30;  // terrain-flatten radius around the palace
+const PALACE_MIN_HEIGHT = 26; // floor so even a squat palace model towers over the ~7–11u forest trees
 
 
 export function citadelFootprint(placeId) {
@@ -510,7 +511,12 @@ function buildPalaceCitadel(placeId) {
   if (!scene) return null;
   const box = new THREE.Box3().setFromObject(scene);
   const size = box.getSize(new THREE.Vector3());
-  const s = PALACE_RADIUS / Math.max(0.001, Math.max(size.x, size.z) * 0.5);
+  // fit the horizontal half-extent to PALACE_RADIUS, but never let the palace end up shorter than
+  // PALACE_MIN_HEIGHT — a squat model scales up off its height instead so it always towers over trees.
+  const s = Math.max(
+    PALACE_RADIUS / Math.max(0.001, Math.max(size.x, size.z) * 0.5),
+    PALACE_MIN_HEIGHT / Math.max(0.001, size.y),
+  );
   scene.scale.setScalar(s);
   const height = size.y * s;
   const cx = (box.min.x + box.max.x) * 0.5, cz = (box.min.z + box.max.z) * 0.5;

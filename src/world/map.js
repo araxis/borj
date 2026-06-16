@@ -5,11 +5,11 @@ import * as THREE from 'three';
 import { PLACES_BY_ID } from '../data/places.js';
 import { BIOMES, makeHeightField, buildTerrain, WORLD_SIZE } from './terrain.js';
 import { samplePath, buildRoadMesh, ROAD_WIDTH } from './road.js';
-import { scatterProps, buildSpawnGate, buildPad, makeBanner } from './props.js';
+import { scatterProps, buildSpawnGate, buildPad, makeBanner, swapForestTrees, swapForestEnrich } from './props.js';
 import { buildLandCitadel, citadelFootprint } from './citadels.js';
 import { planRiver, buildRiverMesh, buildBridge, buildWorldApron, RIVER_WIDTH } from './ambient.js';
 import { buildBackdrop } from './backdrop.js';
-import { getProp, instanceProp, propReady, propBase, propRotFix, placeM4, KIT_UNIT, KIT_TINT, THINGS_UNIT, REALISTIC_UNIT } from '../core/props3d.js';
+import { getProp, instanceProp, propReady, propBase, propRotFix, placeM4, KIT_UNIT, KIT_TINT, THINGS_UNIT, REALISTIC_UNIT, loadForestTrees, loadForestEnrich } from '../core/props3d.js';
 import { makeFlame } from '../models/towerkit.js';
 import { makeRng } from './noise.js';
 
@@ -18,6 +18,9 @@ export class GameMap {
     this.def = mapDef;
     this.place = PLACES_BY_ID[mapDef.id];
     this.biome = BIOMES[this.place?.biome || 'plains'];
+    // per-map prop overrides win over the biome defaults (e.g. Mazandaran zeroes cypress while
+    // Manijeh Garden — same forest biome — keeps the garden sarv).
+    this.effectiveProps = { ...this.biome.props, ...this.place?.props };
     this.scene = scene;
     this.group = new THREE.Group();
     scene.add(this.group);
@@ -174,7 +177,7 @@ export class GameMap {
       return true;
     };
     this.propsGroup = new THREE.Group();
-    const propsAnim = scatterProps(rng, (x, z) => this.heightAt(x, z), isClear, this.biome.props, this.propsGroup, this.place?.biome || 'plains');
+    const propsAnim = scatterProps(rng, (x, z) => this.heightAt(x, z), isClear, this.effectiveProps, this.propsGroup, this.place?.biome || 'plains');
     this.group.add(this.propsGroup);
     // expose the clearance closures so the building-kit generators reuse them verbatim
     this._isClear = isClear;
@@ -184,6 +187,17 @@ export class GameMap {
     this.propFlames = propsAnim.flames;
     this.campfires = propsAnim.campfires;
     this._foliageSpots = propsAnim.foliageSpots || []; // cypress/tree/palm centers — hero props avoid these
+
+    // Mazandaran forest: if the realistic tree GLBs weren't ready at build (kit trees placed as a
+    // stopgap), load them on the priority path and swap them in when ready — unless the map was
+    // disposed first (player left). Mirrors the palace _swapToPalace pattern.
+    if (propsAnim.forestSwap && !propsAnim.forestSwap.placed) {
+      loadForestTrees(() => { if (!this._disposed) swapForestTrees(propsAnim.forestSwap); });
+    }
+    // realistic forest-floor enrichment (flowers/mushrooms/boulders/extra trees) — same deferred swap
+    if (propsAnim.forestEnrich && !propsAnim.forestEnrich.placed) {
+      loadForestEnrich(() => { if (!this._disposed) swapForestEnrich(propsAnim.forestEnrich); });
+    }
 
     // roadside derafsh banners — waypoints of a defended land
     this.propBanners = [];
@@ -276,6 +290,7 @@ export class GameMap {
   }
 
   dispose() {
+    this._disposed = true; // guard async swaps (forest trees) firing after the map is gone
     this.scene.remove(this.group);
     this.group.traverse((o) => {
       // skip boot-cached shared prop geometry (props3d clones/instances reference it) — disposing

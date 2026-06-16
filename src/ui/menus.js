@@ -8,6 +8,7 @@ import { HEROES, HERO_ATLAS } from '../data/heroes.js';
 import { loadProfile } from '../core/save.js';
 import { audio } from '../core/audio.js';
 import { loadPalace } from '../core/assets.js';
+import { loadForestTrees, loadForestEnrich } from '../core/props3d.js';
 import { currentDifficulty, setDifficulty, DIFFICULTY_ORDER } from '../core/difficulty.js';
 
 export class Menus {
@@ -124,6 +125,7 @@ export class Menus {
     this.mapIntro.classList.add('visible');
     loadPalace(mapDef.id); // warm the giant palace GLB while the player reads the intro
     const place = PLACES_BY_ID[mapDef.id];
+    if (place?.biome === 'forest') { loadForestTrees(); loadForestEnrich(); } // warm forest trees + floor enrichment
     applyAtlasCell($('#miImg'), PLACE_ATLAS, place.atlas);
     $('#miName').textContent = tName(place);
     $('#miFa').textContent = tNameAlt(place);

@@ -14,5 +14,11 @@ ref_*.jpg
 thumb_*.jpg
 decode_anim.cjs
 
+# local asset-optimization tooling (not part of the game; references raw download filenames)
+scripts/opt-*.sh
+scripts/sloppy.cjs
+
 # raw source asset library (huge 4K textures/.blend/.bin) — the game ships the optimized copies in public/
 /atlases/
+# raw Meshy.ai exports (200–400 MB photogrammetry GLBs) — only the optimized copies ship
+**/Meshy_AI_*.glb
