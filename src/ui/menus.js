@@ -8,7 +8,8 @@ import { HEROES, HERO_ATLAS } from '../data/heroes.js';
 import { loadProfile } from '../core/save.js';
 import { audio } from '../core/audio.js';
 import { loadPalace } from '../core/assets.js';
-import { loadForestTrees, loadForestEnrich } from '../core/props3d.js';
+import { loadForestTrees, loadForestEnrich, loadRanges } from '../core/props3d.js';
+import { loadBattle, clearBattle } from '../core/battlesave.js';
 import { currentDifficulty, setDifficulty, DIFFICULTY_ORDER } from '../core/difficulty.js';
 
 export class Menus {
@@ -126,6 +127,7 @@ export class Menus {
     loadPalace(mapDef.id); // warm the giant palace GLB while the player reads the intro
     const place = PLACES_BY_ID[mapDef.id];
     if (place?.biome === 'forest') { loadForestTrees(); loadForestEnrich(); } // warm forest trees + floor enrichment
+    loadRanges(); // warm the distant horizon range tiles (every stage)
     applyAtlasCell($('#miImg'), PLACE_ATLAS, place.atlas);
     $('#miName').textContent = tName(place);
     $('#miFa').textContent = tNameAlt(place);
@@ -134,8 +136,21 @@ export class Menus {
     const deep = t('intro2.' + mapDef.id);
     $('#miText2').textContent = deep !== 'intro2.' + mapDef.id ? deep : '';
     const unlockHeroes = HEROES.filter((h) => h.unlock.type === 'campaign' && h.unlock.map === mapDef.id);
-    $('#miStart').textContent = t('campaign.start') + (endless ? ' ∞' : '');
-    $('#miStart').onclick = () => { audio.unlock(); audio.hornCall(); this.hideAll(); this.cb.onStartMap(mapDef, endless); };
+    // resume a saved mid-battle for this stage, if one exists (else a normal fresh start)
+    const startBtn = $('#miStart');
+    const prevResume = document.getElementById('miResume'); if (prevResume) prevResume.remove();
+    const snap = loadBattle(mapDef.id);
+    if (snap) {
+      const resume = el('button', {}, t('mapintro.resume', { wave: tNum(snap.waveIdx || 0) }));
+      resume.id = 'miResume'; resume.className = startBtn.className;
+      resume.onclick = () => { audio.unlock(); audio.hornCall(); this.hideAll(); this.cb.onStartMap(mapDef, endless, snap); };
+      startBtn.parentNode.insertBefore(resume, startBtn);
+      startBtn.textContent = t('mapintro.newGame') + (endless ? ' ∞' : '');
+      startBtn.onclick = () => { audio.unlock(); audio.hornCall(); clearBattle(); this.hideAll(); this.cb.onStartMap(mapDef, endless, null); };
+    } else {
+      startBtn.textContent = t('campaign.start') + (endless ? ' ∞' : '');
+      startBtn.onclick = () => { audio.unlock(); audio.hornCall(); this.hideAll(); this.cb.onStartMap(mapDef, endless); };
+    }
     $('#miBack').onclick = () => this.showCampaign(endless);
     this._renderDiff();
   }

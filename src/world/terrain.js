@@ -25,7 +25,7 @@ export const BIOMES = {
   },
   forest: {
     hills: 3.8, ground: [0x39682f, 0x2f5829], rock: 0x5d5f52, high: 0x57674c,
-    mood: { background: 0x6c8577, fogColor: 0x7b9486, fogNear: 45, fogFar: 160, sunColor: 0xd8e6c8, sunIntensity: 1.5, hemiIntensity: 0.95 },
+    mood: { background: 0x6c8577, fogColor: 0x7b9486, fogNear: 45, fogFar: 160, sunColor: 0xd8e6c8, sunIntensity: 1.5, hemiIntensity: 0.95, bloom: { strength: 0.52, threshold: 0.58, radius: 0.7 } },
     props: { cypress: 16, tree: 58, rock: 14, reeds: 10, palm: 0, bush: 34, grass: 900, snow: false },
   },
   mountain: {

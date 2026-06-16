@@ -158,7 +158,12 @@ export class Engine {
 
   stop() { this._running = false; }
 
-  setMood({ fogColor = 0x9fb4c8, fogNear = 90, fogFar = 260, sunColor = 0xffe3b3, sunIntensity = 2.0, hemiSky = 0xbdd1e8, hemiGround = 0x8a7a64, hemiIntensity = 1.3, background = 0x87a6c4, exposure = 1.12, skyTop = null } = {}) {
+  setMood({ fogColor = 0x9fb4c8, fogNear = 90, fogFar = 260, sunColor = 0xffe3b3, sunIntensity = 2.0, hemiSky = 0xbdd1e8, hemiGround = 0x8a7a64, hemiIntensity = 1.3, background = 0x87a6c4, exposure = 1.12, skyTop = null, bloom = null } = {}) {
+    // per-biome bloom — a dreamier glow in moody biomes (fireflies, fae mushrooms, palace glow);
+    // reset to the default each map so non-moody stages aren't over-bloomed.
+    this.bloom.strength = bloom?.strength ?? 0.35;
+    this.bloom.threshold = bloom?.threshold ?? 0.85;
+    this.bloom.radius = bloom?.radius ?? 0.6;
     this.scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
     this.scene.background = new THREE.Color(background);
     this.sun.color.set(sunColor);

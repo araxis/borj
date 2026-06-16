@@ -307,9 +307,10 @@ export class Ambient {
     // ground mist for moody lands
     if (['forest', 'snowpeak', 'wetland', 'mountain'].includes(biomeId)) {
       const mistTex = softBlobTexture(biomeId === 'forest' ? '190,220,200' : '225,235,245');
-      for (let i = 0; i < 10; i++) {
-        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, transparent: true, opacity: 0.22, depthWrite: false }));
-        sp.scale.set(20 + rng() * 14, 5 + rng() * 3, 1);
+      const nMist = biomeId === 'forest' ? 20 : 10; // Mazandaran is the fog-haunted land — thicker ground mist
+      for (let i = 0; i < nMist; i++) {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, transparent: true, opacity: biomeId === 'forest' ? 0.3 : 0.22, depthWrite: false }));
+        sp.scale.set(20 + rng() * 16, 5 + rng() * 4, 1);
         const x = (rng() - 0.5) * 120, z = (rng() - 0.5) * 120;
         sp.position.set(x, map.heightAt(x, z) + 1.6, z);
         this.group.add(sp);
@@ -343,16 +344,21 @@ export class Ambient {
     this.flutterers = [];
     {
       const glow = ['forest', 'wetland', 'river'].includes(biomeId);
-      const colors = glow ? [0xffe066] : [0xfff4f4, 0xffb347, 0xff6b6b];
-      const matCache = colors.map((c) => new THREE.SpriteMaterial({
-        color: c, transparent: true, opacity: glow ? 0.9 : 0.85, depthWrite: false,
-        blending: glow ? THREE.AdditiveBlending : THREE.NormalBlending,
-      }));
-      for (let i = 0; i < 12; i++) {
-        const sp = new THREE.Sprite(matCache[i % matCache.length]);
-        sp.scale.setScalar(glow ? 0.16 : 0.22);
-        const x = (rng() - 0.5) * 100, z = (rng() - 0.5) * 100;
-        sp.position.set(x, map.heightAt(x, z) + 0.8 + rng() * 1.2, z);
+      // forest = div-haunted: more motes + an eerie gold/fae-cyan mix; each gets its OWN material so
+      // they pulse independently (a shared material would make them blink in unison).
+      const colors = !glow ? [0xfff4f4, 0xffb347, 0xff6b6b]
+        : biomeId === 'forest' ? [0xffe066, 0xffe066, 0x7fe6c0, 0x9fd8ff]
+          : [0xffe066];
+      const n = (glow && biomeId === 'forest') ? 28 : 12;
+      for (let i = 0; i < n; i++) {
+        const mat = new THREE.SpriteMaterial({
+          color: colors[(rng() * colors.length) | 0], transparent: true, opacity: glow ? 0.9 : 0.85,
+          depthWrite: false, blending: glow ? THREE.AdditiveBlending : THREE.NormalBlending,
+        });
+        const sp = new THREE.Sprite(mat);
+        sp.scale.setScalar(glow ? 0.13 + rng() * 0.12 : 0.22);
+        const x = (rng() - 0.5) * 110, z = (rng() - 0.5) * 110;
+        sp.position.set(x, map.heightAt(x, z) + 0.7 + rng() * 1.8, z);
         this.group.add(sp);
         this.flutterers.push({ sp, seed: rng() * 100, glow });
       }

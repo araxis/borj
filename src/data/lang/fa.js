@@ -16,6 +16,8 @@ export const FA = {
   'campaign.title': 'لشکرکشی — راه‌های شاهنامه',
   'campaign.locked': 'قفل — ابتدا نقشه‌ی قبلی را تمام کن',
   'campaign.start': 'شروع دفاع',
+  'mapintro.resume': 'ادامه — موج {wave}',
+  'mapintro.newGame': 'بازی نو',
   'campaign.waves': 'موج‌ها',
   'campaign.reward': 'پاداش‌ها',
   'campaign.completed': 'پیروز',
@@ -76,6 +78,12 @@ export const FA = {
   'hud.notEnoughGold': 'طلا کافی نیست',
   'hud.padOccupied': 'این جایگاه اشغال است',
   'hud.confirmDemolish': 'این برج فروخته شود؟',
+  // central palace command panel (were showing English in FA mode — tOpt fell back to the literal)
+  'palace.muster': 'گردآوری سپاه',
+  'palace.boon': 'بخشش شاهانه',
+  'palace.rally': 'گردهمایی در دژ',
+  'palace.tag': 'تختگاه شاهی',
+  'palace.keep': 'دژ فرماندهی',
 
   'panel.role': 'نقش',
   'panel.age': 'دوره',

@@ -198,7 +198,8 @@ export function swapForestTrees(swap) {
 const ENRICH_FLOWERS = ['mf01', 'mf02', 'mf03', 'mf04', 'mf05', 'mf06', 'mf07', 'mf08', 'mf09', 'mf10', 'mf11', 'mf12'];
 const ENRICH_MUSH = ['mm01', 'mm02', 'mm03', 'mm04', 'mm05', 'mm06', 'mm07'];
 const ENRICH_ROCKS = ['mr01', 'mr02', 'mr03', 'mr04', 'mr05', 'mr07', 'mr08'];
-const ENRICH_TREES = ['mt01', 'mt02', 'mt03'];
+const ENRICH_TREES = ['mt02', 'mt03']; // mt01 is a horizontal LOG, not an upright tree — height-normalizing it made a giant log; excluded
+const ENRICH_GLOW = new Set(['mm03', 'mm04']); // the blue "Enchanted Glow" fae mushrooms — emissive so they glow (bloom picks it up)
 
 // place one instanced enrichment category from points; returns count placed.
 function placeEnrichCat(group, pool, pts, rng, hLo, hHi, sink, castShadow) {
@@ -219,7 +220,11 @@ function placeEnrichCat(group, pool, pts, rng, hLo, hHi, sink, castShadow) {
   let placed = 0;
   for (const [name, mats] of buckets) {
     const g = instanceProp(name, mats, { unit: 1, tint: null, castShadow });
-    if (g) { group.add(g); placed += mats.length; }
+    if (g) {
+      // fae mushrooms glow: clone the material PER instanced-mesh (never the shared cache) + add emissive
+      if (ENRICH_GLOW.has(name)) g.traverse((o) => { if (o.isInstancedMesh) { o.material = o.material.clone(); o.material.emissive = new THREE.Color(0x2fb6d6); o.material.emissiveIntensity = 0.85; } });
+      group.add(g); placed += mats.length;
+    }
   }
   return placed;
 }
@@ -232,7 +237,8 @@ const LANDMARK_PLAN = [
   { name: 'mt06', count: 1, minR: 9, h: 5.5, sink: 0.4 },             // giant ancient stump — clearing centerpiece
   { name: 'ms02', count: 1, minR: 9, h: 4.5, sink: 0.4 },             // ancient ruins
   { name: 'ms04', count: 1, minR: 11, h: 17, sink: 0.7 },            // haunted spire — tall landmark
-  { name: 'mt05', count: 2, minR: 6, h: 2.6, sink: 0.25 },           // mossy fallen logs
+  { name: 'mt05', count: 2, minR: 6, h: 2.6, sink: 0.25 },           // mossy fallen log
+  { name: 'mt01', count: 2, minR: 6, h: 2.4, sink: 0.3 },            // fallen log (mt01 is a log, not a canopy tree — sized as one here)
   { name: 'mr06', count: 2, minR: 7, h: 6, sink: 0.5 },              // standing stones / menhirs
   { name: 'mx01', count: 3, minR: 6, h: 11, sink: 0.5 },             // tall dead snags
   { name: 'mx02', count: 3, minR: 6, h: 11, sink: 0.5 },
@@ -261,7 +267,7 @@ function placeForestLandmarks(group, landmarks, rng) {
 
 function placeForestEnrich(group, data, rng) {
   let n = 0;
-  n += placeEnrichCat(group, ENRICH_TREES, data.trees, rng, 9, 13, 0.6, true);     // extra canopy trees
+  n += placeEnrichCat(group, ENRICH_TREES, data.trees, rng, 7.5, 11, 0.6, true);    // extra canopy trees (matched to the n1 trees)
   n += placeEnrichCat(group, ENRICH_ROCKS, data.rocks, rng, 1.4, 3.4, 0.3, true);  // mossy boulders
   n += placeEnrichCat(group, ENRICH_FLOWERS, data.flowers, rng, 0.8, 1.7, 0.12, false); // flower clumps
   n += placeEnrichCat(group, ENRICH_MUSH, data.mush, rng, 0.6, 1.4, 0.18, false);  // mushroom clusters

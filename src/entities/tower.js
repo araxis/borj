@@ -263,8 +263,10 @@ export class Tower {
     this.hp = this.maxHp * Math.max(frac, 0.8); // upgrading repairs
     this.collapseStage = 0;
     this._spawnGarrison();
-    this.game.particles.burst(this.pos.clone().setY(this.pos.y + 2), 24, { speed: 2.5, life: 0.9, size: 0.5, color: FXC.gold, grav: 2 });
-    this.game.audio.forgeHammer();
+    if (!this.game._restoring) { // silent + FX-free when rebuilding from a save snapshot
+      this.game.particles.burst(this.pos.clone().setY(this.pos.y + 2), 24, { speed: 2.5, life: 0.9, size: 0.5, color: FXC.gold, grav: 2 });
+      this.game.audio.forgeHammer();
+    }
     return true;
   }
 

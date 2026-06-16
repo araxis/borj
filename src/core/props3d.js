@@ -146,6 +146,13 @@ export const FOREST_LANDMARK_NAMES = ['ms01', 'ms02', 'ms04', 'mt05', 'mt06', 'm
 const _enrichAll = FOREST_ENRICH_NAMES.concat(FOREST_LANDMARK_NAMES);
 const FOREST_ENRICH_FILES = Object.fromEntries(_enrichAll.map((n) => [n, FOREST_ENRICH_DIR + n + '.glb']));
 
+// Distant horizon ranges — flat Meshy relief tiles (heightfields with peaks, no base) ringed around
+// the board and caught grazing by the camera so they read as a far mountain horizon with real parallax.
+// One tile per biome family (snow / forested), tiny after decimation. Loaded on demand per map.
+const RANGE_DIR = 'assets/horizon/';
+export const RANGE_NAMES = ['range_snow', 'range_forest'];
+const RANGE_FILES = Object.fromEntries(RANGE_NAMES.map((n) => [n, RANGE_DIR + n + '.glb']));
+
 // already-brown wood/clutter warms only slightly; grey stone gets the full sandstone lerp
 const WOOD = new Set(['fence', 'fence-wood', 'fence-top', 'barrels', 'detail-barrel', 'detail-crate', 'detail-crate-small', 'detail-crate-ropes', 'ladder', 'overhang', 'overhang-fence']);
 // stone lerps hard toward sandstone (kills the grey cobblestone cast even at close range);
@@ -233,6 +240,9 @@ export function forestTreesReady() { return FOREST_TREE_NAMES.filter((n) => prop
 export function forestEnrichReady() { return _enrichAll.filter((n) => propReady(n)).length >= _enrichAll.length - 4; }
 export function loadForestTrees(onReady) { loadGlbSet(FOREST_TREE_NAMES, FOREST_TREE_FILES, _forestStarted, onReady); }
 export function loadForestEnrich(onReady) { loadGlbSet(_enrichAll, FOREST_ENRICH_FILES, _enrichStarted, onReady); }
+const _rangeStarted = [false];
+export function rangesReady() { return RANGE_NAMES.some((n) => propReady(n)); }
+export function loadRanges(onReady) { loadGlbSet(RANGE_NAMES, RANGE_FILES, _rangeStarted, onReady); }
 
 function tintedMaterial(srcMat, tint, factor) {
   const key = `${srcMat.uuid}|${tint}|${factor}`;
