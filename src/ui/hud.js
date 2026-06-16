@@ -1,5 +1,6 @@
 // Battle HUD — top bar, left card grid (towers/heroes tabs), right detail panel,
 // wave controls, toasts, boss banner, interaction modes (build/assign/rally/fuse).
+import * as THREE from 'three';
 import { el, $, clear } from './dom.js';
 import { t, tf, tName, tNameAlt, tNum, tOpt, onLangChange, toggleLang } from '../core/i18n.js';
 import { applyAtlasCell } from '../core/atlas.js';
@@ -42,8 +43,55 @@ export class HUD {
     this.root = $('#ui');
     this._build();
     this._wire();
+    this._initHeroMarkers();
     if (!game.waveActive) this._updateWaveBtn(game.waveCountdown, game.earlyBonus());
     onLangChange(() => { this.refreshAll(); this._syncToggle(); });
+  }
+
+  // ---- floating hero medallions: a portrait badge above every hero-assigned tower, click → hero card ----
+  _initHeroMarkers() {
+    this._heroMarkers = new Map(); // tower -> medallion element
+    this._mkVec = new THREE.Vector3();
+    // a non-blocking overlay above the WebGL canvas but below the HUD panels. Anchored to <body>
+    // (NOT #ui) so it survives the HUD's refreshAll() DOM rebuild on language change.
+    this.heroMarkerLayer = el('div', { class: 'hero-marker-layer', style: { position: 'fixed', inset: '0', pointerEvents: 'none', zIndex: '4' } });
+    document.body.appendChild(this.heroMarkerLayer);
+    this._markerOff = this.game.engine.onUpdate(() => this.updateHeroMarkers());
+  }
+
+  _makeHeroMarker(tower) {
+    const m = el('div', { class: 'hero-marker', title: tower.hero?.name || '', style: {
+      position: 'absolute', width: '46px', height: '46px', borderRadius: '50%', overflow: 'hidden',
+      border: '2px solid #d9b15a', boxShadow: '0 0 0 2px rgba(0,0,0,.55), 0 3px 9px rgba(0,0,0,.5), inset 0 0 8px rgba(0,0,0,.6)',
+      background: '#1a1610', transform: 'translate(-50%,-50%)', cursor: 'pointer', pointerEvents: 'auto',
+      transition: 'transform .12s ease', willChange: 'left, top',
+    } });
+    m.onmouseenter = () => { m.style.transform = 'translate(-50%,-50%) scale(1.12)'; };
+    m.onmouseleave = () => { m.style.transform = 'translate(-50%,-50%)'; };
+    m.onclick = (ev) => { ev.stopPropagation(); if (m._hero) { audio.ui(); this.showHero(m._hero, true); } };
+    this.heroMarkerLayer.append(m);
+    return m;
+  }
+
+  updateHeroMarkers() {
+    if (!this._heroMarkers) return;
+    const game = this.game, cam = game.engine.camera;
+    if (!cam) return;
+    const W = window.innerWidth, H = window.innerHeight;
+    const seen = new Set();
+    for (const t of game.towers) {
+      if (!t.alive || !t.hero) continue;
+      seen.add(t);
+      let m = this._heroMarkers.get(t);
+      if (!m) { m = this._makeHeroMarker(t); this._heroMarkers.set(t, m); }
+      if (m._heroId !== t.hero.id) { applyAtlasCell(m, HERO_ATLAS, t.hero.atlas); m._heroId = t.hero.id; m._hero = t.hero; m.title = t.hero.name; }
+      const v = this._mkVec.set(t.pos.x, t.pos.y + 6.5, t.pos.z).project(cam);
+      if (v.z > 1 || v.x < -1.15 || v.x > 1.15 || v.y < -1.15 || v.y > 1.15) { m.style.display = 'none'; continue; }
+      m.style.display = '';
+      m.style.left = ((v.x * 0.5 + 0.5) * W).toFixed(1) + 'px';
+      m.style.top = ((-v.y * 0.5 + 0.5) * H).toFixed(1) + 'px';
+    }
+    for (const [t, m] of this._heroMarkers) { if (!seen.has(t)) { m.remove(); this._heroMarkers.delete(t); } }
   }
 
   _build() {
@@ -708,6 +756,9 @@ export class HUD {
   }
 
   destroy() {
+    if (this._markerOff) { this._markerOff(); this._markerOff = null; }
+    if (this.heroMarkerLayer) { this.heroMarkerLayer.remove(); this.heroMarkerLayer = null; }
+    this._heroMarkers = null;
     clear(this.root);
   }
 }

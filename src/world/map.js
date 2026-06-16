@@ -8,7 +8,7 @@ import { samplePath, buildRoadMesh, ROAD_WIDTH } from './road.js';
 import { scatterProps, buildSpawnGate, buildPad, makeBanner, swapForestTrees, swapForestEnrich } from './props.js';
 import { buildLandCitadel, citadelFootprint } from './citadels.js';
 import { planRiver, buildRiverMesh, buildBridge, buildWorldApron, RIVER_WIDTH } from './ambient.js';
-import { buildBackdrop } from './backdrop.js';
+import { buildBackdrop, buildMountainRing } from './backdrop.js';
 import { getProp, instanceProp, propReady, propBase, propRotFix, placeM4, KIT_UNIT, KIT_TINT, THINGS_UNIT, REALISTIC_UNIT, loadForestTrees, loadForestEnrich } from '../core/props3d.js';
 import { makeFlame } from '../models/towerkit.js';
 import { makeRng } from './noise.js';
@@ -157,6 +157,7 @@ export class GameMap {
     // distant mountain ranges ringing the land
     buildWorldApron(this.group, this.biome, (x, z) => this.heightAt(x, z)); // surrounding landscape, mirrors the board surface
     buildBackdrop(this.group, this.biome, mapDef.id); // per-stage distant scenery panorama on the horizon
+    buildMountainRing(this.group, this.biome, this.place?.biome || 'plains', () => this._disposed); // 3D distant range ring (real parallax)
 
     // spawn gates at each path start
     this.gates = this.paths.map((p) => {

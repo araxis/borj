@@ -22,6 +22,10 @@ import { hasPalace, loadPalace } from '../core/assets.js';
 import { makeRng } from '../world/noise.js';
 import { audio } from '../core/audio.js';
 import { loadProfile, markMapCompleted, unlockHero, recordEndless, getHeroRank, setHeroRank } from '../core/save.js';
+import { saveBattle, clearBattle } from '../core/battlesave.js';
+import { updateFire } from '../fx/fire.js';
+
+const _firePos = new THREE.Vector3(); // scratch for ember emission from flame world positions
 import { diffMods } from '../core/difficulty.js';
 
 export class Game {
@@ -67,6 +71,7 @@ export class Game {
     this.earlyGoldPerSec = 4 + (mapDef.order || 1);
     this.waveCountdown = this.prepTimeFirst;
     this._tickAcc = 0;
+    this._saveAcc = 0; // periodic mid-wave autosave accumulator
     this.auraT = 0;
     this.siegeHornsActive = false;
     this._dreadSources = [];
@@ -108,6 +113,31 @@ export class Game {
     this.audio.forgeHammer();
     this.particles.burst(pad.pos.clone().setY(pad.pos.y + 1), 16, { speed: 2, life: 0.7, size: 0.5, color: [0.7, 0.65, 0.5], grav: 3 });
     return tower;
+  }
+
+  // ---------- battle-snapshot restore (called by applyBattleSnapshot, not gameplay) ----------
+  // rebuild one tower at its saved age/hp/hero without charging gold or playing forge FX.
+  _restoreTower(def, pad, ts, HERODEFS) {
+    this._restoring = true; // suppress build particles/audio during the bulk restore
+    const tower = new Tower(this, def, pad);
+    while (tower.ageIdx < (ts.ageIdx || 0) && tower.canUpgrade()) tower.upgrade();
+    if (ts.heroId) { const h = HERODEFS.find((x) => x.id === ts.heroId); if (h) this.assignHero(h, tower); }
+    tower.invested = ts.invested ?? tower.invested;
+    tower.hp = Math.min(tower.maxHp, ts.hp ?? tower.maxHp);
+    this._restoring = false;
+    return tower;
+  }
+
+  // respawn one live enemy at its saved path distance / hp / status effects.
+  _restoreEnemy(def, es) {
+    const e = new Enemy(this, def, es.pathIndex || 0, this.waveHpMult, es.isLarva);
+    e.dist = es.dist || 0;
+    e.hp = Math.min(e.maxHp, es.hp ?? e.maxHp);
+    e.slows = (es.slows || []).map((s) => ({ ...s }));
+    e.burns = (es.burns || []).map((b) => ({ ...b }));
+    e.stunT = es.stunT || 0; e.bindT = es.bindT || 0; e.markT = es.markT || 0; e.markBonus = es.markBonus || 0;
+    this.enemies.push(e);
+    return e;
   }
 
   upgradeTower(tower) {
@@ -357,6 +387,7 @@ export class Game {
     this.emit('waveStarted', { wave: this.waveIdx, boss: wave.isBossWave, mod: wave.modifier });
     if (wave.isBossWave) { this.audio.bossCue(); this.emit('toast', 'hud.bossIncoming'); }
     this.audio.setIntensity(wave.isBossWave ? 1 : Math.min(0.85, 0.3 + this.waveIdx * 0.05));
+    saveBattle(this); // checkpoint the start of the wave
   }
 
   onEnemyKilled(enemy) {
@@ -384,6 +415,7 @@ export class Game {
     if (this.lives <= 0 && this.phase !== 'lost') {
       this.phase = 'lost';
       this.audio.setIntensity(0);
+      clearBattle(); // defeat — no resume; retry starts fresh
       this.emit('defeat');
     }
   }
@@ -443,6 +475,9 @@ export class Game {
       this.waveCountdown = this.prepTime;
       this._tickAcc = 0;
       this.emit('countdownTick', { remaining: this.waveCountdown, bonus: this.earlyBonus() });
+      saveBattle(this); // checkpoint the build phase (the safest resume point)
+    } else if (this.phase === 'won') {
+      clearBattle(); // campaign cleared — nothing to resume
     }
   }
 
@@ -591,6 +626,12 @@ export class Game {
     // sandbox: keep the treasury topped up so every upgrade/fusion stays affordable
     if (this.sandbox && this.gold < 500000) { this.gold = 999999; this.emit('goldChanged', this.gold); }
 
+    // periodic mid-wave autosave so a reload/close mid-combat resumes near the live moment
+    if (this.waveActive && this.phase === 'combat') {
+      this._saveAcc += dt;
+      if (this._saveAcc >= 5) { this._saveAcc = 0; saveBattle(this); }
+    }
+
     // auto-wave countdown (build phase only; frozen while paused since dt is 0)
     if (this.phase === 'build' && !this.waveActive && this.waveCountdown > 0) {
       this.waveCountdown -= dt;
@@ -645,11 +686,19 @@ export class Game {
 
     // citadel life: banners, sacred flames, gleaming discs/feathers, halo pulses,
     // and the land's own defense mechanism
+    updateFire(dt); // advance the shared procedural-fire shader (animates EVERY flame in the scene)
     const anim = this.map.citadel.animated;
     for (const b of anim.banners) animateBanner(b, time);
     for (const f of anim.flames) {
-      const s = 1 + Math.sin(time * 8) * 0.15;
-      f.scale.set(s, s, s);
+      // the shader flickers the flame; the sacred fire also throws rising embers
+      if (Math.random() < dt * 7) {
+        f.getWorldPosition(_firePos);
+        const s = f.userData.scale || 1;
+        this.particles.spawn(
+          _firePos.x + (Math.random() - 0.5) * 0.35 * s, _firePos.y + 0.6 * s, _firePos.z + (Math.random() - 0.5) * 0.35 * s,
+          (Math.random() - 0.5) * 0.3, 1.3 + Math.random() * 0.9, (Math.random() - 0.5) * 0.3,
+          1.0 + Math.random() * 0.7, 0.11 * s, 1.0, 0.72, 0.32, -0.9, 0.6);
+      }
     }
     for (const sp of anim.spinners || []) sp.rotation.y += dt * 0.5;
     for (const gd of anim.guards || []) {
@@ -667,8 +716,14 @@ export class Game {
     for (const rotor of this.map.windmills || []) rotor.rotation.y += dt * 1.1;
     for (const b of this.map.propBanners || []) animateBanner(b, time + b.position.x);
     for (const f of this.map.propFlames || []) {
-      const s = 1 + Math.sin(time * 9 + f.position.x) * 0.18;
-      f.scale.set(s, s, s);
+      // shader-animated now; occasional ember from roadside/torch flames
+      if (Math.random() < dt * 3) {
+        f.getWorldPosition(_firePos);
+        const s = f.userData.scale || 1;
+        this.particles.spawn(_firePos.x, _firePos.y + 0.5 * s, _firePos.z,
+          (Math.random() - 0.5) * 0.25, 1.2 + Math.random() * 0.7, (Math.random() - 0.5) * 0.25,
+          0.9 + Math.random() * 0.6, 0.09 * s, 1.0, 0.66, 0.28, -0.8, 0.6);
+      }
     }
     for (const c of this.map.campfires || []) {
       if (Math.random() < dt * 2.2) {

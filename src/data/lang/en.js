@@ -13,6 +13,8 @@ export const EN = {
   'campaign.title': 'Campaign — The Roads of the Book of Kings',
   'campaign.locked': 'Locked — complete the previous map',
   'campaign.start': 'Begin Defense',
+  'mapintro.resume': 'Resume — Wave {wave}',
+  'mapintro.newGame': 'New Game',
   'campaign.waves': 'Waves',
   'campaign.reward': 'Unlocks',
   'campaign.completed': 'Defended',

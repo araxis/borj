@@ -9,6 +9,7 @@ import { audio } from './core/audio.js';
 import { Game } from './game/game.js';
 import { preloadAssets } from './core/assets.js';
 import { loadAllProps } from './core/props3d.js';
+import { applyBattleSnapshot, saveBattle, clearBattle } from './core/battlesave.js';
 import { HUD } from './ui/hud.js';
 import { Menus } from './ui/menus.js';
 import { Codex } from './ui/codex.js';
@@ -347,18 +348,20 @@ function clearInspectPause() {
 
 // ---------- battle lifecycle ----------
 const menus = new Menus({
-  onStartMap: startBattle,
+  onStartMap: (mapDef, endless, snapshot) => startBattle(mapDef, endless, false, snapshot),
   onCodex: () => codex.show(),
   onSettings: () => settingsUI.show(),
 });
 
-function startBattle(mapDef, endless, sandbox = false) {
+function startBattle(mapDef, endless, sandbox = false, snapshot = null) {
   cleanupBattle();
   // #sandbox in the URL starts any map in test mode (also toggle in-battle with G)
   if (location.hash.toLowerCase().includes('sandbox')) sandbox = true;
   game = new Game(engine, mapDef, { endless, sandbox });
+  // resume a saved mid-battle state (towers, economy, wave, live enemies) before the first frame
+  if (snapshot) { try { applyBattleSnapshot(game, snapshot); } catch (e) { console.warn('battle restore failed', e); } }
   hud = new HUD(game, {
-    onExit: () => { cleanupBattle(); menus.showMain(); },
+    onExit: () => { saveBattle(game); cleanupBattle(); menus.showMain(); }, // keep progress to resume later
     onTogglePause: togglePause,
     onSpeed: (s, btn) => {
       currentSpeed = s;
@@ -385,7 +388,7 @@ function startBattle(mapDef, endless, sandbox = false) {
   game.on('defeat', () => {
     setTimeout(() => menus.showEnd({
       victory: false, mapDef, endless: game.endlessMode, wave: game.waveIdx,
-      onRetry: () => { startBattle(mapDef, endless); },
+      onRetry: () => { clearBattle(); startBattle(mapDef, endless); },
       onExit: () => { cleanupBattle(); menus.showCampaign(false); },
     }), 1600);
   });
@@ -395,9 +398,11 @@ function startBattle(mapDef, endless, sandbox = false) {
   audio.setScene('battle');
   audio.setIntensity(0.12);
 
-  // cinematic fly-in: sweep from the enemy gate to the citadel
-  const s0 = game.map.paths[0].samples[0].pos;
-  rts.flyIn(new THREE.Vector3(s0.x, s0.y, s0.z), 4.2);
+  // cinematic fly-in: sweep from the enemy gate to the citadel (skip it when resuming a saved battle)
+  if (!snapshot) {
+    const s0 = game.map.paths[0].samples[0].pos;
+    rts.flyIn(new THREE.Vector3(s0.x, s0.y, s0.z), 4.2);
+  }
 
   if (game.sandbox) hud.toast('🛠 Sandbox ON — unlimited gold, no life loss, all heroes (press G to toggle)');
 }
@@ -414,6 +419,10 @@ function cleanupBattle() {
 }
 
 onLangChange(() => { /* HUD and menus re-render via their own subscriptions */ });
+
+// last-chance autosave when the tab is hidden or the window closes mid-battle (covers reload/close)
+window.addEventListener('visibilitychange', () => { if (document.hidden && game && !game.sandbox) saveBattle(game); });
+window.addEventListener('beforeunload', () => { if (game && !game.sandbox) saveBattle(game); });
 
 // boot
 preloadAssets(); // GLTF characters/animals load in the background; procedural fallback until ready

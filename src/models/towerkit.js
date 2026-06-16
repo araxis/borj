@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { MeshBuilder, MATS } from './materials.js';
 import { cloneAssetScene } from '../core/assets.js';
+import { fireMaterial } from '../fx/fire.js';
 
 // ---------- low-level parts (operate on a MeshBuilder) ----------
 
@@ -161,16 +162,16 @@ export function animateBanner(banner, time, strength = 1) {
 
 function makeFlame(scale = 1) {
   const g = new THREE.Group();
-  const mats = MATS();
-  const q1 = new THREE.Mesh(new THREE.PlaneGeometry(0.5 * scale, 0.9 * scale), mats.flame);
-  const q2 = q1.clone(); q2.rotation.y = Math.PI / 2;
-  const core = new THREE.Mesh(new THREE.PlaneGeometry(0.26 * scale, 0.5 * scale), mats.flameCore);
-  core.position.y = -0.1 * scale;
-  const core2 = core.clone(); core2.rotation.y = Math.PI / 2;
-  q1.position.y = q2.position.y = 0.3 * scale;
-  core.position.y = core2.position.y = 0.18 * scale;
-  g.add(q1, q2, core, core2);
+  const mat = fireMaterial(); // shared procedural-fire shader (animated, flickering, bloom-lit)
+  const geo = new THREE.PlaneGeometry(0.85 * scale, 1.5 * scale);
+  const q1 = new THREE.Mesh(geo, mat);
+  const q2 = new THREE.Mesh(geo, mat); q2.rotation.y = Math.PI / 2; // crossed quads → volume from any angle
+  q1.position.y = q2.position.y = 0.62 * scale; // base sits at ~y0, tip rises
+  q1.renderOrder = q2.renderOrder = 4;
+  q1.frustumCulled = q2.frustumCulled = false;
+  g.add(q1, q2);
   g.userData.scale = scale;
+  g.userData.flame = true;
   return g;
 }
 
