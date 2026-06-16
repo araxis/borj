@@ -481,7 +481,8 @@ export class Ambient {
         female, scale: female ? 0.94 : 1.0,
       });
       v.rig.head.add(makeHeadwear(rng, female)); // turban / skullcap / headscarf
-      if (rng() < 0.5) { const it = makeCarry(rng); it.position.set(0, -0.6, 0.06); v.rig.armL.add(it); } // basket/jug in hand
+      // basket/jug in hand — attach to the forearm so it tracks the elbow (arms now bend)
+      if (rng() < 0.5) { const it = makeCarry(rng); const h = v.rig.foreL || v.rig.armL; it.position.set(0, v.rig.foreL ? -0.26 : -0.6, 0.06); h.add(it); }
       // ambient background figures skip the shadow pass (~30 meshes each) — keep it for gameplay
       // objects (towers/enemies/citadel/trees). They still RECEIVE shadows cast onto them.
       v.group.traverse((o) => { if (o.isMesh) o.castShadow = false; });

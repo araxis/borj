@@ -4,8 +4,44 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { settings } from './settings.js';
+
+// Final cinematic grade — runs on the display-referred image after tone-mapping:
+// edge chromatic aberration, a soft vignette, and per-biome contrast / saturation / shadow-lift.
+// Subtle by design; the point is film polish, not an Instagram filter.
+const GradeShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    vignette: { value: 0.34 },
+    aberration: { value: 0.5 },
+    contrast: { value: 1.06 },
+    saturation: { value: 1.08 },
+    lift: { value: new THREE.Color(0, 0, 0) },
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float vignette; uniform float aberration; uniform float contrast; uniform float saturation; uniform vec3 lift;
+    varying vec2 vUv;
+    void main(){
+      vec2 c = vUv - 0.5;
+      float d = dot(c, c);                       // 0 centre → ~0.5 corner
+      vec2 off = c * aberration * d * 0.012;      // channels split outward toward the edges (subtle, a few px)
+      vec3 col;
+      col.r = texture2D(tDiffuse, vUv + off).r;
+      col.g = texture2D(tDiffuse, vUv).g;
+      col.b = texture2D(tDiffuse, vUv - off).b;
+      col = (col - 0.5) * contrast + 0.5;         // contrast around mid-grey
+      float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
+      col = mix(vec3(l), col, saturation);        // saturation
+      col += lift * (1.0 - l);                     // gentle shadow tint
+      col *= 1.0 - vignette * smoothstep(0.15, 0.55, d); // darken the corners
+      gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+    }`,
+};
 
 export class Engine {
   constructor(canvas) {
@@ -84,6 +120,12 @@ export class Engine {
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.35, 0.6, 0.85);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
+    // edge-smoothing on the composited image (the renderer's MSAA doesn't reach composer targets)
+    this.smaa = new SMAAPass(window.innerWidth, window.innerHeight);
+    this.composer.addPass(this.smaa);
+    // cinematic grade is the very last thing the eye sees
+    this.gradePass = new ShaderPass(GradeShader);
+    this.composer.addPass(this.gradePass);
 
     this.speed = 1;          // 0 paused, 1, 2
     this.timeScaleUI = 1;    // unaffected by pause (camera, UI anims)
@@ -113,6 +155,7 @@ export class Engine {
       if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; }
     }
     this.bloom.enabled = settings.get('bloom') && q !== 'low';
+    if (this.smaa) this.smaa.enabled = q !== 'low';   // skip AA pass on the low tier
     this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
   }
 
@@ -128,8 +171,18 @@ export class Engine {
 
   addShake(amount) {
     if (!settings.get('screenShake') || settings.get('reducedMotion')) return;
-    this.shake = Math.min(1.2, this.shake + amount);
+    this.shake = Math.min(3.0, this.shake + amount);
   }
+
+  // brief game-time freeze on impact ("hit-stop") — the single biggest source of combat weight
+  hitStop(d = 0.05) { if (!settings.get('reducedMotion')) this._hitStop = Math.max(this._hitStop || 0, d); }
+
+  // flash the bloom on a big hit; the loop eases it back to the per-biome baseline
+  bloomPulse(strength = 1.2) { if (this.bloom) this.bloom.strength = Math.max(this.bloom.strength, strength); }
+
+  // cinematic slow-motion — drop the sim to `scale` speed then ease it back to normal over `dur`
+  // seconds. The headline of an "epic moment" (boss arrival, the killing blow, victory/defeat).
+  slowMo(scale = 0.35, dur = 1.1) { if (!settings.get('reducedMotion')) this._slowMo = { scale, t: dur, dur }; }
 
   start() {
     if (this._running) return;
@@ -140,16 +193,29 @@ export class Engine {
       requestAnimationFrame(loop);
       this._ticks = (this._ticks || 0) + 1;
       const raw = Math.min(this._clock.getDelta(), 0.05);
-      const dt = raw * this.speed;
+      let timeScale = this.speed;
+      // slow-motion ramp: eases from `scale` back up to full speed across its duration
+      if (this._slowMo) {
+        this._slowMo.t -= raw;
+        if (this._slowMo.t <= 0) this._slowMo = null;
+        else { const k = this._slowMo.t / this._slowMo.dur; timeScale *= this._slowMo.scale + (1 - this._slowMo.scale) * (1 - k * k); }
+      }
+      let dt = raw * timeScale;
+      if (this._hitStop > 0) { this._hitStop -= raw; dt = 0; } // freeze the sim, keep rendering + shake
       this.elapsed += dt;
       for (const fn of this._updates) fn(dt, raw);
+      // bloom eases back to the per-biome baseline after a pulse
+      if (this.bloom && this._bloomBase != null && this.bloom.strength > this._bloomBase) {
+        this.bloom.strength = Math.max(this._bloomBase, this.bloom.strength - raw * 5);
+      }
       this.sky.position.copy(this.camera.position); // skydome rides with the camera
-      // camera shake decay (uses raw time — works during pause)
+      // camera shake decay (uses raw time — works during pause/hit-stop); punchier + slower falloff
       if (this.shake > 0.001) {
-        const s = this.shake * 0.35;
+        const s = this.shake * 0.6;
         this.camera.position.x += (Math.random() - 0.5) * s;
-        this.camera.position.y += (Math.random() - 0.5) * s * 0.6;
-        this.shake *= Math.pow(0.0001, raw); // fast decay
+        this.camera.position.z += (Math.random() - 0.5) * s;
+        this.camera.position.y += (Math.random() - 0.5) * s * 0.5;
+        this.shake *= Math.pow(0.02, raw); // ~0.3s half-life (was instant)
       } else this.shake = 0;
       this.composer.render();
     };
@@ -158,12 +224,13 @@ export class Engine {
 
   stop() { this._running = false; }
 
-  setMood({ fogColor = 0x9fb4c8, fogNear = 90, fogFar = 260, sunColor = 0xffe3b3, sunIntensity = 2.0, hemiSky = 0xbdd1e8, hemiGround = 0x8a7a64, hemiIntensity = 1.3, background = 0x87a6c4, exposure = 1.12, skyTop = null, bloom = null } = {}) {
+  setMood({ fogColor = 0x9fb4c8, fogNear = 90, fogFar = 260, sunColor = 0xffe3b3, sunIntensity = 2.0, hemiSky = 0xbdd1e8, hemiGround = 0x8a7a64, hemiIntensity = 1.3, background = 0x87a6c4, exposure = 1.12, skyTop = null, bloom = null, grade = null } = {}) {
     // per-biome bloom — a dreamier glow in moody biomes (fireflies, fae mushrooms, palace glow);
     // reset to the default each map so non-moody stages aren't over-bloomed.
     this.bloom.strength = bloom?.strength ?? 0.35;
     this.bloom.threshold = bloom?.threshold ?? 0.85;
     this.bloom.radius = bloom?.radius ?? 0.6;
+    this._bloomBase = this.bloom.strength; // pulses (bloomPulse) ease back to this
     this.scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
     this.scene.background = new THREE.Color(background);
     this.sun.color.set(sunColor);
@@ -183,5 +250,15 @@ export class Engine {
     this.skyUniforms.horizonColor.value.set(fogColor);
     this.skyUniforms.sunColor.value.set(sunColor);
     this.skyUniforms.sunDir.value.copy(this.sun.position).normalize();
+    // per-biome cinematic grade — moody stages run richer contrast / a cooler or warmer lift;
+    // defaults give every map a light, neutral film polish.
+    if (this.gradePass) {
+      const u = this.gradePass.uniforms;
+      u.vignette.value = grade?.vignette ?? 0.34;
+      u.aberration.value = grade?.aberration ?? 0.5;
+      u.contrast.value = grade?.contrast ?? 1.06;
+      u.saturation.value = grade?.saturation ?? 1.08;
+      u.lift.value.set(grade?.lift ?? 0x000000);
+    }
   }
 }

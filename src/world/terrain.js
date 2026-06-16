@@ -106,7 +106,7 @@ export function buildTerrain(heightAt, biome, flattenFn) {
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vTed = max(abs(position.x), abs(position.z));');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying float vTed;')
-      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n  gl_FragColor.a *= 1.0 - smoothstep(60.0, 73.0, vTed);');
+      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n  gl_FragColor.a *= 1.0 - smoothstep(48.0, 74.0, vTed);'); // wide, soft dissolve into the apron (was a sharp 13u band)
   };
   // progressive upgrade: real CC0 ground photo-texture replaces the canvas detail. The two
   // photos are the SAME for every map, so load them ONCE and reuse (was re-loaded per map →

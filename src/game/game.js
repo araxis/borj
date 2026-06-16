@@ -415,6 +415,10 @@ export class Game {
     if (this.lives <= 0 && this.phase !== 'lost') {
       this.phase = 'lost';
       this.audio.setIntensity(0);
+      // defeat lands hard: time crawls, the screen heaves, the bloom flares
+      this.engine.slowMo(0.25, 1.8);
+      this.engine.addShake(1.6);
+      this.engine.bloomPulse(0.9);
       clearBattle(); // defeat — no resume; retry starts fresh
       this.emit('defeat');
     }
@@ -466,6 +470,9 @@ export class Game {
       const newHeroes = HEROES.filter((h) => h.unlock.type === 'campaign' && h.unlock.map === this.mapDef.id);
       for (const h of newHeroes) unlockHero(h.id);
       this.audio.victory();
+      // victory swells: a triumphant slow-mo and a bloom bloom as the last foe falls
+      this.engine.slowMo(0.45, 1.5);
+      this.engine.bloomPulse(1.1);
       this.emit('victory', { unlockedHeroes: newHeroes });
     }
     if (this.endlessMode) recordEndless(this.mapDef.id, this.waveIdx);
@@ -655,7 +662,14 @@ export class Game {
           const def = ENEMIES_BY_ID[entry.defId];
           const e = new Enemy(this, def, entry.pathIndex, this.waveHpMult);
           this.enemies.push(e);
-          if (entry.boss) { this.emit('bossSpawned', def); this.audio.roar(); }
+          if (entry.boss) {
+            this.emit('bossSpawned', def);
+            this.audio.roar();
+            // epic arrival beat: time dilates, the bloom swells, the ground quakes
+            this.engine.slowMo(0.4, 1.3);
+            this.engine.bloomPulse(1.0);
+            this.engine.addShake(1.0);
+          }
         }
       }
       if (this.spawnQueue.length === 0 && !this.enemies.some((e) => e.alive)) this._endWave();
