@@ -112,8 +112,10 @@ export function MATS() {
     lionManeInner: std({ map: noiseTexture(0xbe8133, 0.05), roughness: 0.82 }),
     lionManeGold: std({ color: 0xe2b24c, roughness: 0.4, metalness: 0.34 }),
     elephantHide: std({ color: 0xcfcac0, roughness: 1.0 }),
-    horseBlack: std({ color: 0x211d1c, roughness: 0.9 }),
-    horseBrown: std({ color: 0x5d4030, roughness: 0.9 }),
+    // a "black" horse rendered near-pure-black at high roughness collapses to a formless
+    // silhouette — lift it to a dark charcoal and drop roughness so the sun sculpts the muscle.
+    horseBlack: std({ color: 0x37322d, roughness: 0.58 }),
+    horseBrown: std({ color: 0x6a4a34, roughness: 0.68 }),
     venom: new THREE.MeshBasicMaterial({ color: 0x88e04a, transparent: true, opacity: 0.8, depthWrite: false }),
     shadowVeil: new THREE.MeshBasicMaterial({ color: 0x2a1f3a, transparent: true, opacity: 0.45, depthWrite: false }),
   };
