@@ -178,7 +178,7 @@ export class Soldier {
           if (this.def.ability?.key === 'counterCharge' && target.alive) target.takeDamage(dmg * 0.3, 'impact');
         }
         this.group.rotation.y = Math.atan2(tp.x - pos.x, tp.z - pos.z);
-        if (this.model.anim) this.model.anim.play('idle');
+        if (this.model.anim) this.model.anim.play('idle', this.model.mounted ? { timeScale: 0.18 } : undefined);
         else if (rig.legL && this.model.animType === 'biped') animIdle(rig, time + this.id);
       }
     } else {
@@ -239,11 +239,12 @@ export class Soldier {
       pos.addScaledVector(dir, Math.min(d, this.speed * speedMult * dt));
       this.group.rotation.y = Math.atan2(dir.x, dir.z);
       this._snapToGround();
-      if (this.model.anim) this.model.anim.play('walk', { timeScale: Math.max(0.6, speedMult) });
+      if (this.model.anim) { this.model.anim.play('walk', { timeScale: Math.max(0.6, speedMult) }); if (this.model.mounted && Math.random() < dt * 1.2) this.game.audio.gallop(); }
       else if (this.model.animType === 'quad' && rig.mount) { animQuad(rig.mount, time + this.id, speedMult); if (Math.random() < dt * 1.2) this.game.audio.gallop(); }
       else if (rig.legL) animWalk(rig, time + this.id, speedMult);
     } else {
-      if (this.model.anim) this.model.anim.play('idle');
+      // a mounted GLB has only a gallop clip — ease it to a slow paw-in-place so it doesn't sprint while standing
+      if (this.model.anim) this.model.anim.play('idle', this.model.mounted ? { timeScale: 0.18 } : undefined);
       else if (this.model.animType === 'quad' && rig.mount) animQuad(rig.mount, time + this.id, 0.1);
       else if (rig.legL) animIdle(rig, time + this.id);
     }

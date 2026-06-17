@@ -457,12 +457,21 @@ function buildElephant(scale = 1.5) {
   return { ...q, animType: 'quad', headH: 2.5 * scale };
 }
 
+const _horseTone = {};
 export function buildHorse({ coat = 'horseBrown', scale = 1, armored = false } = {}) {
   const mats = MATS();
   const coatMat = mats[coat];
   const darkMat = colorMat(0x171411, 0.95);
+  // a sun-catching topline + a shadowed belly give the body real 3D form, so even a dark
+  // coat reads as a muscled horse instead of a flat silhouette. Cached per coat.
+  let tone = _horseTone[coat];
+  if (!tone) {
+    const lift = (f) => { const m = coatMat.clone(); m.color = coatMat.color.clone().multiplyScalar(f); return m; };
+    tone = _horseTone[coat] = { belly: lift(0.7), spine: lift(1.4) };
+  }
   const q = buildQuad({
-    bodyMat: coatMat, bodyLen: 1.6, bodyR: 0.3, legH: 0.92, legR: 0.055,
+    bodyMat: coatMat, bellyMat: tone.belly, spineMat: tone.spine,
+    bodyLen: 1.6, bodyR: 0.3, legH: 0.92, legR: 0.055,
     neckLen: 0.6, neckUp: 0.85, headR: 0.15, muzzleLen: 0.24,
     pawMat: darkMat, scale,
     gait: { hip: 0.7, knee: 0.95, rate: 10 },
@@ -914,9 +923,21 @@ export function buildSoldierModel(modelKey) {
   const spec = SOLDIER_SPECS[modelKey] || SOLDIER_SPECS.spearman;
   const h = buildHumanoid({ ...spec, scale: spec.scale || 0.92 });
   if (spec.mounted) {
-    const horse = buildHorse({ coat: spec.coat || 'horseBrown', scale: 0.95 });
+    // seat the rider astride (thighs forward, feet back) — shared by both mount paths
     h.group.position.y = 1.15;
     h.rig.legL.rotation.x = -0.9; h.rig.legR.rotation.x = -0.9;
+    // Prefer the real animated horse GLB (a_horse) — a proper equine silhouette + gallop. The
+    // rider rides on top and the existing 'gltf' soldier path drives the horse's clip & mixer.
+    // Fall back to the (coat-fixed) procedural horse if the GLB hasn't loaded yet — never-break.
+    const glb = spawnAsset('a_horse', { height: 1.9 });
+    if (glb) {
+      glb.group.rotation.y = rotFix('a_horse'); // a_horse faces +Z natively (rotFix 0)
+      glb.play('walk');                          // single-clip gallop; the soldier drives its speed
+      const combined = new THREE.Group();
+      combined.add(glb.group, h.group);
+      return { group: combined, rig: h.rig, anim: glb, animType: 'gltf', headH: 2.5, mounted: true };
+    }
+    const horse = buildHorse({ coat: spec.coat || 'horseBrown', scale: 0.95 });
     const combined = new THREE.Group();
     combined.add(horse.group, h.group);
     return { group: combined, rig: { ...h.rig, mount: horse.rig }, animType: 'quad', headH: 2.4, mounted: true };
