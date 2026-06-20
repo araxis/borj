@@ -43,9 +43,35 @@ function softBlobTexture(rgb = '255,255,255') {
     g.fillStyle = grad;
     g.fillRect(0, 0, 256, 128);
   }
+  // Hard sprite edges read as rectangular fog cards from the tactical camera.
+  // Mask every procedural cloud/mist texture down to zero alpha before upload.
+  g.globalCompositeOperation = 'destination-in';
+  const edge = g.createRadialGradient(128, 64, 26, 128, 64, 126);
+  edge.addColorStop(0, 'rgba(255,255,255,1)');
+  edge.addColorStop(0.62, 'rgba(255,255,255,0.9)');
+  edge.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = edge;
+  g.fillRect(0, 0, 256, 128);
+  g.globalCompositeOperation = 'source-over';
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  t.premultiplyAlpha = true;
   return t;
+}
+
+function softSpriteMaterial({ map = null, color = 0xffffff, opacity = 0.35, blending = THREE.NormalBlending } = {}) {
+  return new THREE.SpriteMaterial({
+    map,
+    color,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    depthTest: true,
+    alphaTest: map ? 0.035 : 0,
+    blending,
+    toneMapped: false,
+    fog: false,
+  });
 }
 
 function waterTexture() {
@@ -116,7 +142,7 @@ export function buildRiverMesh(river, group) {
     roughness: 0.25, metalness: 0.15, color: 0xbfe8ef,
   });
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.receiveShadow = true;
+  mesh.receiveShadow = false;
   group.add(mesh);
   return mat; // caller scrolls map.offset for flow
 }
@@ -210,18 +236,13 @@ export function buildWorldApron(group, biome, heightAt) {
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
-  // fade the far edge to transparent so the flat ground dissolves into the backdrop/sky — no hard seam, no mesa
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, transparent: true, depthWrite: false });
-  mat.onBeforeCompile = (sh) => {
-    sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying float vApr;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vApr = max(abs(position.x), abs(position.z));');
-    sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vApr;')
-      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n  gl_FragColor.a *= 1.0 - smoothstep(150.0, 285.0, vApr);');
-  };
+  // Keep the apron opaque. Transparent depth-off ground sorted against the board/backdrop as
+  // camera-sized dark rectangles on some angles; fog-colored vertex bands give the same dissolve.
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.y = -1;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
   mesh.renderOrder = -4;
   group.add(mesh);
 }
@@ -297,9 +318,10 @@ export class Ambient {
     const cloudTex = softBlobTexture('255,255,255');
     const nClouds = 8;
     for (let i = 0; i < nClouds; i++) {
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, transparent: true, opacity: 0.5, depthWrite: false }));
+      const sp = new THREE.Sprite(softSpriteMaterial({ map: cloudTex, opacity: 0.24 }));
       sp.scale.set(26 + rng() * 22, 11 + rng() * 8, 1);
       sp.position.set((rng() - 0.5) * 180, 40 + rng() * 14, (rng() - 0.5) * 180);
+      sp.renderOrder = -2;
       this.group.add(sp);
       this.clouds.push({ sp, vx: 0.6 + rng() * 0.7 });
     }
@@ -309,10 +331,11 @@ export class Ambient {
       const mistTex = softBlobTexture(biomeId === 'forest' ? '190,220,200' : '225,235,245');
       const nMist = biomeId === 'forest' ? 20 : 10; // Mazandaran is the fog-haunted land — thicker ground mist
       for (let i = 0; i < nMist; i++) {
-        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, transparent: true, opacity: biomeId === 'forest' ? 0.3 : 0.22, depthWrite: false }));
-        sp.scale.set(20 + rng() * 16, 5 + rng() * 4, 1);
+        const sp = new THREE.Sprite(softSpriteMaterial({ map: mistTex, opacity: biomeId === 'forest' ? 0.14 : 0.1 }));
+        sp.scale.set(13 + rng() * 10, 3.2 + rng() * 2.4, 1);
         const x = (rng() - 0.5) * 120, z = (rng() - 0.5) * 120;
         sp.position.set(x, map.heightAt(x, z) + 1.6, z);
+        sp.renderOrder = -1;
         this.group.add(sp);
         this.mist.push({ sp, vx: 0.3 + rng() * 0.4 });
       }
@@ -351,9 +374,10 @@ export class Ambient {
           : [0xffe066];
       const n = (glow && biomeId === 'forest') ? 28 : 12;
       for (let i = 0; i < n; i++) {
-        const mat = new THREE.SpriteMaterial({
-          color: colors[(rng() * colors.length) | 0], transparent: true, opacity: glow ? 0.9 : 0.85,
-          depthWrite: false, blending: glow ? THREE.AdditiveBlending : THREE.NormalBlending,
+        const mat = softSpriteMaterial({
+          color: colors[(rng() * colors.length) | 0],
+          opacity: glow ? 0.9 : 0.85,
+          blending: glow ? THREE.AdditiveBlending : THREE.NormalBlending,
         });
         const sp = new THREE.Sprite(mat);
         sp.scale.setScalar(glow ? 0.13 + rng() * 0.12 : 0.22);

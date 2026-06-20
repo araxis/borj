@@ -7,6 +7,7 @@ const DEFAULT_PROFILE = {
   codexSeen: [],            // entry ids viewed at least once
   bestEndless: {},          // mapId -> best wave reached
   heroRanks: {},            // heroId -> 0..3 (persistent hero upgrade tree)
+  bossSagas: {},            // bossId -> presentation-only saga record
 };
 
 let profile = null;
@@ -28,7 +29,7 @@ export function saveProfile() {
 }
 
 export function resetProfile() {
-  profile = { ...DEFAULT_PROFILE, completedMaps: [], unlockedHeroes: [], codexSeen: [], bestEndless: {} };
+  profile = { ...DEFAULT_PROFILE, completedMaps: [], unlockedHeroes: [], codexSeen: [], bestEndless: {}, heroRanks: {}, bossSagas: {} };
   saveProfile();
 }
 
@@ -61,4 +62,34 @@ export function setHeroRank(heroId, rank) {
   const p = loadProfile();
   p.heroRanks[heroId] = Math.max(0, Math.min(3, rank));
   saveProfile();
+}
+
+export function getBossSagaRecord(bossId) {
+  return loadProfile().bossSagas?.[bossId] || null;
+}
+
+export function recordBossSaga(bossId, mapId, result) {
+  if (!bossId) return null;
+  const p = loadProfile();
+  p.bossSagas ||= {};
+  const rec = p.bossSagas[bossId] || {
+    defeated: false,
+    broken: 0,
+    hardened: 0,
+    best: null,
+    maps: [],
+  };
+  if (result === 'broken') {
+    rec.broken = (rec.broken || 0) + 1;
+    rec.best = 'broken';
+  } else if (result === 'hardened') {
+    rec.hardened = (rec.hardened || 0) + 1;
+    if (rec.best !== 'broken') rec.best = 'hardened';
+  } else if (result === 'defeated') {
+    rec.defeated = true;
+  }
+  if (mapId && !rec.maps.includes(mapId)) rec.maps.push(mapId);
+  p.bossSagas[bossId] = rec;
+  saveProfile();
+  return rec;
 }

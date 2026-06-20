@@ -156,7 +156,7 @@ export class GameMap {
 
     // distant mountain ranges ringing the land
     buildWorldApron(this.group, this.biome, (x, z) => this.heightAt(x, z)); // surrounding landscape, mirrors the board surface
-    buildBackdrop(this.group, this.biome, mapDef.id); // per-stage distant scenery panorama on the horizon
+    this.backdrop = buildBackdrop(this.group, this.biome, mapDef.id); // manifest-backed distant scenery panorama on the horizon
     buildMountainRing(this.group, this.biome, this.place?.biome || 'plains', () => this._disposed); // 3D distant range ring (real parallax)
 
     // spawn gates at each path start
@@ -292,6 +292,7 @@ export class GameMap {
 
   dispose() {
     this._disposed = true; // guard async swaps (forest trees) firing after the map is gone
+    this.backdrop?.userData?.dispose?.();
     this.scene.remove(this.group);
     this.group.traverse((o) => {
       // skip boot-cached shared prop geometry (props3d clones/instances reference it) — disposing

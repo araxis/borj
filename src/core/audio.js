@@ -95,6 +95,18 @@ function applyVolumes() {
   if (musicLp) musicLp.frequency.value = settings.get('reducedAudio') ? 2200 : 4000;
 }
 
+function duckMusic(depth = 0.62, hold = 0.45, release = 1.25) {
+  if (!ctx || !musicBus) return;
+  const base = settings.get('musicVolume');
+  const now = ctx.currentTime;
+  const current = musicBus.gain.value;
+  musicBus.gain.cancelScheduledValues(now);
+  musicBus.gain.setValueAtTime(current, now);
+  musicBus.gain.linearRampToValueAtTime(Math.max(0.04, base * depth), now + 0.05);
+  musicBus.gain.setValueAtTime(Math.max(0.04, base * depth), now + hold);
+  musicBus.gain.setTargetAtTime(base, now + hold, release);
+}
+
 function noise(dur, bus, { hp = 0, lp = 8000, gain = 0.3, attack = 0.005, decay = dur } = {}) {
   const t = ctx.currentTime;
   const src = ctx.createBufferSource();
@@ -290,18 +302,76 @@ export const audio = {
     tone(freq(0, 1), 0.8, sfxBus, { type: 'sawtooth', gain: 0.12, attack: 0.08, lp: 1200 });
     setTimeout(() => tone(freq(4, 1), 1.0, sfxBus, { type: 'sawtooth', gain: 0.12, attack: 0.06, lp: 1200 }), 350);
   },
+  farrOath() {
+    if (!started) return;
+    duckMusic(0.55, 0.8, 1.6);
+    tone(freq(0, 1), 1.7, sfxBus, { type: 'sawtooth', gain: 0.16, attack: 0.05, glide: 1.2, f1: freq(7, 1), lp: 1400 });
+    tone(freq(4, 1), 1.9, sfxBus, { type: 'triangle', gain: 0.1, attack: 0.08, glide: 1.5, f1: freq(9, 1), lp: 1800 });
+    noise(1.1, sfxBus, { hp: 90, lp: 1100, gain: 0.11, attack: 0.08 });
+    [0, 180, 360, 600].forEach((d) => setTimeout(() => dafHit(true), d));
+    [0, 2, 4, 7, 9].forEach((d, i) => setTimeout(() => santurPluck(d, i < 3 ? 3 : 4, 0.085), 120 + i * 115));
+  },
+  palaceCommand(type = 'default') {
+    if (!started) return;
+    duckMusic(0.68, 0.35, 1.1);
+    tone(freq(0, 1), 0.9, sfxBus, { type: 'sawtooth', gain: 0.08, attack: 0.04, glide: 0.7, f1: freq(4, 1), lp: 1200 });
+    if (type === 'goldProvision') setTimeout(() => this.coin(), 120);
+    else if (type === 'bindChains') setTimeout(() => this.chain(), 110);
+    else if (type === 'burnRing') setTimeout(() => this.fire(), 110);
+    else if (type === 'rangeVision') setTimeout(() => this.longArrow(), 120);
+    else [0, 2, 4].forEach((d, i) => setTimeout(() => santurPluck(d, 3, 0.065), 90 + i * 95));
+  },
+  palaceAlarm() {
+    if (!started) return;
+    duckMusic(0.52, 0.65, 1.7);
+    tone(freq(0, 1), 1.05, sfxBus, { type: 'sawtooth', gain: 0.12, attack: 0.035, glide: 0.8, f1: freq(5, 1), lp: 1100 });
+    tone(freq(4, 0), 1.25, sfxBus, { type: 'triangle', gain: 0.09, attack: 0.05, glide: 0.9, f1: freq(0, 0), lp: 900 });
+    [0, 140, 280, 470].forEach((d) => setTimeout(() => dafHit(true), d));
+    [0, 2, 4].forEach((d, i) => setTimeout(() => santurPluck(d, 3, 0.07), 110 + i * 95));
+    setTimeout(() => this.hornCall(), 160);
+    setTimeout(() => this.clank(), 420);
+  },
   bossCue() {
     if (!started) return;
     tone(ROOT / 2, 1.6, sfxBus, { type: 'sawtooth', gain: 0.2, attack: 0.02, lp: 500 });
     dafHit(true); setTimeout(() => dafHit(true), 300); setTimeout(() => dafHit(true), 600);
   },
+  bossSwell() {
+    if (!started) return;
+    duckMusic(0.48, 1.15, 1.9);
+    tone(ROOT / 3, 2.4, sfxBus, { type: 'sawtooth', gain: 0.16, attack: 0.08, glide: 2.1, f1: ROOT / 1.7, lp: 650 });
+    noise(1.6, sfxBus, { hp: 70, lp: 1000, gain: 0.08, attack: 0.16 });
+    [0, 260, 520, 820].forEach((d) => setTimeout(() => dafHit(true), d));
+    [0, 3, 5].forEach((d, i) => setTimeout(() => tone(freq(d, 1), 1.05, sfxBus, { type: 'sawtooth', gain: 0.075, attack: 0.08, lp: 1050 }), 180 + i * 180));
+    setTimeout(() => this.roar(), 520);
+  },
   victory() {
     if (!started) return;
     [0, 2, 4, 7].forEach((d, i) => setTimeout(() => santurPluck(d, 3, 0.09), i * 160));
   },
+  victorySwell() {
+    if (!started) return;
+    duckMusic(0.58, 0.8, 2.1);
+    [0, 2, 4, 7, 9, 12].forEach((d, i) => setTimeout(() => santurPluck(d, i < 4 ? 3 : 4, 0.1), i * 135));
+    tone(freq(0, 1), 1.6, sfxBus, { type: 'sawtooth', gain: 0.08, attack: 0.08, glide: 1.2, f1: freq(7, 1), lp: 1400 });
+    setTimeout(() => this.hornCall(), 220);
+    setTimeout(() => this.shimmer(), 620);
+    [0, 240, 480, 760].forEach((d) => setTimeout(() => dafHit(true), d));
+    [7, 9, 12].forEach((d, i) => setTimeout(() => tone(freq(d, 2), 1.1, sfxBus, { type: 'triangle', gain: 0.06, attack: 0.05 }), 620 + i * 120));
+  },
   defeat() {
     if (!started) return;
     tone(freq(1, 1), 1.8, sfxBus, { type: 'sine', gain: 0.12, attack: 0.05, glide: 1.6, f1: freq(0, 0) });
+  },
+  defeatSwell() {
+    if (!started) return;
+    duckMusic(0.42, 1.3, 2.4);
+    tone(freq(1, 1), 2.6, sfxBus, { type: 'sine', gain: 0.14, attack: 0.08, glide: 2.2, f1: freq(0, 0) * 0.72 });
+    noise(1.3, sfxBus, { hp: 80, lp: 850, gain: 0.12, attack: 0.05 });
+    [0, 340, 720].forEach((d) => setTimeout(() => dafHit(true), d));
+    setTimeout(() => this.bigCollapse(), 180);
+    setTimeout(() => this.hiss(), 540);
+    tone(freq(0, 0) * 0.5, 2.0, sfxBus, { type: 'sawtooth', gain: 0.08, attack: 0.12, glide: 1.8, f1: freq(0, 0) * 0.32, lp: 420 });
   },
   stop() {
     started = false;

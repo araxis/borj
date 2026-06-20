@@ -2,9 +2,11 @@
 // win/lose, endless scaling. Emits events the UI listens to.
 import * as THREE from 'three';
 import { GameMap } from '../world/map.js';
+import { pointAt } from '../world/road.js';
 import { Enemy } from '../entities/enemy.js';
+import { lashEffect } from '../entities/projectile.js';
 import { Tower, heroBond } from '../entities/tower.js';
-import { ParticleSystem } from '../fx/particles.js';
+import { ParticleSystem, FXC } from '../fx/particles.js';
 import { DebrisSystem } from '../physics/debris.js';
 import { makeWave } from './waves.js';
 import { ENEMIES_BY_ID } from '../data/enemies.js';
@@ -18,15 +20,80 @@ import { Ambient } from '../world/ambient.js';
 import { Squad } from '../entities/soldier.js';
 import { SOLDIERS_BY_ID } from '../data/soldiers.js';
 import { palaceDef } from '../data/palaces.js';
+import { bossChallengeDef } from '../data/bosschallenges.js';
 import { hasPalace, loadPalace } from '../core/assets.js';
 import { makeRng } from '../world/noise.js';
 import { audio } from '../core/audio.js';
-import { loadProfile, markMapCompleted, unlockHero, recordEndless, getHeroRank, setHeroRank } from '../core/save.js';
+import { loadProfile, markMapCompleted, unlockHero, recordEndless, getHeroRank, setHeroRank, recordBossSaga } from '../core/save.js';
 import { saveBattle, clearBattle } from '../core/battlesave.js';
 import { updateFire } from '../fx/fire.js';
+import { OathField } from '../fx/oathfield.js';
+import { BossOmenField } from '../fx/bossomens.js';
+import { PalaceBoonField } from '../fx/palaceboons.js';
+import { HeroCommandField } from '../fx/herocommands.js';
+import { PalaceGateStage } from '../fx/palacestage.js';
 
 const _firePos = new THREE.Vector3(); // scratch for ember emission from flame world positions
 import { diffMods } from '../core/difficulty.js';
+
+const HERO_ACTIVE_HEAL = new Set(['featherCall', 'simurghAegis', 'secretProvision', 'simurghBirthright', 'steadfastPrayer', 'royalContinuity', 'courtGrace']);
+const HERO_ACTIVE_FIRE = new Set(['sadehFlame', 'fireJudgment']);
+const HERO_ACTIVE_VISION = new Set(['worldCup', 'longSearch', 'borderArrow', 'twinArrow', 'keepsakeToken', 'heirsVolley']);
+const HERO_ACTIVE_BIND = new Set(['oxheadJudgment', 'divBind', 'dragonbane', 'boarHunt', 'gateWard', 'pahlavanChallenge', 'maceShockwave', 'ancestralBlow', 'brazenBody', 'counterCharge']);
+const FARR_MAX = 100;
+const OATH_DUR = 14;
+const FX_PREVIEW_COMMANDS = [
+  { heroId: 'arash', heroKind: 'vision', heroKey: 'borderArrow', palaceType: 'rangeVision' },
+  { heroId: 'siyavash', heroKind: 'fire', heroKey: 'fireJudgment', palaceType: 'burnRing' },
+  { heroId: 'fereydun', heroKind: 'bind', heroKey: 'oxheadJudgment', palaceType: 'bindChains' },
+  { heroId: 'zal', heroKind: 'heal', heroKey: 'featherCall', palaceType: 'heal' },
+  { heroId: 'kaveh', heroKind: 'rally', heroKey: 'derafshRally', palaceType: 'rallyDamage' },
+];
+
+function makeGateBannerTexture(label = 'Gate Line', sublabel = '') {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 160;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, c.width, c.height);
+  g.fillStyle = 'rgba(15, 10, 6, 0.72)';
+  g.strokeStyle = 'rgba(255, 210, 106, 0.88)';
+  g.lineWidth = 5;
+  const x = 22, y = 22, w = 468, h = 116, r = 24;
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.lineTo(x + w - r, y);
+  g.quadraticCurveTo(x + w, y, x + w, y + r);
+  g.lineTo(x + w, y + h - r);
+  g.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  g.lineTo(x + r, y + h);
+  g.quadraticCurveTo(x, y + h, x, y + h - r);
+  g.lineTo(x, y + r);
+  g.quadraticCurveTo(x, y, x + r, y);
+  g.closePath();
+  g.fill();
+  g.stroke();
+  const grad = g.createLinearGradient(0, 0, c.width, 0);
+  grad.addColorStop(0, 'rgba(255, 210, 106, 0)');
+  grad.addColorStop(0.5, 'rgba(255, 240, 189, 0.42)');
+  grad.addColorStop(1, 'rgba(255, 210, 106, 0)');
+  g.fillStyle = grad;
+  g.fillRect(56, 42, 400, 4);
+  g.fillRect(56, 116, 400, 3);
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillStyle = '#fff0bd';
+  g.font = '700 34px "Segoe UI", Arial, sans-serif';
+  g.fillText(String(label).slice(0, 32), 256, sublabel ? 72 : 82, 404);
+  if (sublabel) {
+    g.fillStyle = '#d8a93e';
+    g.font = '600 21px "Segoe UI", Arial, sans-serif';
+    g.fillText(String(sublabel).slice(0, 42), 256, 106, 408);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
 export class Game {
   constructor(engine, mapDef, { endless = false, sandbox = false } = {}) {
@@ -40,12 +107,17 @@ export class Game {
     this.sandbox = sandbox;
     this.map = new GameMap(mapDef, this.scene);
     this.particles = new ParticleSystem(this.scene);
+    this.oathField = new OathField(this.scene, this.map);
+    this.bossOmen = new BossOmenField(this.scene, this.map);
+    this.palaceBoonField = new PalaceBoonField(this.scene, this.map);
+    this.heroCommandField = new HeroCommandField(this.scene, this.map);
+    this.palaceStage = new PalaceGateStage(this.scene, this.map);
     this.debris = new DebrisSystem(this.scene, (x, z) => this.map.heightAt(x, z));
     this.ambient = new Ambient(this.scene, this.map, makeRng('amb:' + mapDef.id));
     this.citadelGuard = new CitadelGuard(this, this.map.citadel);
     // palaces lazy-load per map; if the GLB wasn't ready at map-build the procedural citadel showed —
     // load it and swap it in (rebinding the guard) when it arrives.
-    if (hasPalace(mapDef.id) && !this.map.citadel.isPalace) loadPalace(mapDef.id, () => this._swapToPalace());
+    if (hasPalace(mapDef.id) && !this.map.citadel.isCustomPalace) loadPalace(mapDef.id, () => this._swapToPalace());
     this.debris.onBounce = (pos) => this.particles.burst(pos, 3, { speed: 1, life: 0.4, size: 0.35, color: [0.5, 0.45, 0.38], grav: 3 });
 
     // difficulty: 'normal' is ×1 everywhere (tuned baseline); easy/hard scale gold, lives, enemy HP.
@@ -58,12 +130,22 @@ export class Game {
     this.phase = 'build'; // build | combat | won | lost
     this.towers = [];
     this.palaceSquads = []; // squads summoned by the palace's Muster action
+    this.palaceAssaultStatus = null;
+    this.gateMarkers = [];
+    this._gatePressureOmen = { t: 0, lastState: '' };
+    this.palaceCommandPreview = null;
     this.enemies = [];
     this.projectiles = [];
     this.spawnQueue = [];
     this.waveT = 0;
     this.waveHpMult = 1;
     this.waveMod = null;
+    this.bossChallenge = null;
+    this.farrMax = FARR_MAX;
+    this.farr = sandbox ? FARR_MAX : 0;
+    this.oathT = 0;
+    this._oathFxT = 0;
+    this._palaceDanger = { pulseT: 0, fxT: 0, hornT: -99, markerT: -99, pressure: 0 };
     // auto-wave countdown: the next wave launches on its own; calling it early pays a
     // gold bonus scaled by the time you saved (classic TD early-call reward).
     this.prepTime = 16;        // seconds between waves
@@ -72,6 +154,7 @@ export class Game {
     this.waveCountdown = this.prepTimeFirst;
     this._tickAcc = 0;
     this._saveAcc = 0; // periodic mid-wave autosave accumulator
+    this._waveStartLives = this.lives;
     this.auraT = 0;
     this.siegeHornsActive = false;
     this._dreadSources = [];
@@ -90,6 +173,7 @@ export class Game {
     const exit = this.map.exitPos;
     engine.rtsCamera?.setHome(exit.x * 0.4, exit.z * 0.4, 72);
     engine.setMood(this.map.biome.mood);
+    this._rebuildPalaceStage();
   }
 
   on(ev, fn) { (this._listeners[ev] ||= []).push(fn); }
@@ -124,20 +208,56 @@ export class Game {
     if (ts.heroId) { const h = HERODEFS.find((x) => x.id === ts.heroId); if (h) this.assignHero(h, tower); }
     tower.invested = ts.invested ?? tower.invested;
     tower.hp = Math.min(tower.maxHp, ts.hp ?? tower.maxHp);
+    tower.heroActiveCd = ts.heroActiveCd || 0;
+    tower.palaceDamageT = ts.palaceDamageT || 0;
+    tower.palaceDamageBonus = ts.palaceDamageBonus || 0;
+    tower.palaceRangeT = ts.palaceRangeT || 0;
+    tower.palaceRangeBonus = ts.palaceRangeBonus || 0;
     this._restoring = false;
     return tower;
   }
 
   // respawn one live enemy at its saved path distance / hp / status effects.
   _restoreEnemy(def, es) {
-    const e = new Enemy(this, def, es.pathIndex || 0, this.waveHpMult, es.isLarva);
+    const e = new Enemy(this, def, es.pathIndex || 0, this.waveHpMult, es.isLarva, { forceBoss: !!es.boss });
     e.dist = es.dist || 0;
     e.hp = Math.min(e.maxHp, es.hp ?? e.maxHp);
     e.slows = (es.slows || []).map((s) => ({ ...s }));
     e.burns = (es.burns || []).map((b) => ({ ...b }));
     e.stunT = es.stunT || 0; e.bindT = es.bindT || 0; e.markT = es.markT || 0; e.markBonus = es.markBonus || 0;
+    e.fogBrokenT = es.fogBrokenT || 0;
+    e.siegeSilencedT = es.siegeSilencedT || 0;
+    e.broodSilencedT = es.broodSilencedT || 0;
+    e.counselBrokenT = es.counselBrokenT || 0;
+    e.feudBrokenT = es.feudBrokenT || 0;
+    e.guardBrokenT = es.guardBrokenT || 0;
     this.enemies.push(e);
     return e;
+  }
+
+  _restoreBossChallenge(saved) {
+    if (!saved?.defId) return;
+    const enemy = this.enemies.find((e) => e.alive && e.def.id === saved.defId && e.boss);
+    if (!enemy) return;
+    const cfg = bossChallengeDef(saved.defId);
+    this.bossChallenge = {
+      ...cfg,
+      defId: saved.defId,
+      enemyId: enemy.id,
+      dur: saved.dur ?? cfg.dur,
+      t: Math.max(0, saved.t ?? cfg.dur),
+      startHp: saved.startHp ?? enemy.hp,
+      targetHp: Math.max(1, saved.targetHp ?? enemy.hp * (1 - cfg.hpFrac)),
+      hpFrac: saved.hpFrac ?? cfg.hpFrac,
+      rewardFarr: saved.rewardFarr ?? cfg.rewardFarr,
+      rewardGold: saved.rewardGold ?? cfg.rewardGold,
+      failSpeed: saved.failSpeed ?? cfg.failSpeed,
+      failDamage: saved.failDamage ?? cfg.failDamage,
+      failType: saved.failType ?? cfg.failType,
+      successType: saved.successType ?? cfg.successType,
+      emitT: 0,
+    };
+    this.bossOmen.start(enemy, this.bossChallenge);
   }
 
   upgradeTower(tower) {
@@ -177,67 +297,2714 @@ export class Game {
     this.emit('towersChanged');
   }
 
+  addFarr(amount, reason = '') {
+    if (!amount || this.phase === 'lost' || this.phase === 'won') return;
+    const prev = this.farr || 0;
+    this.farr = Math.max(0, Math.min(this.farrMax, Math.round(prev + amount)));
+    if (this.farr === prev) return;
+    const ready = prev < this.farrMax && this.farr >= this.farrMax;
+    this.emit('farrChanged', { farr: this.farr, max: this.farrMax, ready, reason });
+    if (ready) this.emit('toast', 'oath.ready');
+  }
+
+  canUseOath() {
+    return (this.farr || 0) >= this.farrMax && this.phase !== 'lost' && this.phase !== 'won';
+  }
+
+  triggerOath(cit = this.map.citadel) {
+    if (!this.canUseOath()) { this.emit('toast', 'oath.need'); return false; }
+    const placeId = cit?.placeId || this.mapDef.id;
+    this.farr = 0;
+    this.oathT = Math.max(this.oathT || 0, OATH_DUR);
+    this._oathFxT = 0;
+    this.emit('farrChanged', { farr: this.farr, max: this.farrMax, ready: false, reason: 'spent' });
+
+    for (const tw of this.towers) {
+      if (!tw.alive) continue;
+      tw.palaceDamageT = Math.max(tw.palaceDamageT || 0, OATH_DUR);
+      tw.palaceDamageBonus = Math.max(tw.palaceDamageBonus || 0, 0.28);
+      tw.palaceRangeT = Math.max(tw.palaceRangeT || 0, OATH_DUR);
+      tw.palaceRangeBonus = Math.max(tw.palaceRangeBonus || 0, 0.16);
+      tw.attackCd = Math.min(tw.attackCd, 0.04);
+      tw.hp = Math.min(tw.maxHp, tw.hp + tw.maxHp * 0.18);
+    }
+    for (const sq of this._allDefenderSquads()) {
+      for (const m of sq.members) {
+        if (!m.alive) continue;
+        m.stunT = 0; m.fearT = 0;
+        m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.28);
+      }
+    }
+    for (const e of this.enemies) {
+      if (!e.alive) continue;
+      e.applyMark(0.25, OATH_DUR);
+      e.applySlow(0.72, Math.min(6, OATH_DUR * 0.45));
+      e.takeDamage(e.boss ? 28 : 12, 'true');
+    }
+
+    this.audio.farrOath?.();
+    this.engine.slowMo(0.34, 1.35);
+    this.engine.bloomPulse(1.25);
+    this.engine.addShake(0.95);
+    this._cameraFocusBeat(cit?.group?.position || this.map.exitPos, { dur: 1.15, strength: 0.28, dist: 54, pitch: 0.84, yawOffset: -0.04 });
+    this.oathField.trigger(cit, this.towers, this.map.paths);
+    this._oathVisualPulse(cit, true);
+    this.emit('oathTriggered', { placeId, dur: OATH_DUR });
+    this.emit('towersChanged');
+    saveBattle(this);
+    return true;
+  }
+
+  _oathVisualPulse(cit = this.map.citadel, strong = false) {
+    const keep = cit?.group?.position || this.map.exitPos;
+    const high = keep.clone().setY(keep.y + (cit?.height || 18) * 0.65);
+    this.particles.burst(high, strong ? 90 : 18, {
+      speed: strong ? 5.5 : 2.4, up: strong ? 4.2 : 2.0, life: strong ? 1.7 : 0.9,
+      size: strong ? 0.95 : 0.5, color: FXC.gold, grav: strong ? -0.9 : -0.4, spread: strong ? 7 : 3, drag: 0.4,
+    });
+    const towers = strong ? this.towers : this.towers.filter(() => Math.random() < 0.4);
+    for (const tw of towers) {
+      if (!tw.alive) continue;
+      this.particles.burst(tw.pos.clone().setY(tw.pos.y + 3.6), strong ? 14 : 4, {
+        speed: strong ? 2.8 : 1.2, up: 1.4, life: 0.8, size: 0.45, color: FXC.sacred, grav: -0.25, spread: 1.8,
+      });
+    }
+    if (strong) {
+      for (const path of this.map.paths || []) {
+        const samples = path.samples || [];
+        for (let i = 8; i < samples.length; i += 24) {
+          const p = samples[i].pos.clone().setY(samples[i].pos.y + 0.7);
+          this.particles.burst(p, 3, { speed: 1.1, up: 1.2, life: 1.0, size: 0.42, color: FXC.gold, grav: -0.4, spread: 2.2 });
+        }
+      }
+    }
+  }
+
+  _cameraFocusBeat(anchor, opts = {}) {
+    this.engine.rtsCamera?.focusBeat?.(anchor, opts);
+  }
+
+  _heroCommandBeat(kind, rank = 0, targetCount = 0) {
+    const weight = Math.min(1.35, 0.72 + rank * 0.1 + Math.min(6, targetCount) * 0.035);
+    const beat = {
+      heal: { stop: 0.025, slow: 0.72, dur: 0.32, bloom: 0.62, shake: 0.03 },
+      fire: { stop: 0.045, slow: 0.58, dur: 0.46, bloom: 0.86, shake: 0.18 },
+      vision: { stop: 0.035, slow: 0.62, dur: 0.4, bloom: 0.74, shake: 0.08 },
+      bind: { stop: 0.055, slow: 0.5, dur: 0.52, bloom: 0.78, shake: 0.26 },
+      rally: { stop: 0.035, slow: 0.64, dur: 0.42, bloom: 0.72, shake: 0.12 },
+    }[kind] || { stop: 0.035, slow: 0.65, dur: 0.38, bloom: 0.7, shake: 0.1 };
+    this.engine.hitStop?.(beat.stop * weight);
+    this.engine.slowMo?.(beat.slow, beat.dur * weight);
+    this.engine.bloomPulse?.(beat.bloom + rank * 0.06);
+    this.engine.addShake?.(beat.shake * weight);
+  }
+
+  gateClashBeat(anchor, enemy = null, power = 1) {
+    const now = this._time || 0;
+    const force = Math.max(0.25, Math.min(1.8, power));
+    if (now - (this._lastGateClashShake || -99) > 0.22) {
+      this._lastGateClashShake = now;
+      this.engine.addShake?.((enemy?.boss ? 0.16 : 0.075) * force);
+      this.engine.bloomPulse?.((enemy?.boss ? 0.34 : 0.18) * force);
+    }
+    if (anchor && now - (this._lastGateClashPulse || -99) > 0.34) {
+      this._lastGateClashPulse = now;
+      this._showGateClashPulse(anchor, enemy, force);
+      this._showDefenderClashLine(anchor, enemy, force);
+    }
+    if (anchor && enemy?.group?.position && now - (this._lastGateShockLine || -99) > 0.22) {
+      this._lastGateShockLine = now;
+      this._showGateShockLine(anchor, enemy, force);
+    }
+    if (anchor && (enemy?.boss || now - (this._lastGateClashFocus || -99) > 3.8)) {
+      this._lastGateClashFocus = now;
+      this._cameraFocusBeat(anchor, {
+        dur: enemy?.boss ? 0.92 : 0.62,
+        strength: enemy?.boss ? 0.24 : 0.14,
+        dist: enemy?.boss ? 48 : 58,
+        pitch: 0.78,
+        yawOffset: enemy?.boss ? 0.08 : -0.04,
+      });
+    }
+  }
+
+  defenderLineFlash(anchor, enemy = null, power = 1) {
+    const now = this._time || 0;
+    if (!anchor || now - (this._lastDefenderLineFlash || -99) < 0.18) return;
+    this._lastDefenderLineFlash = now;
+    this._showDefenderClashLine(anchor, enemy, power);
+  }
+
+  palaceThreatCue(anchor, enemies = []) {
+    const now = this._time || 0;
+    if (!anchor || now - (this._lastPalaceThreatCue || -99) < 0.48) return;
+    const targets = enemies.filter((e) => e?.alive).slice(0, 3);
+    if (!targets.length) return;
+    this._lastPalaceThreatCue = now;
+    targets.forEach((enemy, i) => {
+      enemy.applyMark?.(0.06, 0.9);
+      this._showPalaceThreatCue(anchor, enemy, i);
+    });
+  }
+
+  _previewFxAnchors(count = 9) {
+    const path = this.map.paths?.[0];
+    const samples = path?.samples || [];
+    if (samples.length) {
+      const start = Math.max(4, Math.floor(samples.length * 0.12));
+      const end = Math.max(start + 1, Math.floor(samples.length * 0.58));
+      const step = Math.max(1, Math.floor((end - start) / count));
+      return samples.slice(start, end).filter((_, i) => i % step === 0).slice(0, count).map((s) => {
+        const p = s.pos.clone();
+        p.y = this.map.heightAt(p.x, p.z) + 0.9;
+        return p;
+      });
+    }
+
+    const front = this._palaceFront(this.map.citadel || { group: { position: this.map.exitPos || new THREE.Vector3() }, footprint: 12 });
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2;
+      const r = 8 + (i % 3) * 4;
+      const x = front.x + Math.cos(a) * r;
+      const z = front.z + Math.sin(a) * r;
+      out.push(new THREE.Vector3(x, this.map.heightAt(x, z) + 0.9, z));
+    }
+    return out;
+  }
+
+  _previewFxOrigin() {
+    const liveTower = this.towers.find((t) => t.alive);
+    if (liveTower) return liveTower.pos.clone();
+    const pad = this.map.pads?.find((p) => !p.tower) || this.map.pads?.[0];
+    if (pad?.pos) return pad.pos.clone();
+    const anchor = this._previewFxAnchors(1)[0] || new THREE.Vector3();
+    anchor.y = this.map.heightAt(anchor.x, anchor.z);
+    return anchor;
+  }
+
+  previewCommandFx(options = {}) {
+    if (!this.sandbox) return false;
+    let {
+      heroId = 'arash',
+      heroKind = 'vision',
+      heroKey = 'borderArrow',
+      palaceType = 'rangeVision',
+    } = options;
+    if (!options.heroKind && !options.heroKey && !options.palaceType && !options.heroId) {
+      const preview = FX_PREVIEW_COMMANDS[this._previewCommandIdx || 0];
+      this._previewCommandIdx = ((this._previewCommandIdx || 0) + 1) % FX_PREVIEW_COMMANDS.length;
+      ({ heroId, heroKind, heroKey, palaceType } = preview);
+    }
+    const origin = this._previewFxOrigin();
+    const targetPositions = this._previewFxAnchors(10);
+    const fakeTargets = targetPositions.map((position) => ({ alive: true, group: { position } }));
+    const fakeTower = { alive: true, pos: origin, hero: { id: heroId, special: { key: heroKey } }, def: { name: 'Preview Command' } };
+    const cit = this.map.citadel || { group: { position: this.map.exitPos || origin }, footprint: 14, height: 18, placeId: this.mapDef.id };
+    const keep = cit.group?.position || origin;
+    const front = this._palaceFront(cit);
+    const range = 34;
+
+    this.heroCommandField.trigger(fakeTower, { key: heroKey, kind: heroKind, rank: 2, range, targets: fakeTargets });
+    this.palaceBoonField.trigger(cit, { type: palaceType, radius: range, dur: 6, amount: 0.2 }, {
+      front,
+      keep,
+      radius: range,
+      enemies: fakeTargets,
+      towers: this.towers.filter((t) => t.alive),
+    });
+    this._heroCommandBeat(heroKind, 2, fakeTargets.length);
+    this.particles.burst(origin.clone().setY(origin.y + 3.2), 26, {
+      speed: 2.8, life: 0.8, size: 0.52, color: FXC.sacred, grav: -0.25, spread: 4.2,
+    });
+    this.audio.palaceCommand?.(palaceType);
+    return { targets: fakeTargets.length, heroId, heroKind, heroKey, palaceType };
+  }
+
+  sandboxPalaceAssault(options = {}) {
+    if (!this.sandbox) return false;
+    const cit = this.map.citadel;
+    let gateGuard = 0;
+    if (!this.palaceSquads.some((sq) => sq.members.some((m) => m.alive))) {
+      cit.musterCd = 0;
+      this.palaceMuster(cit, { quiet: true });
+      const sq = this.palaceSquads[this.palaceSquads.length - 1];
+      gateGuard = sq?.members?.filter((m) => m.alive).length || 0;
+    }
+    const front = this._palaceFront(cit);
+    let pathIndex = 0;
+    let path = this.map.paths?.[0];
+    let near = null;
+    let bestD = Infinity;
+    for (let pi = 0; pi < (this.map.paths?.length || 0); pi++) {
+      for (const s of this.map.paths[pi].samples || []) {
+        const d = Math.hypot(front.x - s.pos.x, front.z - s.pos.z);
+        if (d < bestD) { bestD = d; pathIndex = pi; path = this.map.paths[pi]; near = s; }
+      }
+    }
+    if (!path || !near) return false;
+    const presets = [
+      { mode: 'probe', ids: ['barman', 'barman', 'arzhang-div', 'garsivaz'], count: 7, hpMult: 0.46, gap: 1.75, back: 9, fullFx: false },
+      { mode: 'breach', ids: ['barman', 'garsivaz', 'arzhang-div', 'tur', 'salm'], count: 11, hpMult: 0.58, gap: 1.52, back: 11, fullFx: true },
+      { mode: 'royal', ids: ['tur', 'salm', 'garsivaz', 'arzhang-div', 'barman'], count: 14, hpMult: 0.72, gap: 1.32, back: 13, fullFx: true },
+    ];
+    const preset = options.mode
+      ? (presets.find((p) => p.mode === options.mode) || presets[0])
+      : presets[this._palaceAssaultIdx || 0];
+    if (!options.mode) this._palaceAssaultIdx = ((this._palaceAssaultIdx || 0) + 1) % presets.length;
+    const ids = options.ids || preset.ids;
+    const count = Math.max(1, Math.min(18, options.count || preset.count));
+    const gap = Math.max(0.8, Math.min(2.4, options.gap || preset.gap));
+    const hpMult = Math.max(0.25, Math.min(1.3, options.hpMult ?? preset.hpMult));
+    const baseDist = Math.max(2, Math.min(path.length - 4, near.dist - (options.back ?? preset.back)));
+    const spawned = [];
+    for (let i = 0; i < count; i++) {
+      const defId = ids[i % ids.length];
+      const def = ENEMIES_BY_ID[defId] || ENEMIES_BY_ID.barman;
+      if (!def) continue;
+      const bossish = preset.mode === 'royal' && i < 2;
+      const e = new Enemy(this, def, pathIndex, hpMult * (bossish ? 1.28 : 1), false, { forceBoss: !!options.bosses && !!def.boss });
+      const row = Math.floor(i / 5);
+      const col = i % 5;
+      e.dist = Math.max(0, Math.min(path.length - 2, baseDist - row * 5.0 - col * gap));
+      e.laneOffset += (col - 2) * 0.72 + (row % 2 ? 0.32 : 0);
+      const pt = pointAt(path, e.dist);
+      e.group.position.set(pt.x, pt.y, pt.z);
+      e.applySlow(e.boss ? 0.78 : 0.62, 1.35 + row * 0.18);
+      if (preset.mode === 'royal' && i < 3) e.applyMark(0.08, 6);
+      this.enemies.push(e);
+      spawned.push(e);
+    }
+    this.phase = 'combat';
+    this.waveActive = true;
+    const dir = near?.tangent?.clone?.() || new THREE.Vector3(0, 0, -1);
+    const pressure = preset.mode === 'royal' ? 1.0 : preset.mode === 'breach' ? 0.82 : 0.64;
+    const holdDur = preset.mode === 'royal' ? 10.5 : preset.mode === 'breach' ? 8.6 : 6.8;
+    const holdRadius = preset.mode === 'royal' ? 14.5 : preset.mode === 'breach' ? 12.5 : 10.0;
+    const braceResult = this._bracePalaceDefenders(front, dir, pressure, holdDur, spawned[0]);
+    this._showAssaultColumn(path, baseDist, count, dir, 5.8 + pressure * 1.2);
+    this._showGateMarker(front, dir, holdRadius, 5.2 + pressure * 1.4);
+    this._showPalaceShieldLine(front, dir, { width: 10.5 + pressure * 3.2, pressure: 0.9 + pressure * 0.16, dur: 5.0 + pressure * 1.7 });
+    this._showGateBanner(front, dir, {
+      label: options.label || (preset.mode === 'royal' ? 'Royal Gate Line' : 'Gate Line'),
+      sublabel: options.subLabel || `${spawned.length} attackers`,
+      pressure,
+      dur: Math.min(holdDur, 5.0 + pressure * 1.6),
+    });
+    if (preset.mode === 'royal' || options.fullFx) {
+      this._showRoyalGateImpact(front, dir, spawned, { pressure, dur: 2.35 + pressure * 0.7 });
+    }
+    this.palaceStage?.signalAlarm?.({ front, keep: cit.group.position, dir, pressure: 0.58 + pressure * 0.28, dur: 4.0 + pressure * 1.4 });
+    if (options.fullFx ?? preset.fullFx) {
+      this.palaceBoonField.trigger(cit, { type: preset.mode === 'royal' ? 'stunPulse' : 'rallyDamage', radius: 30 + pressure * 8, dur: 2.8 + pressure }, {
+        front,
+        keep: cit.group.position,
+        radius: 30 + pressure * 8,
+        enemies: spawned,
+        towers: this.towers.filter((t) => t.alive),
+      });
+    } else {
+      this.particles.burst(front.clone().setY(front.y + 1.1), 14, {
+        speed: 2.0, up: 1.0, life: 0.7, size: 0.42, color: FXC.gold, grav: 0.9, spread: 2.2, drag: 0.6,
+      });
+    }
+    const timing = preset.mode === 'royal' ? 'peak' : preset.mode === 'breach' ? 'ready' : 'wait';
+    const countercharge = timing === 'peak'
+      ? this._peakGateCountercharge(cit, front, cit.group.position, {
+        radius: 30 + pressure * 8,
+        power: pressure * 1.36,
+        dur: 2.7,
+      })
+      : 0;
+    if (this.audio.palaceAlarm) this.audio.palaceAlarm();
+    else this.audio.hornCall?.();
+    this.engine.bloomPulse?.(0.24);
+    this.engine.addShake?.(0.22 + pressure * 0.12);
+    if (preset.mode === 'royal') {
+      this.engine.hitStop?.(0.035);
+      this.engine.slowMo?.(0.58, 0.58);
+      this.engine.bloomPulse?.(0.72);
+      this.engine.addShake?.(0.22);
+    }
+    this._cameraFocusBeat(front, { dur: 1.05 + pressure * 0.22, strength: 0.24 + pressure * 0.08, dist: 52, pitch: 0.8, yawOffset: -0.08 });
+    this.palaceAssaultStatus = {
+      mode: preset.mode,
+      count: spawned.length,
+      pressure,
+      timing,
+      countercharge,
+      t: holdDur,
+      dur: holdDur,
+    };
+    return {
+      count: spawned.length,
+      ids: spawned.map((e) => e.def.id),
+      mode: preset.mode,
+      defenders: braceResult.defenders || 0,
+      gateGuard,
+      braced: braceResult.squads || 0,
+      staggered: spawned.length,
+      timing,
+      peak: timing === 'peak',
+      countercharge,
+    };
+  }
+
+  sandboxBossSaga(options = {}) {
+    if (!this.sandbox) return false;
+    const requestedDefId = options.defId === 'tur-salm' ? 'tur' : options.defId;
+    const defId = requestedDefId || this.mapDef.boss || 'houman';
+    const def = ENEMIES_BY_ID[defId] || ENEMIES_BY_ID.houman;
+    const pathIndex = Math.max(0, Math.min((this.map.paths?.length || 1) - 1, options.pathIndex ?? 0));
+    const path = this.map.paths?.[pathIndex];
+    if (!def || !path?.samples?.length) return false;
+    this._clearBossChallenge();
+    const e = new Enemy(this, def, pathIndex, options.hpMult ?? this.waveHpMult ?? 1, false, { forceBoss: true });
+    const dist = Math.max(5, Math.min(path.length - 8, options.dist ?? path.length * 0.28));
+    e.dist = dist;
+    const pt = pointAt(path, dist);
+    e.group.position.set(pt.x, pt.y, pt.z);
+    this.enemies.push(e);
+    this.phase = 'combat';
+    this.waveActive = true;
+    if (!options.skipArrival) {
+      this.bossOmen.arrival?.(e);
+      this.emit('bossSpawned', def);
+    }
+    this._startBossChallenge(e);
+    this.audio.roar?.();
+    this.audio.bossSwell?.();
+    this.engine.slowMo?.(options.skipArrival ? 0.72 : 0.42, options.skipArrival ? 0.45 : 1.1);
+    this.engine.bloomPulse?.(options.skipArrival ? 0.58 : 0.95);
+    this.engine.addShake?.(options.skipArrival ? 0.28 : 0.8);
+    this._cameraFocusBeat(e.group.position, { dur: 1.1, strength: 0.34, dist: 50, pitch: 0.76, yawOffset: 0.08 });
+    const result = options.result || 'active';
+    const settle = (fn) => { if (e.alive && this.bossChallenge?.enemyId === e.id) fn.call(this, e); };
+    if (result === 'broken') {
+      const delay = options.resultDelay ?? 900;
+      if (delay <= 0) settle(this._completeBossChallenge);
+      else setTimeout(() => settle(this._completeBossChallenge), delay);
+    }
+    if (result === 'hardened') {
+      const delay = options.resultDelay ?? 900;
+      if (delay <= 0) settle(this._failBossChallenge);
+      else setTimeout(() => settle(this._failBossChallenge), delay);
+    }
+    return { ok: true, defId: def.id, enemyId: e.id, result };
+  }
+
+  _heroMuzzle(tower) {
+    return tower?._muzzlePos?.() || tower.pos.clone().setY(tower.pos.y + (tower.model?.height || 3.2));
+  }
+
+  _heroLineTargets(tower, range, width = 4.5) {
+    const alive = this.enemies.filter((e) => e.alive);
+    if (!alive.length) return [];
+    const origin = tower.pos;
+    const focus = alive
+      .slice()
+      .sort((a, b) => (b.dist || 0) - (a.dist || 0) || b.hp - a.hp)[0];
+    const dir = focus.group.position.clone().sub(origin).setY(0);
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, 1); else dir.normalize();
+    return alive.filter((e) => {
+      const off = e.group.position.clone().sub(origin).setY(0);
+      const along = off.dot(dir);
+      if (along < -3 || along > range) return false;
+      const lateral = off.clone().addScaledVector(dir, -along).length();
+      return lateral <= width || e === focus;
+    });
+  }
+
+  _applyHeroTowerSurge(towers, dur, damageBonus, rangeBonus = 0) {
+    for (const t of towers) {
+      if (!t.alive) continue;
+      t.palaceDamageT = Math.max(t.palaceDamageT || 0, dur);
+      t.palaceDamageBonus = Math.max(t.palaceDamageBonus || 0, damageBonus);
+      if (rangeBonus > 0) {
+        t.palaceRangeT = Math.max(t.palaceRangeT || 0, dur);
+        t.palaceRangeBonus = Math.max(t.palaceRangeBonus || 0, rangeBonus);
+      }
+      t.attackCd = Math.min(t.attackCd, 0.05);
+    }
+  }
+
+  _applyHeroSoldierSurge(center, range, dur, mult = 1.22) {
+    let count = 0;
+    for (const sq of this._allDefenderSquads()) {
+      const near = sq.members.filter((m) => m.alive && m.group.position.distanceTo(center) <= range);
+      if (!near.length) continue;
+      sq.gateLineT = Math.max(sq.gateLineT || 0, dur);
+      sq.gateLineDur = Math.max(sq.gateLineDur || 0, dur);
+      sq.gateLineAnchor = center.clone();
+      sq.gateLineRadius = Math.max(sq.gateLineRadius || 0, Math.min(11, Math.max(7, range * 0.24)));
+      sq.gateLineWidth = Math.max(sq.gateLineWidth || 0, Math.max(6, sq.gateLineRadius * 1.1));
+      sq.gateLineMult = Math.max(sq.gateLineMult || 1, mult);
+      for (const m of near) {
+        m.stunT = 0;
+        m.fearT = 0;
+        m.sortieT = Math.max(m.sortieT || 0, m.model?.mounted ? 2.0 : 1.45);
+        m.hp = Math.min(m.maxHp, m.hp + m.maxHp * 0.08);
+        count++;
+      }
+    }
+    return count;
+  }
+
+  _heroCommandPlan(tower) {
+    if (!tower?.alive || !tower.hero) return null;
+    const stats = tower.getStats();
+    const key = tower.hero.special?.key || 'default';
+    const rank = this.heroRank(tower.hero.id);
+    const range = Math.max(12, (stats.range || tower.def.range || 10) * 1.15);
+    const center = tower.pos;
+    const enemies = this.enemies.filter((e) => e.alive && e.group.position.distanceTo(center) <= range);
+    const allTargets = key === 'worldCup' || key === 'borderArrow' ? this.enemies.filter((e) => e.alive) : enemies;
+    const ready = (tower.heroActiveCd || 0) <= 0.05;
+
+    if (key === 'borderArrow') {
+      const lineRange = Math.max(92, range * 4.2);
+      return { key, kind: 'vision', rank, range: lineRange, targets: this._heroLineTargets(tower, lineRange, 5.0 + rank * 0.55), ready };
+    }
+    if (key === 'maceShockwave' || key === 'ancestralBlow' || key === 'youngLion') {
+      const radius = range * (key === 'youngLion' ? 1.05 : 0.9);
+      return { key, kind: 'bind', rank, range: radius, targets: this.enemies.filter((e) => e.alive && e.group.position.distanceTo(center) <= radius), ready };
+    }
+    if (key === 'gateWard') {
+      const road = this.map._nearRoad(center.x, center.z, range) || { pos: center };
+      const gate = new THREE.Vector3(road.pos.x, this.map.heightAt(road.pos.x, road.pos.z), road.pos.z);
+      const radius = 8.5 + rank * 0.7;
+      return { key, kind: 'bind', rank, range: radius * 1.65, targets: this.enemies.filter((e) => e.alive && e.group.position.distanceTo(gate) <= radius * 1.55), ready };
+    }
+    if (key === 'derafshRally' || key === 'warHorn' || key === 'wardenGallop' || key === 'mountedPursuit') {
+      return { key, kind: 'rally', rank, range: range * 1.45, targets: this.towers.filter((t) => t.alive && t.pos.distanceTo(center) <= range * 1.42), ready };
+    }
+    if (key === 'worldCup' || key === 'longSearch' || key === 'keepsakeToken' || key === 'heirsVolley' || key === 'twinArrow') {
+      const all = this.enemies.filter((e) => e.alive);
+      const targets = (key === 'worldCup' || key === 'longSearch')
+        ? all
+        : all.slice().sort((a, b) => b.hp - a.hp || (b.dist || 0) - (a.dist || 0)).slice(0, 5 + rank * 2);
+      return { key, kind: 'vision', rank, range: Math.max(range * 1.4, 34), targets, ready };
+    }
+    if (key === 'pahlavanChallenge') {
+      return {
+        key,
+        kind: 'bind',
+        rank,
+        range: range * 1.3,
+        targets: this.enemies
+          .filter((e) => e.alive && e.group.position.distanceTo(center) <= range * 1.3)
+          .sort((a, b) => b.hp - a.hp)
+          .slice(0, 1 + Math.min(2, rank)),
+        ready,
+      };
+    }
+    if (HERO_ACTIVE_HEAL.has(key)) {
+      return { key, kind: 'heal', rank, range: range * 1.25, targets: this.towers.filter((t) => t.alive && t.pos.distanceTo(center) <= range * 1.25), ready };
+    }
+    if (HERO_ACTIVE_FIRE.has(key)) {
+      return { key, kind: 'fire', rank, range, targets: allTargets, ready };
+    }
+    if (HERO_ACTIVE_VISION.has(key)) {
+      return { key, kind: 'vision', rank, range: range * 1.2, targets: allTargets, ready };
+    }
+    if (HERO_ACTIVE_BIND.has(key)) {
+      const hit = allTargets.length ? allTargets : enemies;
+      return { key, kind: 'bind', rank, range, targets: hit, ready };
+    }
+    return { key, kind: 'rally', rank, range: range * 1.35, targets: this.towers.filter((t) => t.alive && t.pos.distanceTo(center) <= range * 1.35), ready };
+  }
+
+  previewHeroCommand(tower) {
+    const plan = this._heroCommandPlan(tower);
+    if (!plan) return false;
+    this.heroCommandField.preview(tower, plan);
+    return true;
+  }
+
+  clearHeroCommandPreview() {
+    this.heroCommandField.clearPreview();
+  }
+
+  previewPalaceCommand(cit, kind = 'muster') {
+    if (!cit?.group) return false;
+    this.clearPalaceCommandPreview();
+    const cfg = palaceDef(cit.placeId || this.mapDef.id);
+    const musterDef = SOLDIERS_BY_ID[cfg?.muster?.unit];
+    const front = this._palaceFront(cit);
+    const keep = cit.group.position || this.map.exitPos || front;
+    const dir = front.clone().sub(keep);
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, -1); else dir.normalize();
+    const side = new THREE.Vector3(-dir.z, 0, dir.x);
+    const isMuster = kind === 'muster';
+    const isBoon = kind === 'boon';
+    const boon = cfg?.boon || {};
+    const boonType = boon.type || 'rallyDamage';
+    const boonColor = {
+      heal: 0x7fe7c1,
+      rallyDamage: 0xf4cd6e,
+      stunPulse: 0xfff3c8,
+      burnRing: 0xff7a24,
+      bindChains: 0xd2d8e2,
+      goldProvision: 0xf4cd6e,
+      rangeVision: 0x7fe7ff,
+      repairFortifications: 0xd6c2a0,
+    }[boonType] || 0xf4cd6e;
+    const radius = isBoon
+      ? Math.max(10, Math.min(48, boon.radius || (boonType === 'rangeVision' ? 36 : 26)))
+      : isMuster ? (musterDef?.mounted ? 12.5 : 10.25) : 8.75;
+    const width = isBoon ? Math.max(10, Math.min(18, radius * 0.42)) : isMuster ? Math.max(8.5, Math.min(13.5, radius * 1.1)) : 10.5;
+    const group = new THREE.Group();
+    group.position.copy(front).setY(front.y + 0.18);
+    group.renderOrder = 54;
+
+    const mats = [];
+    const geos = [];
+    const makeLine = (points, color, opacity, dashed = false) => {
+      const geo = new THREE.BufferGeometry().setFromPoints(points);
+      const mat = dashed
+        ? new THREE.LineDashedMaterial({ color, transparent: true, opacity, depthWrite: false, depthTest: false, dashSize: 0.85, gapSize: 0.45 })
+        : new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending });
+      const line = new THREE.Line(geo, mat);
+      if (dashed) line.computeLineDistances();
+      geos.push(geo);
+      mats.push(mat);
+      group.add(line);
+      return line;
+    };
+
+    const ringPts = [];
+    for (let i = 0; i <= 96; i++) {
+      const a = (i / 96) * Math.PI * 2;
+      ringPts.push(new THREE.Vector3(Math.cos(a) * radius, 0.02, Math.sin(a) * radius));
+    }
+    makeLine(ringPts, isBoon ? boonColor : isMuster ? 0xffd36a : 0x7be0d6, isMuster ? 0.72 : 0.62, !isMuster);
+    makeLine([
+      side.clone().multiplyScalar(-width * 0.5),
+      side.clone().multiplyScalar(width * 0.5),
+    ], isBoon ? boonColor : 0xfff0ad, isBoon ? 0.68 : 0.82);
+
+    for (const sign of [-1, 0, 1]) {
+      const base = side.clone().multiplyScalar(sign * width * 0.32).addScaledVector(dir, isMuster ? 1.8 : 1.1);
+      makeLine([
+        base.clone().addScaledVector(dir, -1.2).addScaledVector(side, -0.75),
+        base,
+        base.clone().addScaledVector(dir, -1.2).addScaledVector(side, 0.75),
+      ], isBoon ? boonColor : isMuster ? 0xffc34f : 0x76fff0, sign === 0 ? 0.78 : 0.48);
+    }
+
+    const discGeo = new THREE.CircleGeometry(radius, 80);
+    const discMat = new THREE.MeshBasicMaterial({
+      color: isBoon ? boonColor : isMuster ? 0xffb84d : 0x56d8cf,
+      transparent: true,
+      opacity: isBoon ? 0.055 : isMuster ? 0.095 : 0.075,
+      depthWrite: false,
+      depthTest: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+    });
+    discGeo.rotateX(-Math.PI / 2);
+    const disc = new THREE.Mesh(discGeo, discMat);
+    disc.position.y = 0.01;
+    group.add(disc);
+    geos.push(discGeo);
+    mats.push(discMat);
+
+    const slotCount = isBoon ? 4 : isMuster ? 7 : 5;
+    for (let i = 0; i < slotCount; i++) {
+      const slot = -width * 0.5 + (width / Math.max(1, slotCount - 1)) * i;
+      const p = side.clone().multiplyScalar(slot).addScaledVector(dir, -0.35 + (i % 2) * 0.55);
+      const geo = new THREE.CylinderGeometry(0.18, 0.24, 0.16, 12);
+      const mat = new THREE.MeshBasicMaterial({ color: isBoon ? boonColor : isMuster ? 0xffd978 : 0x8bfff5, transparent: true, opacity: 0.68, depthWrite: false, depthTest: false });
+      const marker = new THREE.Mesh(geo, mat);
+      marker.position.copy(p).setY(0.18);
+      group.add(marker);
+      geos.push(geo);
+      mats.push(mat);
+    }
+
+    if (isBoon) {
+      const standardGeo = new THREE.PlaneGeometry(2.8, 5.2);
+      const standardMat = new THREE.MeshBasicMaterial({
+        color: boonColor,
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+      });
+      const standard = new THREE.Mesh(standardGeo, standardMat);
+      standard.position.copy(dir.clone().multiplyScalar(2.2)).setY(3.0);
+      standard.rotation.y = Math.atan2(dir.x, dir.z);
+      group.add(standard);
+      geos.push(standardGeo);
+      mats.push(standardMat);
+
+      if (boonType === 'bindChains' || boonType === 'burnRing' || boonType === 'rangeVision') {
+        const inner = [];
+        const scaleX = boonType === 'rangeVision' ? radius * 0.82 : radius * 0.55;
+        const scaleZ = boonType === 'rangeVision' ? radius * 0.22 : radius * 0.55;
+        for (let i = 0; i <= 64; i++) {
+          const a = (i / 64) * Math.PI * 2;
+          inner.push(new THREE.Vector3(Math.cos(a) * scaleX, 0.05, Math.sin(a) * scaleZ));
+        }
+        const line = makeLine(inner, boonColor, 0.72, boonType === 'bindChains');
+        line.rotation.y = boonType === 'rangeVision' ? Math.atan2(dir.x, dir.z) : 0;
+      }
+    }
+
+    this.scene.add(group);
+    this.palaceCommandPreview = { group, mats, geos };
+    return true;
+  }
+
+  clearPalaceCommandPreview() {
+    const preview = this.palaceCommandPreview;
+    if (!preview) return;
+    this.scene.remove(preview.group);
+    for (const geo of preview.geos || []) geo.dispose();
+    for (const mat of preview.mats || []) mat.dispose();
+    this.palaceCommandPreview = null;
+  }
+
+  _heroActiveSpecific(tower, { key, rank, power, range, stats, center }) {
+    if (key === 'borderArrow') {
+      const lineRange = Math.max(92, range * 4.2);
+      const hit = this._heroLineTargets(tower, lineRange, 5.0 + rank * 0.55);
+      const from = this._heroMuzzle(tower);
+      const dmg = (stats.damage || 34) * (2.0 + rank * 0.45) * power;
+      this.heroCommandField.trigger(tower, { key, kind: 'vision', rank, range: lineRange, targets: hit });
+      this._heroCommandBeat('vision', rank, hit.length);
+      for (const e of hit) {
+        const p = e.group.position.clone().setY(e.group.position.y + 1.1);
+        lashEffect(this, from, p, 0xffd97a, 0.55);
+        e.takeDamage(dmg, 'true', { command: true, impact: 0.7 });
+        e.applyMark(0.26 + rank * 0.05, 9 + rank);
+        e.applySlow(0.72, 2.6 + rank * 0.25);
+      }
+      this.particles.burst(from, 34, { speed: 4.2, up: 1.0, life: 0.85, size: 0.5, color: FXC.gold, grav: 0.4, spread: 3.4 });
+      this.audio.longArrow();
+      return { kind: 'vision', targetCount: hit.length };
+    }
+
+    if (key === 'maceShockwave' || key === 'ancestralBlow' || key === 'youngLion') {
+      const radius = range * (key === 'youngLion' ? 1.05 : 0.9);
+      const hit = this.enemies.filter((e) => e.alive && e.group.position.distanceTo(center) <= radius);
+      const dmg = (stats.damage || 38) * (key === 'youngLion' ? 0.95 : 1.25) * power;
+      this.heroCommandField.trigger(tower, { key, kind: 'bind', rank, range: radius, targets: hit });
+      this._heroCommandBeat('bind', rank, hit.length);
+      for (const e of hit) {
+        e.takeDamage(dmg, 'impact', { command: true, impact: 0.9 });
+        e.applySlow(e.boss ? 0.72 : 0.52, 2.4 + rank * 0.25);
+        e.stunT = Math.max(e.stunT, e.boss ? 0.45 : 1.0 + rank * 0.16);
+        e.dist = Math.max(0, e.dist - (e.boss ? 1.1 : 3.2 + rank * 0.45));
+      }
+      this.engine.addShake?.(key === 'youngLion' ? 0.45 : 0.65);
+      this.particles.burst(center.clone().setY(center.y + 1.3), 42, { speed: 4.0, up: 1.4, life: 0.85, size: 0.62, color: FXC.gold, grav: 1.4, spread: 4.2 });
+      this.audio.mace?.();
+      return { kind: 'bind', targetCount: hit.length };
+    }
+
+    if (key === 'gateWard') {
+      const road = this.map._nearRoad(center.x, center.z, range) || { pos: center, tangent: new THREE.Vector3(0, 0, 1) };
+      const gate = new THREE.Vector3(road.pos.x, this.map.heightAt(road.pos.x, road.pos.z), road.pos.z);
+      const dir = new THREE.Vector3(road.tangent?.x || 0, 0, road.tangent?.z || 1);
+      if (dir.lengthSq() < 0.01) dir.set(0, 0, 1); else dir.normalize();
+      const dur = 6.5 + rank * 0.8;
+      const radius = 8.5 + rank * 0.7;
+      const hit = this.enemies.filter((e) => e.alive && e.group.position.distanceTo(gate) <= radius * 1.55);
+      this._showGateMarker(gate, dir, radius, dur);
+      this.heroCommandField.trigger(tower, { key, kind: 'bind', rank, range: radius * 1.65, targets: hit });
+      this._heroCommandBeat('bind', rank, hit.length);
+      for (const e of hit) {
+        e.applyBind(e.boss ? dur * 0.22 : dur * 0.45);
+        e.applySlow(0.5, dur);
+        e.stunT = Math.max(e.stunT, e.boss ? 0.35 : 0.9);
+        e.takeDamage((stats.damage || 30) * 0.55 * power, 'impact', { command: true, impact: 0.7 });
+      }
+      this._applyHeroSoldierSurge(gate, radius * 1.8, dur, 1.24 + rank * 0.04);
+      this.audio.chain();
+      return { kind: 'bind', targetCount: hit.length };
+    }
+
+    if (key === 'derafshRally' || key === 'warHorn' || key === 'wardenGallop' || key === 'mountedPursuit') {
+      const dur = 8 + rank * 1.7;
+      const affected = this.towers.filter((t) => t.alive && t.pos.distanceTo(center) <= range * 1.42);
+      const soldierCount = this._applyHeroSoldierSurge(center, range * 1.55, dur, 1.26 + rank * 0.04);
+      this._applyHeroTowerSurge(affected, dur, 0.2 + rank * 0.05, key === 'mountedPursuit' || key === 'wardenGallop' ? 0.12 : 0);
+      this.heroCommandField.trigger(tower, { key, kind: 'rally', rank, range: range * 1.45, targets: affected });
+      this._heroCommandBeat('rally', rank, affected.length + Math.min(8, soldierCount));
+      this.particles.burst(center.clone().setY(center.y + 3.0), 36, { speed: 3.0, up: 1.1, life: 0.9, size: 0.55, color: FXC.gold, grav: 0.2, spread: 4 });
+      this.audio.hornCall();
+      return { kind: 'rally', targetCount: affected.length + soldierCount };
+    }
+
+    if (key === 'worldCup' || key === 'longSearch' || key === 'keepsakeToken' || key === 'heirsVolley' || key === 'twinArrow') {
+      const all = this.enemies.filter((e) => e.alive);
+      const targets = (key === 'worldCup' || key === 'longSearch')
+        ? all
+        : all.slice().sort((a, b) => b.hp - a.hp || (b.dist || 0) - (a.dist || 0)).slice(0, 5 + rank * 2);
+      const mark = 0.22 + rank * 0.05;
+      this.heroCommandField.trigger(tower, { key, kind: 'vision', rank, range: Math.max(range * 1.4, 34), targets });
+      this._heroCommandBeat('vision', rank, targets.length);
+      for (const e of targets) {
+        e.untargetableT = 0;
+        e.applyMark(mark, 8 + rank * 1.4);
+        if (key === 'heirsVolley' || key === 'twinArrow') e.takeDamage((stats.damage || 30) * 0.7 * power, 'arrow', { armorShred: 0.25, command: true, impact: 0.45 });
+      }
+      tower.palaceRangeT = Math.max(tower.palaceRangeT || 0, 10 + rank * 2);
+      tower.palaceRangeBonus = Math.max(tower.palaceRangeBonus || 0, 0.28 + rank * 0.04);
+      tower.attackCd = 0.02;
+      this.audio.longArrow();
+      return { kind: 'vision', targetCount: targets.length };
+    }
+
+    if (key === 'pahlavanChallenge') {
+      const hit = this.enemies
+        .filter((e) => e.alive && e.group.position.distanceTo(center) <= range * 1.3)
+        .sort((a, b) => b.hp - a.hp)
+        .slice(0, 1 + Math.min(2, rank));
+      this.heroCommandField.trigger(tower, { key, kind: 'bind', rank, range: range * 1.3, targets: hit });
+      this._heroCommandBeat('bind', rank, hit.length);
+      for (const e of hit) {
+        e.applyMark(0.34 + rank * 0.04, 10);
+        e.applyBind(e.boss ? 1.1 + rank * 0.2 : 2.2 + rank * 0.35);
+        e.applySlow(0.48, 5.2 + rank * 0.4);
+        e.takeDamage((stats.damage || 36) * (1.05 + rank * 0.18) * power, 'impact', { command: true, impact: 0.85 });
+      }
+      this.engine.addShake?.(0.38);
+      this.audio.clank();
+      return { kind: 'bind', targetCount: hit.length };
+    }
+
+    return null;
+  }
+
+  heroActive(tower) {
+    if (!tower?.alive || !tower.hero) return false;
+    if ((tower.heroActiveCd || 0) > 0) return false;
+    const stats = tower.getStats();
+    const key = tower.hero.special?.key || 'default';
+    const rank = this.heroRank(tower.hero.id);
+    const power = 1 + (stats.bond || 0) + rank * 0.18;
+    const cd = Math.max(24, 42 - rank * 4);
+    const range = Math.max(12, (stats.range || tower.def.range || 10) * 1.15);
+    const center = tower.pos;
+    const enemies = this.enemies.filter((e) => e.alive && e.group.position.distanceTo(center) <= range);
+    const allTargets = key === 'worldCup' || key === 'borderArrow' ? this.enemies.filter((e) => e.alive) : enemies;
+    tower.heroActiveCd = cd;
+    let commandKind = 'rally';
+    let commandTargets = 0;
+    const specific = this._heroActiveSpecific(tower, { key, rank, power, range, stats, center });
+
+    if (specific) {
+      commandKind = specific.kind;
+      commandTargets = specific.targetCount;
+    } else if (HERO_ACTIVE_HEAL.has(key)) {
+      const amt = 0.22 + rank * 0.04;
+      const affected = this.towers.filter((t) => t.alive && t.pos.distanceTo(center) <= range * 1.25);
+      commandKind = 'heal';
+      commandTargets = affected.length;
+      this.heroCommandField.trigger(tower, { key, kind: 'heal', rank, range: range * 1.25, targets: affected });
+      this._heroCommandBeat('heal', rank, affected.length);
+      for (const t of this.towers) {
+        if (t.alive && t.pos.distanceTo(center) <= range * 1.25) t.hp = Math.min(t.maxHp, t.hp + t.maxHp * amt);
+      }
+      for (const s of this.soldiersNear(center, range * 1.25)) s.hp = Math.min(s.maxHp, s.hp + s.maxHp * (amt + 0.08));
+      this.particles.burst(center.clone().setY(center.y + 3), 28, { speed: 2, life: 1.0, size: 0.55, color: FXC.heal, grav: -0.7, spread: 3 });
+      this.audio.shimmer();
+    } else if (HERO_ACTIVE_FIRE.has(key)) {
+      const dps = Math.max(9, (stats.damage || 35) * 0.18) * power;
+      commandKind = 'fire';
+      commandTargets = allTargets.length;
+      this.heroCommandField.trigger(tower, { key, kind: 'fire', rank, range, targets: allTargets });
+      this._heroCommandBeat('fire', rank, allTargets.length);
+      for (const e of allTargets) {
+        e.takeDamage((stats.damage || 35) * 0.55 * power, 'true', { command: true, impact: 0.55 });
+        e.applyBurn(dps, 3.2 + rank * 0.4);
+      }
+      this.particles.burst(center.clone().setY(center.y + 2), 34, { speed: 3.5, life: 0.9, size: 0.6, color: FXC.ember, grav: -0.3, spread: range * 0.2 });
+      this.audio.fire();
+    } else if (HERO_ACTIVE_VISION.has(key)) {
+      const bonus = 0.18 + rank * 0.04;
+      commandKind = 'vision';
+      commandTargets = allTargets.length;
+      this.heroCommandField.trigger(tower, { key, kind: 'vision', rank, range: range * 1.2, targets: allTargets });
+      this._heroCommandBeat('vision', rank, allTargets.length);
+      for (const e of allTargets) {
+        e.applyMark(bonus, 7 + rank);
+        e.takeDamage((stats.damage || 28) * 0.45 * power, 'true', { command: true, impact: 0.45 });
+      }
+      tower.palaceRangeT = Math.max(tower.palaceRangeT || 0, 10 + rank * 2);
+      tower.palaceRangeBonus = Math.max(tower.palaceRangeBonus || 0, 0.25 + rank * 0.04);
+      tower.attackCd = 0.02;
+      this.particles.burst(center.clone().setY(center.y + 4), 24, { speed: 4, life: 0.8, size: 0.5, color: FXC.sacred, grav: -0.2, spread: 4 });
+      this.audio.longArrow();
+    } else if (HERO_ACTIVE_BIND.has(key)) {
+      const hit = allTargets.length ? allTargets : enemies;
+      commandKind = 'bind';
+      commandTargets = hit.length;
+      this.heroCommandField.trigger(tower, { key, kind: 'bind', rank, range, targets: hit });
+      this._heroCommandBeat('bind', rank, hit.length);
+      for (const e of hit) {
+        e.takeDamage((stats.damage || 38) * 0.75 * power, key === 'dragonbane' ? 'impact' : 'magic', { command: true, impact: 0.65 });
+        if (!e.boss) e.stunT = Math.max(e.stunT, 0.9 + rank * 0.15);
+        e.applyBind(1.2 + rank * 0.25);
+        if (key === 'dragonbane' && (e.def.class === 'beast' || e.def.class === 'serpent')) e.takeDamage((stats.damage || 38) * power, 'true', { command: true, impact: 0.8 });
+      }
+      this.particles.burst(center.clone().setY(center.y + 2.4), 32, { speed: 3, life: 0.9, size: 0.6, color: FXC.chain, grav: 0.4, spread: 3.5 });
+      this.audio.chain();
+    } else {
+      const dur = 8 + rank * 2;
+      const bonus = 0.22 + rank * 0.05;
+      const affected = this.towers.filter((t) => t.alive && t.pos.distanceTo(center) <= range * 1.35);
+      commandKind = 'rally';
+      commandTargets = affected.length;
+      this.heroCommandField.trigger(tower, { key, kind: 'rally', rank, range: range * 1.35, targets: affected });
+      this._heroCommandBeat('rally', rank, affected.length);
+      for (const t of this.towers) {
+        if (!t.alive || t.pos.distanceTo(center) > range * 1.35) continue;
+        t.palaceDamageT = Math.max(t.palaceDamageT || 0, dur);
+        t.palaceDamageBonus = Math.max(t.palaceDamageBonus || 0, bonus);
+        t.attackCd = Math.min(t.attackCd, 0.05);
+      }
+      for (const s of this.soldiersNear(center, range * 1.35)) s.stunT = 0;
+      this.particles.burst(center.clone().setY(center.y + 3.2), 30, { speed: 2.6, life: 1.0, size: 0.55, color: FXC.gold, grav: -0.3, spread: 3.5 });
+      this.audio.hornCall();
+    }
+
+    this.emit('towersChanged');
+    tower.commandFlash?.(commandKind, rank);
+    this.emit('heroCommand', { tower, hero: tower.hero, key, kind: commandKind, targetCount: commandTargets, rank });
+    return true;
+  }
+
   // ---------- palace command actions ----------
-  // a defensive point just in front of the palace, toward the incoming lanes
+  // Defensive point on the actual road just before the palace gate.
   _palaceFront(cit) {
-    const p = cit.group.position;
-    const dir = new THREE.Vector3(-p.x, 0, -p.z);
+    const keep = cit?.group?.position || this.map.exitPos || new THREE.Vector3();
+    const gateBack = Math.max(10, Math.min(30, (cit?.footprint || 15) + 4));
+    let best = null;
+    let bestD = Infinity;
+    for (const path of this.map.paths || []) {
+      if (!path?.samples?.length) continue;
+      const p = pointAt(path, Math.max(0, path.length - gateBack));
+      const pos = new THREE.Vector3(p.x, this.map.heightAt(p.x, p.z), p.z);
+      const d = pos.distanceTo(keep);
+      if (d < bestD) { best = pos; bestD = d; }
+    }
+    if (best) return best;
+    const dir = new THREE.Vector3(-keep.x, 0, -keep.z);
     if (dir.lengthSq() > 0.01) dir.normalize(); else dir.set(0, 0, -1);
-    const rad = (cit.footprint || 15) + 3;
-    const x = p.x + dir.x * rad, z = p.z + dir.z * rad;
+    const x = keep.x + dir.x * gateBack, z = keep.z + dir.z * gateBack;
     return new THREE.Vector3(x, this.map.heightAt(x, z), z);
+  }
+
+  _palaceSortieOrigin(cit, gate) {
+    const keep = cit?.group?.position || this.map.exitPos || gate;
+    const toKeep = keep.clone().sub(gate);
+    if (toKeep.lengthSq() < 0.01) return gate.clone();
+    const d = Math.min(8, Math.max(3.5, toKeep.length() * 0.42));
+    toKeep.normalize();
+    const x = gate.x + toKeep.x * d;
+    const z = gate.z + toKeep.z * d;
+    return new THREE.Vector3(x, this.map.heightAt(x, z), z);
+  }
+
+  _showGateMarker(gate, sortieDir, radius = 8, dur = 7) {
+    if (!gate || !sortieDir) return;
+    const dir = sortieDir.clone();
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, -1); else dir.normalize();
+    const side = new THREE.Vector3(-dir.z, 0, dir.x);
+    const group = new THREE.Group();
+    group.position.copy(gate).setY(gate.y + 0.16);
+    group.renderOrder = 48;
+
+    const lineMat = new THREE.LineBasicMaterial({
+      color: 0xffd26a,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const dimMat = new THREE.LineBasicMaterial({
+      color: 0xf0b64a,
+      transparent: true,
+      opacity: 0.28,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const gateWidth = Math.max(5.5, Math.min(10, radius * 1.15));
+    const cross = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([
+        side.clone().multiplyScalar(-gateWidth * 0.5),
+        side.clone().multiplyScalar(gateWidth * 0.5),
+      ]),
+      lineMat,
+    );
+    group.add(cross);
+
+    const chevrons = [];
+    for (const sign of [-1, 1]) {
+      const base = side.clone().multiplyScalar(sign * gateWidth * 0.48);
+      const pts = [
+        base,
+        base.clone().addScaledVector(side, -sign * 0.9).addScaledVector(dir, -0.9),
+        base.clone().addScaledVector(side, -sign * 0.9).addScaledVector(dir, 0.9),
+        base,
+      ];
+      const mark = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), dimMat.clone());
+      group.add(mark);
+      chevrons.push(mark);
+    }
+
+    const ringPts = [];
+    const segments = 72;
+    for (let i = 0; i <= segments; i++) {
+      const a = (i / segments) * Math.PI * 2;
+      ringPts.push(new THREE.Vector3(Math.cos(a) * radius, 0.01, Math.sin(a) * radius));
+    }
+    const holdRing = new THREE.Line(new THREE.BufferGeometry().setFromPoints(ringPts), dimMat.clone());
+    group.add(holdRing);
+
+    const poleMat = new THREE.MeshStandardMaterial({
+      color: 0x6f4528,
+      roughness: 0.72,
+      metalness: 0.12,
+      transparent: true,
+      opacity: 0.9,
+    });
+    const bannerMat = new THREE.MeshBasicMaterial({
+      color: 0xd8a93e,
+      transparent: true,
+      opacity: 0.82,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const shieldMat = new THREE.MeshBasicMaterial({
+      color: 0xffd26a,
+      transparent: true,
+      opacity: 0.46,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    const poleGeo = new THREE.CylinderGeometry(0.035, 0.045, 1.55, 6);
+    const bannerGeo = new THREE.PlaneGeometry(0.72, 0.42);
+    const shieldGeo = new THREE.CircleGeometry(0.28, 18);
+    shieldGeo.rotateX(-Math.PI / 2);
+    const standards = [];
+    const shieldGlints = [];
+    for (const sign of [-1, 1]) {
+      const base = side.clone().multiplyScalar(sign * gateWidth * 0.58).addScaledVector(dir, -0.42);
+      const pole = new THREE.Mesh(poleGeo, poleMat.clone());
+      pole.position.copy(base).setY(0.78);
+      const flag = new THREE.Mesh(bannerGeo, bannerMat.clone());
+      flag.position.copy(base).addScaledVector(dir, -0.16).setY(1.38);
+      flag.rotation.y = Math.atan2(dir.x, dir.z);
+      flag.scale.x = sign;
+      group.add(pole, flag);
+      standards.push({ pole, flag, phase: Math.random() * Math.PI * 2 });
+    }
+    for (let i = 0; i < 5; i++) {
+      const u = i / 4 - 0.5;
+      const p = side.clone().multiplyScalar(u * gateWidth * 0.86).addScaledVector(dir, -0.18 - Math.abs(u) * 0.12);
+      const shield = new THREE.Mesh(shieldGeo, shieldMat.clone());
+      shield.position.copy(p).setY(0.19);
+      shield.scale.setScalar(0.82 + Math.abs(u) * 0.22);
+      group.add(shield);
+      shieldGlints.push({ shield, phase: Math.random() * Math.PI * 2 });
+    }
+
+    for (const s of [-1, 1]) {
+      const p = gate.clone().addScaledVector(side, s * gateWidth * 0.5).setY(gate.y + 0.8);
+      this.particles.burst(p, 7, { speed: 1.2, up: 1.2, life: 0.55, size: 0.35, color: FXC.gold, grav: -0.2, spread: 0.65 });
+    }
+
+    this.scene.add(group);
+    this.gateMarkers.push({
+      group,
+      mats: [
+        lineMat, dimMat,
+        ...chevrons.map((c) => c.material),
+        holdRing.material,
+        ...standards.flatMap((s) => [s.pole.material, s.flag.material]),
+        ...shieldGlints.map((s) => s.shield.material),
+      ],
+      geos: [
+        cross.geometry,
+        ...chevrons.map((c) => c.geometry),
+        holdRing.geometry,
+        poleGeo,
+        bannerGeo,
+        shieldGeo,
+      ],
+      t: dur,
+      dur,
+      ring: holdRing,
+      line: cross,
+      standards,
+      shieldGlints,
+      gateFront: true,
+    });
+  }
+
+  _showPalaceShieldLine(gate, sortieDir, { width = 9, pressure = 0.7, dur = 4.5 } = {}) {
+    if (!gate || !sortieDir) return;
+    const dir = sortieDir.clone();
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, -1); else dir.normalize();
+    const side = new THREE.Vector3(-dir.z, 0, dir.x);
+    const group = new THREE.Group();
+    group.position.copy(gate).addScaledVector(dir, -0.35).setY(gate.y + 0.08);
+    group.rotation.y = Math.atan2(dir.x, dir.z);
+    group.renderOrder = 42;
+
+    const shieldGeo = new THREE.CylinderGeometry(0.34, 0.38, 0.12, 18);
+    shieldGeo.rotateX(Math.PI / 2);
+    const bossGeo = new THREE.SphereGeometry(0.12, 12, 8);
+    const poleGeo = new THREE.CylinderGeometry(0.035, 0.045, 1.05, 6);
+    const shieldMat = new THREE.MeshStandardMaterial({ color: 0x7c4022, roughness: 0.72, metalness: 0.18, transparent: true, opacity: 0.88 });
+    const bossMat = new THREE.MeshStandardMaterial({ color: 0xd8a93e, roughness: 0.44, metalness: 0.38, transparent: true, opacity: 0.92 });
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x4a2d18, roughness: 0.86, transparent: true, opacity: 0.9 });
+    const count = Math.max(5, Math.min(9, Math.round(width / 1.35)));
+    const step = width / Math.max(1, count - 1);
+
+    for (let i = 0; i < count; i++) {
+      const offset = -width * 0.5 + i * step;
+      const row = i % 2 ? -0.22 : 0.08;
+      const slot = new THREE.Group();
+      slot.position.copy(side.clone().multiplyScalar(offset)).addScaledVector(dir, row);
+      slot.position.y = 0.58 + Math.sin(i * 1.7) * 0.03;
+      slot.rotation.y = (i % 2 ? -0.06 : 0.06);
+      const pole = new THREE.Mesh(poleGeo, poleMat);
+      pole.position.y = 0.25;
+      const shield = new THREE.Mesh(shieldGeo, shieldMat);
+      shield.position.y = 0.78;
+      shield.scale.set(1.0 + pressure * 0.16, 1.08 + pressure * 0.2, 1);
+      const boss = new THREE.Mesh(bossGeo, bossMat);
+      boss.position.set(0, 0.78, 0.07);
+      slot.add(pole, shield, boss);
+      group.add(slot);
+    }
+
+    this.scene.add(group);
+    this.gateMarkers.push({
+      group,
+      mats: [shieldMat, bossMat, poleMat],
+      geos: [shieldGeo, bossGeo, poleGeo],
+      t: dur,
+      dur,
+      shieldLine: true,
+      baseY: group.position.y,
+    });
+  }
+
+  _showRoyalGateImpact(gate, sortieDir, enemies = [], { pressure = 1, dur = 2.8 } = {}) {
+    if (!gate || !sortieDir) return;
+    const dir = sortieDir.clone();
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, -1); else dir.normalize();
+    const side = new THREE.Vector3(-dir.z, 0, dir.x);
+    const force = Math.max(0.65, Math.min(1.35, pressure || 1));
+    const group = new THREE.Group();
+    group.position.copy(gate).addScaledVector(dir, -0.55).setY(gate.y + 0.22);
+    group.renderOrder = 56;
+
+    const innerGeo = new THREE.RingGeometry(1.08, 1.46, 72);
+    const outerGeo = new THREE.RingGeometry(2.25, 2.54, 96);
+    const plateGeo = new THREE.CircleGeometry(0.82, 48);
+    const rayGeo = new THREE.BufferGeometry();
+    const rayPts = [];
+    const rayCount = 14;
+    for (let i = 0; i < rayCount; i++) {
+      const u = i / Math.max(1, rayCount - 1) - 0.5;
+      const a = u * Math.PI * 0.86;
+      const localDir = dir.clone().multiplyScalar(Math.cos(a)).addScaledVector(side, Math.sin(a)).normalize();
+      rayPts.push(localDir.clone().multiplyScalar(0.92), localDir.clone().multiplyScalar(4.1 + Math.abs(u) * 1.65));
+    }
+    rayGeo.setFromPoints(rayPts);
+
+    const innerMat = new THREE.MeshBasicMaterial({
+      color: 0xffd26a,
+      transparent: true,
+      opacity: 0.5,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    const outerMat = new THREE.MeshBasicMaterial({
+      color: 0x9fe0dc,
+      transparent: true,
+      opacity: 0.26,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    const plateMat = new THREE.MeshBasicMaterial({
+      color: 0xfff0bd,
+      transparent: true,
+      opacity: 0.14,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    const rayMat = new THREE.LineBasicMaterial({
+      color: 0xffe09a,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const inner = new THREE.Mesh(innerGeo, innerMat);
+    const outer = new THREE.Mesh(outerGeo, outerMat);
+    const plate = new THREE.Mesh(plateGeo, plateMat);
+    const rays = new THREE.LineSegments(rayGeo, rayMat);
+    for (const obj of [inner, outer, plate]) obj.rotation.x = -Math.PI / 2;
+    group.add(plate, inner, outer, rays);
+
+    const extraMats = [];
+    const extraGeos = [];
+    const first = enemies.find((e) => e?.alive && e.group?.position);
+    if (first) {
+      const target = first.group.position.clone();
+      target.y = this.map.heightAt(target.x, target.z) + (first.boss ? 1.35 : 0.85);
+      const start = gate.clone().setY(gate.y + 0.85);
+      const mid = start.clone().lerp(target, 0.56);
+      mid.y += 0.7;
+      const lashGeo = new THREE.BufferGeometry().setFromPoints([start, mid, target]);
+      const lashMat = new THREE.LineBasicMaterial({
+        color: 0xff715c,
+        transparent: true,
+        opacity: 0.74,
+        depthWrite: false,
+        depthTest: true,
+        blending: THREE.AdditiveBlending,
+      });
+      group.add(new THREE.Line(lashGeo, lashMat));
+      extraMats.push(lashMat);
+      extraGeos.push(lashGeo);
+    }
+
+    this.particles.burst(gate.clone().setY(gate.y + 1.15), 26, {
+      speed: 3.2 + force * 0.5,
+      up: 1.55,
+      life: 0.72,
+      size: 0.42,
+      color: FXC.gold,
+      grav: 1.0,
+      spread: 3.0 + force * 0.85,
+      drag: 0.42,
+    });
+    for (const enemy of enemies.slice(0, 6)) {
+      if (!enemy?.alive || !enemy.group?.position) continue;
+      const p = enemy.group.position.clone();
+      p.y = this.map.heightAt(p.x, p.z) + 0.72;
+      this.particles.burst(p, 5, {
+        speed: 2.6,
+        up: 0.85,
+        life: 0.38,
+        size: 0.34,
+        color: FXC.sacred,
+        grav: 1.5,
+        spread: 0.9,
+        drag: 0.65,
+      });
+    }
+
+    this.scene.add(group);
+    this.gateMarkers.push({
+      group,
+      mats: [innerMat, outerMat, plateMat, rayMat, ...extraMats],
+      geos: [innerGeo, outerGeo, plateGeo, rayGeo, ...extraGeos],
+      t: dur,
+      dur,
+      royalGateImpact: true,
+      inner,
+      outer,
+      plate,
+      rays,
+      force,
+      baseY: group.position.y,
+    });
+  }
+
+  _showGateBanner(gate, sortieDir, { label = 'Gate Line', sublabel = '', pressure = 0.8, dur = 5.5 } = {}) {
+    if (!gate || !sortieDir) return;
+    const dir = sortieDir.clone();
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, -1); else dir.normalize();
+    const side = new THREE.Vector3(-dir.z, 0, dir.x);
+    const group = new THREE.Group();
+    group.position.copy(gate).addScaledVector(dir, -1.3).setY(gate.y + 4.15);
+    group.rotation.y = Math.atan2(dir.x, dir.z);
+    group.renderOrder = 58;
+
+    const tex = makeGateBannerTexture(label, sublabel);
+    const bannerMat = new THREE.SpriteMaterial({
+      map: tex,
+      transparent: true,
+      opacity: 0.94,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.NormalBlending,
+    });
+    const banner = new THREE.Sprite(bannerMat);
+    banner.scale.set(7.2, 2.25, 1);
+    group.add(banner);
+
+    const poleGeo = new THREE.CylinderGeometry(0.035, 0.045, 2.65, 6);
+    const poleMat = new THREE.MeshBasicMaterial({ color: 0x4a2d18, transparent: true, opacity: 0.86 });
+    const capGeo = new THREE.SphereGeometry(0.13, 12, 8);
+    const capMat = new THREE.MeshBasicMaterial({ color: 0xffd26a, transparent: true, opacity: 0.88 });
+    const geos = [poleGeo, capGeo];
+    const mats = [bannerMat, poleMat, capMat];
+    for (const sign of [-1, 1]) {
+      const pole = new THREE.Mesh(poleGeo, poleMat);
+      pole.position.copy(side.clone().multiplyScalar(sign * 3.85)).setY(-0.1);
+      const cap = new THREE.Mesh(capGeo, capMat);
+      cap.position.copy(pole.position).setY(1.28);
+      group.add(pole, cap);
+    }
+    const railGeo = new THREE.BufferGeometry().setFromPoints([
+      side.clone().multiplyScalar(-4.05).setY(-1.0),
+      side.clone().multiplyScalar(4.05).setY(-1.0),
+    ]);
+    const railMat = new THREE.LineBasicMaterial({
+      color: 0xffd26a,
+      transparent: true,
+      opacity: 0.58,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    });
+    group.add(new THREE.Line(railGeo, railMat));
+    geos.push(railGeo);
+    mats.push(railMat);
+
+    this.scene.add(group);
+    this.gateMarkers.push({
+      group,
+      mats,
+      geos,
+      textures: [tex],
+      t: dur,
+      dur,
+      gateBanner: true,
+      banner,
+      baseY: group.position.y,
+      pressure,
+    });
+  }
+
+  _showGatePressureOmen(gate, sortieDir, { pressure = 0.5, peak = false, dur = 1.35 } = {}) {
+    if (!gate || !sortieDir) return;
+    const dir = sortieDir.clone();
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, -1); else dir.normalize();
+    const side = new THREE.Vector3(-dir.z, 0, dir.x);
+    const group = new THREE.Group();
+    group.position.copy(gate).addScaledVector(dir, -1.9).setY(gate.y + 0.16);
+    group.renderOrder = 57;
+
+    const force = Math.max(0.35, Math.min(1, pressure || 0));
+    const color = peak ? 0xfff3c8 : 0x9fe0dc;
+    const ringGeo = new THREE.RingGeometry(3.2 + force * 2.2, 3.34 + force * 2.26, 88);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: peak ? 0.62 : 0.42,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    group.add(ring);
+
+    const rayMat = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: peak ? 0.64 : 0.42,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const geos = [ringGeo];
+    const rays = [];
+    const width = 5.6 + force * 3.4;
+    for (const sign of [-1, 1]) {
+      const root = side.clone().multiplyScalar(sign * width * 0.18).addScaledVector(dir, -0.25).setY(0.08);
+      const tip = side.clone().multiplyScalar(sign * width * 0.56).addScaledVector(dir, -1.45 - force * 0.9).setY(0.1);
+      const geo = new THREE.BufferGeometry().setFromPoints([root, tip]);
+      const ray = new THREE.Line(geo, rayMat.clone());
+      group.add(ray);
+      geos.push(geo);
+      rays.push(ray);
+    }
+
+    const crownGeo = new THREE.ConeGeometry(0.26 + force * 0.08, 0.82 + force * 0.24, 5);
+    const crownMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: peak ? 0.82 : 0.58,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const crown = new THREE.Mesh(crownGeo, crownMat);
+    crown.position.copy(dir.clone().multiplyScalar(-0.6)).setY(1.15 + force * 0.24);
+    crown.rotation.y = Math.atan2(dir.x, dir.z);
+    group.add(crown);
+
+    if (peak) {
+      this.particles.burst(gate.clone().addScaledVector(dir, -1.6).setY(gate.y + 0.8), 12, {
+        speed: 1.8, up: 1.2, life: 0.56, size: 0.34, color: FXC.sacred, grav: -0.1, spread: 1.8, drag: 0.55,
+      });
+    }
+
+    this.scene.add(group);
+    this.gateMarkers.push({
+      group,
+      mats: [ringMat, rayMat, ...rays.map((r) => r.material), crownMat],
+      geos: [crownGeo, ...geos],
+      t: dur,
+      dur,
+      gatePressureOmen: true,
+      ring,
+      crown,
+      rays,
+      force,
+      peak,
+      baseY: group.position.y,
+    });
+  }
+
+  _showRoyalGateGuardFade(gate, sortieDir, { count = 0, ending = false, dur = 1.45 } = {}) {
+    if (!gate) return;
+    const dir = sortieDir?.clone?.() || new THREE.Vector3(0, 0, -1);
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, -1); else dir.normalize();
+    const side = new THREE.Vector3(-dir.z, 0, dir.x);
+    const group = new THREE.Group();
+    group.position.copy(gate).addScaledVector(dir, -0.55).setY(gate.y + 0.13);
+    group.renderOrder = 57;
+
+    const color = ending ? 0xfff3c8 : 0x9fe0dc;
+    const ringGeo = new THREE.RingGeometry(2.05, 2.2, 72);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: ending ? 0.34 : 0.24,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    const wardRing = new THREE.Mesh(ringGeo, ringMat);
+    group.add(wardRing);
+
+    const wispMat = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: ending ? 0.5 : 0.36,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+    });
+    const geos = [ringGeo];
+    const wisps = [];
+    const n = Math.max(3, Math.min(5, count || 3));
+    for (let i = 0; i < n; i++) {
+      const lane = (i - (n - 1) * 0.5) * 0.92;
+      const root = side.clone().multiplyScalar(lane).addScaledVector(dir, 0.35 + (i % 2) * 0.18).setY(0.08);
+      const tip = root.clone().addScaledVector(dir, 0.32).setY(ending ? 1.28 : 0.96);
+      const geo = new THREE.BufferGeometry().setFromPoints([root, tip]);
+      const line = new THREE.Line(geo, wispMat);
+      group.add(line);
+      geos.push(geo);
+      wisps.push(line);
+    }
+
+    this.scene.add(group);
+    this.particles.burst(gate.clone().setY(gate.y + 0.62), ending ? 16 : 9, {
+      speed: ending ? 1.85 : 1.2,
+      up: ending ? 1.35 : 0.9,
+      life: ending ? 0.72 : 0.55,
+      size: ending ? 0.32 : 0.24,
+      color: ending ? FXC.sacred : FXC.gold,
+      grav: -0.2,
+      spread: ending ? 1.8 : 1.25,
+      drag: 0.58,
+    });
+    this.gateMarkers.push({
+      group,
+      mats: [ringMat, wispMat],
+      geos,
+      t: dur,
+      dur,
+      royalGateGuardFade: true,
+      wardRing,
+      wisps,
+      ending,
+      baseY: group.position.y,
+    });
+  }
+
+  _showDefenderHoldFormation(front, dir, members = [], { pressure = 0.8, dur = 2.8 } = {}) {
+    const alive = members.filter((m) => m?.alive && m.group?.position).slice(0, 18);
+    if (!front || !dir || !alive.length) return;
+    const forward = dir.clone();
+    if (forward.lengthSq() < 0.01) forward.set(0, 0, -1); else forward.normalize();
+    const side = new THREE.Vector3(-forward.z, 0, forward.x);
+    const group = new THREE.Group();
+    group.renderOrder = 55;
+
+    const force = Math.max(0.5, Math.min(1.25, pressure || 0.8));
+    const footGeo = new THREE.RingGeometry(0.34, 0.46, 24);
+    const footMat = new THREE.MeshBasicMaterial({
+      color: 0xffd26a,
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    const spearMat = new THREE.LineBasicMaterial({
+      color: 0xfff0bd,
+      transparent: true,
+      opacity: 0.58,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+    });
+    const geos = [footGeo];
+    const mats = [footMat, spearMat];
+    const slots = [];
+
+    alive.forEach((m, i) => {
+      const source = m.squad?.slotFor?.(m) || m.group.position;
+      const p = source.clone();
+      p.y = this.map.heightAt(p.x, p.z) + 0.08;
+      slots.push(p);
+      const ring = new THREE.Mesh(footGeo, footMat);
+      ring.position.copy(p);
+      ring.rotation.x = -Math.PI / 2;
+      ring.scale.setScalar(m.model?.mounted ? 1.24 : 1.0);
+      group.add(ring);
+
+      if (i % 2 === 0) {
+        const a = p.clone().addScaledVector(side, -0.34).setY(p.y + 0.82);
+        const b = p.clone().addScaledVector(side, 0.34).addScaledVector(forward, 1.25 + force * 0.55).setY(p.y + 1.08);
+        const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+        geos.push(geo);
+        group.add(new THREE.Line(geo, spearMat));
+      }
+    });
+
+    if (slots.length >= 2) {
+      slots.sort((a, b) => {
+        const ao = a.clone().sub(front);
+        const bo = b.clone().sub(front);
+        return (ao.x * side.x + ao.z * side.z) - (bo.x * side.x + bo.z * side.z);
+      });
+      const left = slots[0].clone().addScaledVector(side, -0.7).setY(front.y + 0.24);
+      const right = slots[slots.length - 1].clone().addScaledVector(side, 0.7).setY(front.y + 0.24);
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([left, right]);
+      geos.push(lineGeo);
+      group.add(new THREE.Line(lineGeo, spearMat));
+    }
+
+    this.scene.add(group);
+    this.gateMarkers.push({
+      group,
+      mats,
+      geos,
+      t: dur,
+      dur,
+      defenderHoldFormation: true,
+      baseScale: 1,
+      pressure: force,
+    });
+  }
+
+  _showGateClashPulse(anchor, enemy = null, power = 1) {
+    if (!anchor) return;
+    const group = new THREE.Group();
+    const p = anchor.clone();
+    const ep = enemy?.group?.position;
+    if (ep) p.lerp(ep, enemy.boss ? 0.34 : 0.46);
+    p.y = this.map.heightAt(p.x, p.z) + 0.24;
+    group.position.copy(p);
+    group.renderOrder = 49;
+
+    const force = Math.max(0.45, Math.min(1.8, power || 1));
+    const ringGeo = new THREE.RingGeometry(0.72, 1.0, 64);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: enemy?.boss ? 0xd8462f : 0xffd26a,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.05;
+    ring.scale.setScalar(0.85 + force * 0.18);
+    group.add(ring);
+
+    const discGeo = new THREE.CylinderGeometry(0.18, 0.22, 0.08, 16);
+    discGeo.rotateX(Math.PI / 2);
+    const discMat = new THREE.MeshStandardMaterial({
+      color: enemy?.boss ? 0x9f2f24 : 0xd8a93e,
+      roughness: 0.48,
+      metalness: 0.32,
+      transparent: true,
+      opacity: 0.92,
+    });
+    for (let i = 0; i < 3; i++) {
+      const d = new THREE.Mesh(discGeo, discMat);
+      const a = -0.55 + i * 0.55;
+      d.position.set(Math.sin(a) * (0.48 + force * 0.08), 0.55 + i * 0.12, Math.cos(a) * 0.22);
+      d.rotation.y = a;
+      group.add(d);
+    }
+
+    this.scene.add(group);
+    this.gateMarkers.push({
+      group,
+      mats: [ringMat, discMat],
+      geos: [ringGeo, discGeo],
+      t: 0.82,
+      dur: 0.82,
+      clashPulse: true,
+      baseY: group.position.y,
+    });
+  }
+
+  _showDefenderClashLine(anchor, enemy = null, power = 1) {
+    if (!anchor || !enemy?.group?.position) return;
+    const start = anchor.clone();
+    const end = enemy.group.position.clone();
+    start.y = this.map.heightAt(start.x, start.z) + 0.78;
+    end.y = this.map.heightAt(end.x, end.z) + (enemy.boss ? 1.55 : 0.95);
+    const dir = end.clone().sub(start).setY(0);
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, -1); else dir.normalize();
+    const side = new THREE.Vector3(-dir.z, 0, dir.x);
+    const mid = start.clone().lerp(end, 0.55).setY(Math.max(start.y, end.y) + 0.28);
+    const force = Math.max(0.45, Math.min(1.8, power || 1));
+    const group = new THREE.Group();
+    group.renderOrder = 50;
+
+    const lineMat = new THREE.LineBasicMaterial({
+      color: enemy.boss ? 0xff715c : 0xffe09a,
+      transparent: true,
+      opacity: 0.82,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+    });
+    const spearMat = new THREE.LineBasicMaterial({
+      color: 0x9fe0dc,
+      transparent: true,
+      opacity: 0.5,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+    });
+    const mainGeo = new THREE.BufferGeometry().setFromPoints([start, mid, end]);
+    const main = new THREE.Line(mainGeo, lineMat);
+    group.add(main);
+
+    const spearGeos = [];
+    for (const sign of [-1, 1]) {
+      const a = mid.clone().addScaledVector(side, sign * (0.65 + force * 0.16)).addScaledVector(dir, -0.55);
+      const b = mid.clone().addScaledVector(side, -sign * (0.38 + force * 0.12)).addScaledVector(dir, 0.82);
+      a.y += 0.18;
+      b.y += 0.06;
+      const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+      spearGeos.push(geo);
+      group.add(new THREE.Line(geo, spearMat));
+    }
+
+    this.scene.add(group);
+    this.gateMarkers.push({
+      group,
+      mats: [lineMat, spearMat],
+      geos: [mainGeo, ...spearGeos],
+      t: 0.42,
+      dur: 0.42,
+      defenderClashLine: true,
+    });
+  }
+
+  _showGateShockLine(anchor, enemy = null, power = 1) {
+    if (!anchor || !enemy?.group?.position) return;
+    const start = anchor.clone();
+    const end = enemy.group.position.clone();
+    start.y = this.map.heightAt(start.x, start.z) + 0.42;
+    end.y = this.map.heightAt(end.x, end.z) + (enemy.boss ? 1.18 : 0.68);
+    const mid = start.clone().lerp(end, 0.62);
+    mid.y = Math.max(start.y, end.y) + 0.18;
+    const flat = end.clone().sub(start).setY(0);
+    if (flat.lengthSq() < 0.01) flat.set(0, 0, -1); else flat.normalize();
+    const side = new THREE.Vector3(-flat.z, 0, flat.x);
+    const force = Math.max(0.45, Math.min(1.8, power || 1));
+    const group = new THREE.Group();
+    group.renderOrder = 53;
+
+    const shockMat = new THREE.LineBasicMaterial({
+      color: enemy.boss ? 0xff715c : 0xffd26a,
+      transparent: true,
+      opacity: 0.94,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+    });
+    const sparkMat = new THREE.LineBasicMaterial({
+      color: 0xfff0bd,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+    });
+    const mainGeo = new THREE.BufferGeometry().setFromPoints([start, mid, end]);
+    const main = new THREE.Line(mainGeo, shockMat);
+    group.add(main);
+
+    const sparkGeos = [];
+    for (const sign of [-1, 1]) {
+      const a = mid.clone().addScaledVector(side, sign * (0.38 + force * 0.16)).addScaledVector(flat, -0.42);
+      const b = mid.clone().addScaledVector(side, -sign * (0.42 + force * 0.18)).addScaledVector(flat, 0.46);
+      a.y += 0.1 + force * 0.04;
+      b.y -= 0.06;
+      const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+      sparkGeos.push(geo);
+      group.add(new THREE.Line(geo, sparkMat));
+    }
+
+    this.particles.burst(mid.clone(), enemy.boss ? 14 : 9, {
+      speed: enemy.boss ? 3.2 : 2.4,
+      up: enemy.boss ? 1.35 : 1.05,
+      life: 0.38,
+      size: enemy.boss ? 0.42 : 0.31,
+      color: FXC.gold,
+      grav: 2.2,
+      spread: enemy.boss ? 1.5 : 0.95,
+      drag: 1.1,
+    });
+
+    this.scene.add(group);
+    this.gateMarkers.push({
+      group,
+      mats: [shockMat, sparkMat],
+      geos: [mainGeo, ...sparkGeos],
+      t: 0.28,
+      dur: 0.28,
+      gateShockLine: true,
+    });
+  }
+
+  _showPalaceThreatCue(anchor, enemy, rank = 0) {
+    if (!anchor || !enemy?.group?.position) return;
+    const group = new THREE.Group();
+    const pos = enemy.group.position.clone();
+    pos.y = this.map.heightAt(pos.x, pos.z) + (enemy.boss ? 1.95 : 1.25);
+    group.position.copy(pos);
+    group.renderOrder = 48;
+
+    const ringGeo = new THREE.RingGeometry(0.62 + rank * 0.06, 0.78 + rank * 0.06, 32);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: enemy.boss ? 0xff715c : 0xffd26a,
+      transparent: true,
+      opacity: 0.38,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.08;
+    group.add(ring);
+
+    const lineMat = new THREE.LineBasicMaterial({
+      color: 0x9fe0dc,
+      transparent: true,
+      opacity: 0.46,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.AdditiveBlending,
+    });
+    const dir = enemy.group.position.clone().sub(anchor).setY(0);
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, -1); else dir.normalize();
+    const side = new THREE.Vector3(-dir.z, 0, dir.x);
+    const geos = [ringGeo];
+    for (const s of [-1, 1]) {
+      const a = side.clone().multiplyScalar(s * 0.42).addScaledVector(dir, -0.28).setY(0.34);
+      const b = side.clone().multiplyScalar(s * 0.18).addScaledVector(dir, 0.34).setY(0.14);
+      const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+      geos.push(geo);
+      group.add(new THREE.Line(geo, lineMat));
+    }
+
+    this.scene.add(group);
+    this.gateMarkers.push({
+      group,
+      mats: [ringMat, lineMat],
+      geos,
+      t: 0.72,
+      dur: 0.72,
+      threatCue: true,
+      enemy,
+      baseY: pos.y,
+    });
+  }
+
+  _showRallyRoute(from, to, dur = 4.2) {
+    if (!from || !to) return;
+    const start = from.clone().setY(from.y + 0.8);
+    const end = to.clone().setY(to.y + 0.85);
+    const mid = start.clone().lerp(end, 0.5).setY(Math.max(start.y, end.y) + 2.0);
+    const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+    const pts = curve.getPoints(18);
+    const geom = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineBasicMaterial({
+      color: 0xffd26a,
+      transparent: true,
+      opacity: 0.76,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const line = new THREE.Line(geom, mat);
+    line.renderOrder = 46;
+    this.scene.add(line);
+    const objects = [line];
+    const geos = [geom];
+    const mats = [mat];
+    const dir = end.clone().sub(start);
+    if (dir.lengthSq() > 0.01) {
+      dir.normalize();
+      const side = new THREE.Vector3(-dir.z, 0, dir.x);
+      for (let i = 1; i <= 2; i++) {
+        const p = curve.getPoint(i / 3);
+        const arrowPts = [
+          p.clone().addScaledVector(dir, 0.45),
+          p.clone().addScaledVector(dir, -0.4).addScaledVector(side, 0.28),
+          p.clone().addScaledVector(dir, -0.4).addScaledVector(side, -0.28),
+          p.clone().addScaledVector(dir, 0.45),
+        ];
+        const arrowGeom = new THREE.BufferGeometry().setFromPoints(arrowPts);
+        const arrowMat = mat.clone();
+        arrowMat.opacity = 0.58;
+        const arrow = new THREE.Line(arrowGeom, arrowMat);
+        arrow.renderOrder = 47;
+        this.scene.add(arrow);
+        objects.push(arrow);
+        geos.push(arrowGeom);
+        mats.push(arrowMat);
+      }
+    }
+    this.gateMarkers.push({ group: null, objects, mats, geos, t: dur, dur, line, route: true });
+  }
+
+  _showAssaultColumn(path, baseDist, count = 4, dir = null, dur = 4.8) {
+    if (!path?.samples?.length || !Number.isFinite(baseDist)) return;
+    const leadDir = dir?.clone?.() || new THREE.Vector3(0, 0, 1);
+    if (leadDir.lengthSq() < 0.01) leadDir.set(0, 0, 1); else leadDir.normalize();
+    const side = new THREE.Vector3(-leadDir.z, 0, leadDir.x);
+    const firstDist = Math.max(0, baseDist - Math.max(8, count * 2.7 + 3));
+    const lastDist = Math.max(0, Math.min(path.length - 1, baseDist + 2.2));
+    const group = new THREE.Group();
+    group.renderOrder = 45;
+
+    const pts = [];
+    const segments = 9;
+    for (let i = 0; i <= segments; i++) {
+      const d = firstDist + (lastDist - firstDist) * (i / segments);
+      const p = pointAt(path, d);
+      pts.push(new THREE.Vector3(p.x, p.y + 0.2, p.z));
+    }
+    const lineMat = new THREE.LineBasicMaterial({
+      color: 0xa92f24,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat);
+    line.renderOrder = 45;
+    group.add(line);
+
+    const geos = [line.geometry];
+    const mats = [lineMat];
+    const standards = [];
+    const stdCount = Math.min(4, Math.max(2, Math.ceil(count * 0.55)));
+    for (let i = 0; i < stdCount; i++) {
+      const d = firstDist + (lastDist - firstDist) * ((i + 0.35) / (stdCount + 0.25));
+      const p = pointAt(path, d);
+      const offset = (i % 2 ? -1 : 1) * (0.95 + i * 0.12);
+      const base = new THREE.Vector3(p.x, this.map.heightAt(p.x, p.z), p.z).addScaledVector(side, offset);
+      const std = new THREE.Group();
+      std.position.copy(base);
+      std.rotation.y = Math.atan2(leadDir.x, leadDir.z);
+
+      const poleGeo = new THREE.CylinderGeometry(0.032, 0.042, 2.5, 5);
+      const poleMat = new THREE.MeshBasicMaterial({ color: 0x3b2517, transparent: true, opacity: 0.8 });
+      const pole = new THREE.Mesh(poleGeo, poleMat);
+      pole.position.y = 1.25;
+      std.add(pole);
+
+      const clothGeo = new THREE.PlaneGeometry(0.9, 1.35, 1, 3);
+      const clothMat = new THREE.MeshBasicMaterial({
+        color: i % 3 === 1 ? 0xd4a037 : 0x8f241f,
+        transparent: true,
+        opacity: 0.78,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide,
+      });
+      const cloth = new THREE.Mesh(clothGeo, clothMat);
+      cloth.position.set(0.44, 1.9, 0.04);
+      cloth.renderOrder = 46;
+      std.add(cloth);
+
+      group.add(std);
+      geos.push(poleGeo, clothGeo);
+      mats.push(poleMat, clothMat);
+      standards.push({ group: std, cloth, baseY: std.position.y, phase: i * 1.8 });
+    }
+
+    for (let i = 1; i < pts.length - 1; i += 3) {
+      const p = pts[i].clone().addScaledVector(side, (i % 2 ? -1 : 1) * 0.75);
+      this.particles.burst(p.setY(this.map.heightAt(p.x, p.z) + 0.35), 4, {
+        speed: 0.9,
+        up: 0.5,
+        life: 0.58,
+        size: 0.35,
+        color: FXC.dust,
+        grav: 1.4,
+        spread: 0.9,
+        drag: 0.7,
+      });
+    }
+
+    this.scene.add(group);
+    this.gateMarkers.push({
+      group,
+      mats,
+      geos,
+      t: dur,
+      dur,
+      line,
+      route: true,
+      column: true,
+      standards,
+      points: pts,
+      side,
+      fxT: 0,
+    });
+  }
+
+  _updateGateMarkers(dt, time) {
+    for (let i = this.gateMarkers.length - 1; i >= 0; i--) {
+      const m = this.gateMarkers[i];
+      m.t -= dt;
+      const k = Math.max(0, Math.min(1, m.t / Math.max(0.001, m.dur)));
+      const pulse = 0.75 + Math.sin(time * 7) * 0.25;
+      if (m.line?.material) m.line.material.opacity = (m.route ? 0.76 : 0.95) * k * pulse;
+      if (m.shieldLine) {
+        m.group.position.y = m.baseY + Math.sin(time * 4.2) * 0.04;
+        m.group.scale.setScalar(0.98 + (1 - k) * 0.04 + Math.sin(time * 5.5) * 0.015);
+      }
+      if (m.clashPulse) {
+        m.group.position.y = m.baseY + (1 - k) * 1.15;
+        m.group.scale.setScalar(0.85 + (1 - k) * 0.52);
+      }
+      if (m.defenderClashLine) {
+        const flare = 1 + Math.sin((1 - k) * Math.PI) * 0.22;
+        m.group.scale.setScalar(flare);
+      }
+      if (m.gateShockLine) {
+        const flare = 1 + Math.sin((1 - k) * Math.PI) * 0.42;
+        m.group.scale.setScalar(flare);
+      }
+      if (m.royalGateImpact) {
+        const rise = 1 - k;
+        const flare = Math.sin(rise * Math.PI);
+        m.group.position.y = m.baseY + rise * 0.72;
+        m.group.scale.setScalar(0.92 + rise * (0.9 + m.force * 0.16));
+        if (m.inner) {
+          m.inner.rotation.z += dt * (2.2 + m.force);
+          m.inner.material.opacity = 0.82 * k * (0.78 + flare * 0.38);
+        }
+        if (m.outer) {
+          m.outer.rotation.z -= dt * (1.35 + m.force * 0.6);
+          m.outer.material.opacity = 0.48 * k * (0.65 + flare * 0.44);
+        }
+        if (m.plate) m.plate.material.opacity = 0.24 * k * (0.5 + flare * 0.75);
+        if (m.rays) {
+          m.rays.scale.setScalar(0.86 + rise * 0.52);
+          m.rays.material.opacity = 0.76 * k * (0.55 + flare * 0.62);
+        }
+      }
+      if (m.gateBanner) {
+        const rise = 1 - k;
+        const bob = Math.sin(time * 3.4) * 0.08;
+        m.group.position.y = m.baseY + bob + Math.sin(Math.min(1, rise * 1.4) * Math.PI) * 0.22;
+        m.group.scale.setScalar(0.92 + Math.sin(Math.min(1, rise * 1.8) * Math.PI) * 0.08);
+        if (m.banner?.material) m.banner.material.opacity = Math.min(0.96, k * 1.25);
+      }
+      if (m.gatePressureOmen) {
+        const rise = 1 - k;
+        const flare = Math.sin(rise * Math.PI);
+        m.group.position.y = m.baseY + Math.sin(time * 5.2) * 0.035 + flare * 0.12;
+        m.group.scale.setScalar(0.88 + flare * (m.peak ? 0.18 : 0.1) + (m.force || 0) * 0.08);
+        if (m.ring?.material) {
+          m.ring.rotation.z += dt * (m.peak ? 1.4 : 0.8);
+          m.ring.material.opacity = (m.peak ? 0.62 : 0.42) * k * (0.72 + flare * 0.42);
+        }
+        if (m.crown?.material) {
+          m.crown.position.y = 1.15 + (m.force || 0) * 0.24 + Math.sin(time * 7) * 0.055;
+          m.crown.material.opacity = (m.peak ? 0.82 : 0.58) * k;
+        }
+        for (const ray of m.rays || []) if (ray.material) ray.material.opacity = (m.peak ? 0.64 : 0.42) * k * (0.6 + flare * 0.5);
+      }
+      if (m.royalGateGuardFade) {
+        const rise = 1 - k;
+        const flare = Math.sin(rise * Math.PI);
+        m.group.position.y = m.baseY + rise * (m.ending ? 0.55 : 0.28);
+        m.group.scale.setScalar(0.92 + flare * (m.ending ? 0.16 : 0.1));
+        if (m.wardRing?.material) {
+          m.wardRing.rotation.z += dt * (m.ending ? 1.4 : 0.85);
+          m.wardRing.material.opacity = (m.ending ? 0.34 : 0.24) * k * (0.72 + flare * 0.58);
+        }
+        for (const wisp of m.wisps || []) {
+          if (!wisp.material) continue;
+          wisp.scale.y = 1 + rise * (m.ending ? 0.7 : 0.42);
+          wisp.material.opacity = (m.ending ? 0.5 : 0.36) * k * (0.55 + flare * 0.55);
+        }
+      }
+      if (m.defenderHoldFormation) {
+        const flare = Math.sin((1 - k) * Math.PI);
+        m.group.scale.setScalar(1 + flare * 0.05 + (m.pressure || 0) * 0.025);
+      }
+      if (m.gateFront) {
+        for (const s of m.standards || []) {
+          s.flag.position.y = 1.38 + Math.sin(time * 4.4 + s.phase) * 0.035;
+          s.flag.scale.y = 1 + Math.sin(time * 5.6 + s.phase) * 0.1;
+        }
+        for (const s of m.shieldGlints || []) {
+          const glint = 0.78 + Math.sin(time * 6.2 + s.phase) * 0.22;
+          s.shield.scale.setScalar(glint);
+        }
+      }
+      if (m.threatCue) {
+        if (!m.enemy?.alive) {
+          m.t = 0;
+        } else {
+          const p = m.enemy.group.position;
+          m.group.position.set(p.x, this.map.heightAt(p.x, p.z) + (m.enemy.boss ? 1.95 : 1.25), p.z);
+          m.group.rotation.y = time * 1.8;
+          m.group.scale.setScalar(0.92 + (1 - k) * 0.22);
+        }
+      }
+      if (m.column) {
+        for (const s of m.standards || []) {
+          s.group.position.y = s.baseY + Math.sin(time * 3.2 + s.phase) * 0.08;
+          s.cloth.scale.x = 1 + Math.sin(time * 5.8 + s.phase) * 0.12;
+        }
+        m.fxT = (m.fxT || 0) - dt;
+        if (m.fxT <= 0 && this.particles && (m.points?.length || 0) > 2) {
+          m.fxT = 0.22;
+          const p = m.points[Math.floor(1 + Math.random() * (m.points.length - 2))].clone();
+          p.addScaledVector(m.side || new THREE.Vector3(1, 0, 0), (Math.random() - 0.5) * 2.2);
+          p.y = this.map.heightAt(p.x, p.z) + 0.28;
+          this.particles.spawn(
+            p.x, p.y, p.z,
+            (Math.random() - 0.5) * 0.4,
+            0.6 + Math.random() * 0.45,
+            (Math.random() - 0.5) * 0.4,
+            0.55, 0.16,
+            0.72, 0.36, 0.28,
+            0.8, 0.65,
+          );
+        }
+      }
+      if (m.ring) {
+        m.ring.material.opacity = 0.18 * k * (0.8 + Math.sin(time * 4) * 0.2);
+        m.ring.scale.setScalar(1 + (1 - k) * 0.08);
+      }
+      for (const mat of m.mats) mat.opacity = Math.min(mat.opacity, Math.max(0, k));
+      if (m.t > 0) continue;
+      if (m.group) this.scene.remove(m.group);
+      else for (const obj of m.objects || []) this.scene.remove(obj);
+      for (const geo of m.geos) geo.dispose();
+      for (const tex of m.textures || []) tex.dispose();
+      for (const mat of m.mats) mat.dispose();
+      this.gateMarkers.splice(i, 1);
+    }
+  }
+
+  _clearGateMarkers() {
+    for (const m of this.gateMarkers) {
+      if (m.group) this.scene.remove(m.group);
+      else for (const obj of m.objects || []) this.scene.remove(obj);
+      for (const geo of m.geos) geo.dispose();
+      for (const tex of m.textures || []) tex.dispose();
+      for (const mat of m.mats) mat.dispose();
+    }
+    this.gateMarkers.length = 0;
+  }
+
+  _palaceCommandCommitBeat(cit, front, dir, {
+    type = 'rallyDamage',
+    kind = 'boon',
+    radius = 28,
+    targetCount = 0,
+    pressure = 0.8,
+    dur = 4.2,
+  } = {}) {
+    if (!front) return;
+    const keep = cit?.group?.position || this.map.exitPos || front;
+    const d = dir?.clone?.() || front.clone().sub(keep);
+    if (d.lengthSq() < 0.01) d.set(0, 0, -1); else d.normalize();
+    const boonColor = {
+      heal: FXC.heal,
+      rallyDamage: FXC.gold,
+      stunPulse: FXC.sacred,
+      burnRing: FXC.ember,
+      bindChains: FXC.chain,
+      goldProvision: FXC.gold,
+      rangeVision: FXC.sacred,
+      repairFortifications: FXC.dust,
+    }[type] || FXC.gold;
+    const heavy = kind === 'muster' || type === 'burnRing' || type === 'stunPulse' || targetCount >= 8;
+    const weight = Math.max(0.55, Math.min(1.45, pressure + Math.min(0.45, targetCount * 0.035)));
+
+    this.audio.palaceCommand?.(type);
+    if (kind !== 'boon') setTimeout(() => this.audio.hornCall?.(), heavy ? 130 : 90);
+    this.engine.hitStop?.(heavy ? 0.04 : 0.025);
+    this.engine.slowMo?.(heavy ? 0.56 : 0.66, (heavy ? 0.72 : 0.5) * weight);
+    this.engine.bloomPulse?.((heavy ? 0.98 : 0.78) * weight);
+    this.engine.addShake?.((heavy ? 0.2 : 0.1) * weight);
+    this._cameraFocusBeat(front, {
+      dur: heavy ? 0.86 : 0.62,
+      strength: heavy ? 0.2 : 0.12,
+      dist: heavy ? 52 : 60,
+      pitch: 0.78,
+      yawOffset: kind === 'rally' ? 0.06 : -0.06,
+    });
+    this._showGateMarker(front, d, Math.max(7.5, Math.min(18, radius * 0.34)), Math.min(6.5, dur));
+    this._showPalaceShieldLine(front, d, { width: Math.max(8.2, Math.min(14, radius * 0.34)), pressure: Math.min(1, pressure + 0.12), dur: Math.min(5.2, dur) });
+    this.palaceStage?.signalAlarm?.({ front, keep, dir: d, pressure: Math.min(1, pressure), dur: Math.min(4.4, dur) });
+    this.particles?.burst?.(keep.clone().setY(keep.y + (cit?.height || 16) * 0.56), heavy ? 44 : 30, {
+      speed: heavy ? 3.6 : 2.8,
+      up: heavy ? 1.7 : 1.25,
+      life: heavy ? 1.18 : 0.95,
+      size: heavy ? 0.76 : 0.62,
+      color: boonColor,
+      grav: -0.55,
+      spread: Math.min(6.5, 3.2 + radius * 0.08),
+      drag: 0.45,
+    });
+    this.particles?.burst?.(front.clone().setY(front.y + 1.35), 22 + Math.min(24, targetCount * 2), {
+      speed: heavy ? 3.0 : 2.25,
+      up: 1.05,
+      life: 0.82,
+      size: 0.48,
+      color: boonColor,
+      grav: 0.08,
+      spread: Math.min(5.8, 2.5 + radius * 0.1),
+      drag: 0.56,
+    });
+    const synergyCount = this._palaceHeroSynergy(cit, front, {
+      type,
+      kind,
+      radius: Math.max(radius, kind === 'boon' ? radius : 28),
+      dur: Math.max(5.5, Math.min(10, dur + 2.2)),
+      color: boonColor,
+    });
+    return synergyCount;
+  }
+
+  _palaceHeroSynergy(cit, front, { type = 'rallyDamage', kind = 'boon', radius = 32, dur = 7, color = FXC.gold } = {}) {
+    const keep = cit?.group?.position || this.map.exitPos || front;
+    const reach = Math.max(24, Math.min(58, radius + 10));
+    const affected = this.towers.filter((t) => t.alive && t.hero && (
+      t.pos.distanceTo(front) <= reach || t.pos.distanceTo(keep) <= reach
+    ));
+    if (!affected.length) return 0;
+    const commandKind = type === 'heal' || type === 'repairFortifications'
+      ? 'heal'
+      : type === 'burnRing'
+        ? 'fire'
+        : type === 'bindChains' || type === 'stunPulse'
+          ? 'bind'
+          : type === 'rangeVision'
+            ? 'vision'
+            : 'rally';
+    for (const tower of affected) {
+      const rank = this.heroRank(tower.hero.id);
+      const bond = heroBond(tower.hero, tower.def, tower.ageIdx);
+      const strength = (0.06 + rank * 0.018 + Math.min(0.08, bond * 0.08)) * (kind === 'muster' ? 1.15 : 1);
+      tower.palaceSynergyT = Math.max(tower.palaceSynergyT || 0, dur);
+      tower.palaceSynergyDamage = Math.max(tower.palaceSynergyDamage || 0, commandKind === 'vision' ? strength * 0.55 : strength);
+      tower.palaceSynergyRange = Math.max(tower.palaceSynergyRange || 0, commandKind === 'vision' ? strength * 1.2 : strength * 0.35);
+      tower.palaceSynergyRate = Math.max(tower.palaceSynergyRate || 0, commandKind === 'rally' ? strength * 1.4 : strength * 0.55);
+      tower.attackCd = Math.min(tower.attackCd, 0.05);
+      tower.commandFlash?.(commandKind, rank);
+      this.particles?.burst?.(tower.pos.clone().setY(tower.pos.y + (tower.model?.height || 5) * 0.72), 8 + rank * 3, {
+        speed: 1.6 + rank * 0.25,
+        up: 1.35,
+        life: 0.78,
+        size: 0.42,
+        color,
+        grav: -0.2,
+        spread: 1.5 + rank * 0.25,
+        drag: 0.5,
+      });
+    }
+    this.emit('palaceHeroSynergy', { type, kind, count: affected.length });
+    return affected.length;
+  }
+
+  _royalGuardDeployBeat(cit, front, dir, { width = 9, radius = 9, dur = 5.5, pressure = 0.85, count = 0, kind = 'muster' } = {}) {
+    if (!front || !dir) return;
+    const keep = cit?.group?.position || this.map.exitPos || front;
+    const d = dir.clone();
+    if (d.lengthSq() < 0.01) d.set(0, 0, -1); else d.normalize();
+    const heavy = kind === 'muster';
+    const synergyCount = this._palaceCommandCommitBeat(cit, front, d, { type: 'rallyDamage', kind, radius, targetCount: count, pressure, dur });
+    this._showGateMarker(front, d, radius, dur);
+    this._showPalaceShieldLine(front, d, { width, pressure, dur: Math.min(6.4, dur) });
+    this.palaceStage?.signalAlarm?.({ front, keep, dir: d, pressure, dur: heavy ? 3.8 : 2.7 });
+    this._cameraFocusBeat(front, { dur: heavy ? 0.82 : 0.58, strength: heavy ? 0.18 : 0.11, dist: heavy ? 54 : 60, pitch: 0.78, yawOffset: -0.06 });
+    this.particles.burst(keep.clone().setY(keep.y + (cit?.height || 16) * 0.48), heavy ? 30 : 20, {
+      speed: heavy ? 2.7 : 2.1,
+      up: 1.2,
+      life: 0.95,
+      size: heavy ? 0.56 : 0.46,
+      color: FXC.gold,
+      grav: -0.25,
+      spread: heavy ? 4.2 : 3.2,
+      drag: 0.45,
+    });
+    this.particles.burst(front.clone().setY(front.y + 1.25), 18 + Math.min(18, count * 2), {
+      speed: heavy ? 2.6 : 2.1,
+      up: 1.05,
+      life: 0.82,
+      size: 0.46,
+      color: FXC.sacred,
+      grav: 0.15,
+      spread: Math.max(2.1, radius * 0.35),
+      drag: 0.58,
+    });
+    return synergyCount || 0;
   }
 
   // Rally to the Keep: pull every tower's garrison to defend in front of the palace.
   palaceRally(cit) {
     const pt = this._palaceFront(cit);
+    const keep = cit?.group?.position || this.map.exitPos || pt;
+    const standDir = pt.clone().sub(keep);
+    if (standDir.lengthSq() < 0.01) standDir.set(0, 0, -1); else standDir.normalize();
     let n = 0;
     for (const tw of this.towers) {
       if (!tw.alive) continue;
-      for (const sq of tw.squads) { sq.setRally(pt.clone()); n++; }
+      for (const sq of tw.squads) {
+        const alive = sq.members.filter((m) => m.alive);
+        const from = alive.length
+          ? alive.reduce((acc, m) => acc.add(m.group.position), new THREE.Vector3()).multiplyScalar(1 / alive.length)
+          : (sq.anchor || tw.pos).clone();
+        this._showRallyRoute(from, pt, 4.5);
+        sq.setRally(pt.clone(), { silent: true });
+        sq.setPalaceStand?.(pt.clone(), standDir.clone(), { rank: n, radius: 16, width: 10.5, depth: 0.65, spread: 1.05 });
+        sq.markPalaceRally?.(pt.clone(), { dur: 18, gateDur: 8.5, radius: 11.5, mult: 1.34, dir: standDir.clone() });
+        for (const m of alive) m.sortieT = Math.max(m.sortieT || 0, m.model?.mounted ? 1.7 : 1.25);
+        n++;
+      }
     }
     if (!n) this.emit('toast', 'palace.noGarrison');
+    else {
+      const synergyCount = this._royalGuardDeployBeat(cit, pt, standDir, { width: 12.5, radius: 11.5, dur: 8.5, pressure: 0.78, count: n, kind: 'rally' });
+      this.palaceBoonField.trigger(cit, { type: 'rallyDamage', radius: 34 }, {
+        front: pt,
+        keep: cit.group.position,
+        radius: 34,
+        towers: this.towers.filter((t) => t.alive),
+      });
+      this.emit('palaceCommand', { kind: 'rally', palace: cit, count: n, synergyCount });
+    }
     return n;
   }
 
   // Muster: summon a defensive squad at the palace (gold + cooldown), capped at 2 standing squads.
-  palaceMuster(cit) {
-    const cfg = palaceDef(cit.placeId).muster;
+  palaceMuster(cit, { quiet = false } = {}) {
+    const cfg = palaceDef(cit.placeId || this.mapDef.id).muster;
     if ((cit.musterCd || 0) > 0) return false;
     if (!this.canAfford(cfg.cost)) { this.emit('toast', 'hud.notEnoughGold'); return false; }
     const sDef = SOLDIERS_BY_ID[cfg.unit];
     if (!sDef) return false;
     this.gold -= cfg.cost;
     cit.musterCd = cfg.cd;
-    const owner = { pos: cit.group.position.clone(), alive: true };
+    const gate = this._palaceFront(cit);
+    const origin = this._palaceSortieOrigin(cit, gate);
+    const sortieDir = gate.clone().sub(origin);
+    if (sortieDir.lengthSq() > 0.01) sortieDir.normalize(); else sortieDir.set(0, 0, -1);
+    const side = new THREE.Vector3(-sortieDir.z, 0, sortieDir.x);
+    const owner = { pos: gate.clone(), alive: true, isPalaceMuster: true };
     const sq = new Squad(this, owner, sDef, cfg.count);
-    sq.setRally(this._palaceFront(cit));
+    sq.homeAnchor.copy(gate);
+    sq.anchor.copy(gate);
+    sq.rallyOverride = gate.clone();
+    sq.setPalaceStand?.(gate.clone(), sortieDir.clone(), {
+      rank: this.palaceSquads.length,
+      radius: sDef.mounted ? 30 : 26,
+      width: sDef.mounted ? 17 : 14,
+      depth: sDef.mounted ? 1.05 : 0.8,
+      spread: sDef.mounted ? 1.12 : 1.04,
+    });
+    sq.gateLineT = sDef.mounted ? 13.5 : 12.0;
+    sq.gateLineDur = sq.gateLineT;
+    sq.gateLineAnchor = gate.clone();
+    sq.gateLineDir = sortieDir.clone();
+    sq.gateLineRadius = sDef.mounted ? 15.0 : 12.5;
+    sq.gateLineWidth = Math.max(9.5, Math.min(16, sq.gateLineRadius * 1.16));
+    sq.gateLineMult = sDef.mounted ? 1.58 : 1.44;
+    sq.members.forEach((m, i) => {
+      const lane = (i % 2 === 0 ? -1 : 1) * (0.55 + (i % 3) * 0.18);
+      const row = Math.floor(i / 2) * 0.75;
+      const slot = sq.slotFor(m);
+      const entry = origin.clone().addScaledVector(side, lane * 0.65).addScaledVector(sortieDir, -row * 0.32);
+      m.group.position.copy(quiet ? slot : entry);
+      m.group.position.y = this.map.heightAt(m.group.position.x, m.group.position.z);
+      m.group.rotation.y = Math.atan2(sortieDir.x, sortieDir.z);
+      m.sortieT = sDef.mounted ? 2.4 : 1.8;
+      if (quiet) m.gateReadT = Math.max(m.gateReadT || 0, m.model?.mounted ? 0.82 : 0.95);
+    });
     this.palaceSquads.push(sq);
-    while (this.palaceSquads.length > 2) {
+    while (this.palaceSquads.length > 3) {
       const old = this.palaceSquads.shift();
-      for (const m of old.members) m.destroy();
+      old?.destroy?.();
+    }
+    if (!quiet) {
+      this.particles.burst(origin.clone().setY(origin.y + 0.5), 20, { speed: 3.0, up: 0.6, life: 0.65, size: 0.58, color: FXC.dust, grav: 3, spread: 2.6, drag: 0.4 });
+      const synergyCount = this._royalGuardDeployBeat(cit, gate, sortieDir, {
+        width: sq.gateLineWidth,
+        radius: sq.gateLineRadius,
+        dur: sq.gateLineT,
+        pressure: 0.92,
+        count: cfg.count,
+        kind: 'muster',
+      });
+      this.palaceBoonField.trigger(cit, { type: 'rallyDamage', radius: 30 }, {
+        front: gate,
+        keep: cit.group.position,
+        radius: 30,
+        towers: this.towers.filter((t) => t.alive),
+      });
+      this.emit('palaceCommand', { kind: 'muster', palace: cit, unit: sDef, count: cfg.count, synergyCount });
     }
     this.emit('goldChanged', this.gold);
     return true;
   }
 
-  // King's Boon: a stage-themed ability. Alborz/Simurgh → restore HP to towers + soldiers.
+  _ensureRoyalGateGuard(cit, front, dir, { pressure = 0.75, dur = 12 } = {}) {
+    const alivePalaceDefenders = this.palaceSquads
+      .flatMap((sq) => sq.members || [])
+      .filter((m) => m?.alive && m.group?.position && m.group.position.distanceTo(front) <= 34);
+    if (alivePalaceDefenders.length) return { added: 0, members: alivePalaceDefenders };
+
+    const palaceCfg = palaceDef(cit.placeId || this.mapDef.id);
+    const preferred = SOLDIERS_BY_ID[palaceCfg?.muster?.unit];
+    const guardDef = preferred && preferred.behavior !== 'support'
+      ? preferred
+      : SOLDIERS_BY_ID['spear-levy'];
+    if (!guardDef) return { added: 0, members: [] };
+
+    const sortieDir = dir?.clone?.() || new THREE.Vector3(0, 0, -1);
+    if (sortieDir.lengthSq() < 0.01) sortieDir.set(0, 0, -1); else sortieDir.normalize();
+    const origin = this._palaceSortieOrigin(cit, front);
+    const side = new THREE.Vector3(-sortieDir.z, 0, sortieDir.x);
+    const count = Math.max(3, Math.min(4, palaceCfg?.muster?.count || guardDef.squad || 3));
+    const owner = { pos: front.clone(), alive: true, isPalaceMuster: true, isRoyalGateGuard: true };
+    const sq = new Squad(this, owner, guardDef, count);
+    sq.powerMult = Math.max(sq.powerMult || 1, 0.88 + pressure * 0.14);
+    sq.royalGateGuardT = Math.min(12.5, Math.max(8.5, dur * 0.92));
+    sq.homeAnchor.copy(front);
+    sq.anchor.copy(front);
+    sq.rallyOverride = front.clone();
+    sq.setPalaceStand?.(front.clone(), sortieDir.clone(), {
+      rank: 0,
+      radius: guardDef.mounted ? 28 : 24,
+      width: guardDef.mounted ? 15 : 12,
+      depth: guardDef.mounted ? 0.85 : 0.55,
+      spread: guardDef.mounted ? 1.08 : 1.0,
+    });
+    sq.gateLineT = Math.max(dur, guardDef.mounted ? 11.5 : 10.0);
+    sq.gateLineDur = sq.gateLineT;
+    sq.gateLineAnchor = front.clone();
+    sq.gateLineDir = sortieDir.clone();
+    sq.gateLineRadius = guardDef.mounted ? 13.8 : 11.4;
+    sq.gateLineWidth = guardDef.mounted ? 14.2 : 10.8;
+    sq.gateLineMult = guardDef.mounted ? 1.42 : 1.3;
+
+    sq.members.forEach((m, i) => {
+      const hpFrac = m.maxHp > 0 ? m.hp / m.maxHp : 1;
+      m.maxHp = guardDef.hp * sq.powerMult;
+      m.hp = m.maxHp * Math.max(0.2, Math.min(1, hpFrac));
+      m.damage = guardDef.damage * sq.powerMult;
+      const lane = (i - (sq.members.length - 1) * 0.5) * (guardDef.mounted ? 1.35 : 0.95);
+      const row = Math.floor(i / 3) * 0.55;
+      const entry = origin.clone().addScaledVector(side, lane * 0.42).addScaledVector(sortieDir, -row * 0.28);
+      m.group.position.copy(entry);
+      m.group.position.y = this.map.heightAt(m.group.position.x, m.group.position.z);
+      m.group.rotation.y = Math.atan2(sortieDir.x, sortieDir.z);
+      m.sortieT = guardDef.mounted ? 2.05 : 1.48;
+      m.gateReadT = guardDef.mounted ? 0.82 : 0.95;
+    });
+
+    this.palaceSquads.push(sq);
+    while (this.palaceSquads.length > 4) {
+      const old = this.palaceSquads.find((s) => s.royalGateGuardT > 0) || this.palaceSquads[0];
+      const idx = this.palaceSquads.indexOf(old);
+      if (idx >= 0) this.palaceSquads.splice(idx, 1);
+      old?.destroy?.();
+    }
+    this.particles.burst(origin.clone().setY(origin.y + 0.75), 18, {
+      speed: 2.6,
+      up: 0.9,
+      life: 0.62,
+      size: 0.44,
+      color: FXC.gold,
+      grav: 1.5,
+      spread: 2.2,
+      drag: 0.48,
+    });
+    return { added: count, members: sq.members.filter((m) => m.alive) };
+  }
+
+  _peakGateCountercharge(cit, front, keep, { radius = 38, power = 1, dur = 2.5 } = {}) {
+    if (!cit?.isPalace) return 0;
+    const reach = Math.max(30, Math.min(62, radius + 11));
+    const towerScore = (tower) => Math.min(
+      tower.pos.distanceTo(front),
+      tower.pos.distanceTo(keep),
+    );
+    const towers = this.towers
+      .filter((tower) => tower?.alive && tower.pos && (
+        tower.pos.distanceTo(front) <= reach || tower.pos.distanceTo(keep) <= reach + 8
+      ))
+      .sort((a, b) => towerScore(a) - towerScore(b))
+      .slice(0, 10);
+    if (!towers.length) return 0;
+
+    const rate = Math.max(0.24, Math.min(0.46, 0.22 + power * 0.16));
+    const flashRank = Math.max(1, Math.min(3, Math.round(1 + power)));
+    for (const tower of towers) {
+      tower.palaceSynergyT = Math.max(tower.palaceSynergyT || 0, dur);
+      tower.palaceSynergyRate = Math.max(tower.palaceSynergyRate || 0, rate);
+      tower.attackCd = Math.min(tower.attackCd || 0, 0.035);
+      tower.palaceCounterchargeFlash?.(power, dur);
+      tower.commandFlash?.('rally', flashRank);
+      const p = tower.pos.clone().setY(tower.pos.y + (tower.model?.height || 5) * 0.72);
+      this.particles?.burst?.(p, 8, {
+        speed: 1.9,
+        up: 1.2,
+        life: 0.62,
+        size: 0.36,
+        color: FXC.gold,
+        grav: -0.1,
+        spread: 1.45,
+        drag: 0.52,
+      });
+    }
+    return towers.length;
+  }
+
+  palaceGateCommandPressure(cit) {
+    if (!cit?.isPalace) return { pressure: 0, count: 0, near: 0, peak: false, ready: false };
+    const front = this._palaceFront(cit);
+    const keep = cit.group.position;
+    let count = 0;
+    let near = 0;
+    let weight = 0;
+    for (const e of this.enemies) {
+      if (!e.alive) continue;
+      const dFront = e.group.position.distanceTo(front);
+      const dKeep = e.group.position.distanceTo(keep);
+      const pathLeft = Number.isFinite(e.path?.length) ? e.path.length - (e.dist || 0) : Infinity;
+      const inGate = dFront <= 46 || dKeep <= 60 || pathLeft <= 62;
+      if (!inGate) continue;
+      count++;
+      if (dFront <= 24 || dKeep <= 34 || pathLeft <= 32) near++;
+      const proximity = Math.max(0, 1 - Math.min(dFront / 46, dKeep / 60, pathLeft / 62));
+      const threat = this._palaceThreatWeight?.(e, front, keep) || (e.boss ? 2.8 : 1);
+      weight += threat * (0.45 + proximity * 0.9);
+    }
+    const pressure = Math.max(0, Math.min(1, (this.waveActive ? 0.14 : 0) + count * 0.035 + near * 0.055 + weight * 0.07));
+    return {
+      pressure,
+      count,
+      near,
+      peak: pressure >= 0.72 || near >= 6,
+      ready: pressure >= 0.42 || near >= 3,
+    };
+  }
+
+  _updateGatePressureOmen(dt) {
+    const cit = this.map?.citadel;
+    if (!cit?.isPalace || this.phase === 'won' || this.phase === 'lost') return;
+    if (!this.waveActive && !this.sandbox) return;
+    const omen = this._gatePressureOmen || (this._gatePressureOmen = { t: 0, lastState: '' });
+    omen.t = Math.max(0, (omen.t || 0) - dt);
+    const info = this.palaceGateCommandPressure(cit);
+    if (!info.ready && !info.peak) {
+      omen.lastState = '';
+      return;
+    }
+    const state = info.peak ? 'peak' : 'ready';
+    const cadence = info.peak ? 0.95 : 1.65;
+    if (omen.t > 0 && omen.lastState === state) return;
+    omen.t = cadence;
+    omen.lastState = state;
+    const front = this._palaceFront(cit);
+    const origin = this._palaceSortieOrigin(cit, front);
+    const dir = front.clone().sub(origin);
+    if (dir.lengthSq() > 0.01) dir.normalize(); else dir.set(0, 0, -1);
+    this._showGatePressureOmen(front, dir, {
+      pressure: info.pressure,
+      peak: info.peak,
+      dur: info.peak ? 1.28 : 1.05,
+    });
+  }
+
+  palaceGateCommand(cit, { free = false, forceFx = false, label = 'Royal Gate Command', subLabel = 'Palace defenders hold the threshold' } = {}) {
+    const cfg = { cost: 135, cd: 52, radius: 38, dur: 8.5 };
+    if (!cit?.isPalace) return false;
+    if (!free && (cit.gateCommandCd || 0) > 0) return false;
+    if (!free && !this.canAfford(cfg.cost)) { this.emit('toast', 'hud.notEnoughGold'); return false; }
+    if (!free) {
+      this.gold -= cfg.cost;
+      cit.gateCommandCd = cfg.cd;
+      this.emit('goldChanged', this.gold);
+    }
+
+    const front = this._palaceFront(cit);
+    const origin = this._palaceSortieOrigin(cit, front);
+    const dir = front.clone().sub(origin);
+    if (dir.lengthSq() > 0.01) dir.normalize(); else dir.set(0, 0, -1);
+    const keep = cit.group.position;
+    const timing = this.palaceGateCommandPressure(cit);
+    const timingState = timing.peak ? 'peak' : timing.ready ? 'ready' : 'wait';
+    const timingBand = {
+      wait: { floor: 0.28, power: 0.68, durMult: 0.72, guardMult: 0.74, radiusBonus: -7, fx: 0.72 },
+      ready: { floor: 0.46, power: 1.0, durMult: 1.0, guardMult: 1.0, radiusBonus: 0, fx: 1.0 },
+      peak: { floor: 0.72, power: 1.36, durMult: 0.78, guardMult: 0.86, radiusBonus: 5, fx: 1.14 },
+    }[timingState];
+    const pressure = Math.max(timingBand.floor, timing.pressure);
+    const commandPower = pressure * timingBand.power;
+    const radius = Math.max(24, cfg.radius + pressure * 7 + timingBand.radiusBonus);
+    const dur = Math.max(5.2, (cfg.dur + pressure * 2.1) * timingBand.durMult);
+    const enemies = this.enemies
+      .filter((e) => e.alive && (e.group.position.distanceTo(front) <= radius || e.group.position.distanceTo(keep) <= radius + 14))
+      .sort((a, b) => a.group.position.distanceTo(front) - b.group.position.distanceTo(front))
+      .slice(0, 18);
+    const gateGuard = this._ensureRoyalGateGuard(cit, front, dir, {
+      pressure: Math.min(1.05, commandPower),
+      dur: dur * timingBand.guardMult,
+    });
+    const braceResult = this._bracePalaceDefenders(front, dir, commandPower, dur, enemies[0]);
+    let staggered = 0;
+    for (const e of enemies) {
+      const slowMult = timingState === 'peak'
+        ? (e.boss ? 0.68 : 0.44)
+        : timingState === 'wait'
+          ? (e.boss ? 0.88 : 0.72)
+          : (e.boss ? 0.76 : 0.54);
+      const slowDur = Math.max(0.72, (1.7 + pressure * 0.95) * (timingState === 'peak' ? 0.84 : timingBand.durMult));
+      e.reactGateLine?.(front, dir, 1.04 + commandPower * 0.42);
+      e.applySlow?.(slowMult, slowDur);
+      if (!e.boss) e.stunT = Math.max(e.stunT || 0, Math.max(0.12, (0.2 + pressure * 0.18) * timingBand.power));
+      e.takeDamage?.((8 + pressure * 9) * timingBand.power, 'impact', { command: true, impact: 0.54 + commandPower * 0.16 });
+      staggered++;
+    }
+
+    this._showGateMarker(front, dir, 10 + commandPower * 3.4 + (timing.peak ? 1.5 : 0), Math.max(3.6, (5.2 + pressure) * timingBand.durMult));
+    this._showPalaceShieldLine(front, dir, {
+      width: 10.2 + commandPower * 2.5 + (timing.peak ? 1.4 : 0),
+      pressure: 0.72 + commandPower * 0.18,
+      dur: Math.max(3.8, (5.4 + pressure) * timingBand.durMult),
+    });
+    this._showGateBanner(front, dir, {
+      label,
+      sublabel: subLabel || `${staggered} attackers staggered`,
+      pressure,
+      dur: Math.max(3.6, (5.2 + pressure) * timingBand.durMult),
+    });
+    this._showRoyalGateImpact(front, dir, enemies, { pressure: Math.min(1.25, commandPower * timingBand.fx), dur: Math.max(1.65, (2.3 + pressure * 0.42) * timingBand.durMult) });
+    this.palaceStage?.signalAlarm?.({ front, keep, dir, pressure: 0.5 + commandPower * 0.24, dur: Math.max(3.2, (4.3 + pressure) * timingBand.durMult) });
+    this.palaceBoonField.trigger(cit, { type: 'stunPulse', radius, dur: Math.max(1.5, (2.5 + pressure) * timingBand.durMult) }, {
+      front,
+      keep,
+      radius,
+      enemies,
+      towers: this.towers.filter((t) => t.alive && (t.pos.distanceTo(front) <= radius + 8 || t.pos.distanceTo(keep) <= radius + 8)),
+    });
+    const countercharge = timingState === 'peak'
+      ? this._peakGateCountercharge(cit, front, keep, {
+        radius,
+        power: commandPower,
+        dur: Math.max(2.1, Math.min(3.2, dur * 0.34)),
+      })
+      : 0;
+    if (this.audio.palaceAlarm) this.audio.palaceAlarm();
+    else this.audio.hornCall?.();
+    this.engine.bloomPulse?.((forceFx ? 0.58 : 0.38) + commandPower * 0.14);
+    this.engine.addShake?.(0.12 + commandPower * 0.14);
+    if (forceFx) {
+      this.engine.hitStop?.(timingState === 'peak' ? 0.045 : 0.024);
+      this.engine.slowMo?.(timingState === 'peak' ? 0.58 : 0.7, timingState === 'peak' ? 0.34 : 0.28);
+    }
+    this._cameraFocusBeat(front, { dur: 0.76 + pressure * 0.15, strength: 0.12 + commandPower * 0.08, dist: 50, pitch: 0.8, yawOffset: -0.06 });
+    this.palaceAssaultStatus = {
+      mode: 'royal',
+      count: enemies.length,
+      defenders: braceResult.defenders,
+      gateGuard: gateGuard.added,
+      braced: braceResult.squads,
+      staggered,
+      pressure,
+      timing: timingState,
+      timingPower: commandPower,
+      countercharge,
+      t: dur,
+      dur,
+      assaultT: Math.max(3.2, (4.5 + pressure) * timingBand.durMult),
+      assaultPressure: Math.min(1, commandPower),
+      timingPeak: timing.peak,
+    };
+    return { count: enemies.length, mode: 'royal', defenders: braceResult.defenders, gateGuard: gateGuard.added, braced: braceResult.squads, staggered, pressure, timing: timingState, peak: timing.peak, countercharge };
+  }
+
+  _palaceTargets(cit, cfg) {
+    const front = this._palaceFront(cit);
+    const keep = cit.group.position;
+    const radius = cfg.radius || 32;
+    return {
+      front,
+      keep,
+      radius,
+      enemies: this.enemies.filter((e) => e.alive && (e.group.position.distanceTo(front) <= radius || e.group.position.distanceTo(keep) <= radius)),
+      towers: this.towers.filter((t) => t.alive && (t.pos.distanceTo(front) <= radius || t.pos.distanceTo(keep) <= radius)),
+    };
+  }
+
+  _allDefenderSquads() {
+    return [...this.towers.flatMap((t) => t.squads), ...this.palaceSquads];
+  }
+
+  _healAllDefenders(amount) {
+    for (const tw of this.towers) if (tw.alive) tw.hp = Math.min(tw.maxHp, tw.hp + tw.maxHp * amount);
+    for (const sq of this._allDefenderSquads()) {
+      for (const m of sq.members) if (m.alive) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * amount);
+    }
+  }
+
+  // King's Boon: one stage-themed palace ability, backed by a fixed set of effect types.
   palaceBoon(cit) {
-    const cfg = palaceDef(cit.placeId).boon;
+    const cfg = palaceDef(cit.placeId || this.mapDef.id).boon;
     if ((cit.boonCd || 0) > 0) return false;
     if (!this.canAfford(cfg.cost)) { this.emit('toast', 'hud.notEnoughGold'); return false; }
     this.gold -= cfg.cost;
     cit.boonCd = cfg.cd;
+    const { front, keep, radius, enemies, towers } = this._palaceTargets(cit, cfg);
+    const affectedTowers = towers.length ? towers : this.towers.filter((t) => t.alive);
+    this.palaceBoonField.trigger(cit, cfg, { front, keep, radius, enemies, towers: affectedTowers });
     if (cfg.type === 'heal') {
-      const amt = cfg.amount || 0.45;
-      for (const tw of this.towers) if (tw.alive) tw.hp = Math.min(tw.maxHp, tw.hp + tw.maxHp * amt);
-      for (const sq of [...this.towers.flatMap((t) => t.squads), ...this.palaceSquads]) {
-        for (const m of sq.members) if (m.alive) m.hp = Math.min(m.maxHp, m.hp + m.maxHp * amt);
+      this._healAllDefenders(cfg.amount || 0.4);
+      this.audio.shimmer();
+    } else if (cfg.type === 'rallyDamage') {
+      const dur = cfg.dur || 10;
+      const bonus = cfg.amount || 0.25;
+      for (const tw of affectedTowers) {
+        tw.palaceDamageT = Math.max(tw.palaceDamageT || 0, dur);
+        tw.palaceDamageBonus = Math.max(tw.palaceDamageBonus || 0, bonus);
+        tw.attackCd = Math.min(tw.attackCd, 0.05);
       }
+      for (const sq of this._allDefenderSquads()) for (const m of sq.members) if (m.alive) m.stunT = 0;
+      this.audio.hornCall();
+    } else if (cfg.type === 'stunPulse') {
+      const dur = cfg.dur || cfg.amount || 1.2;
+      for (const e of enemies) {
+        e.takeDamage(16 + dur * 7, cfg.damageType || 'impact', { command: true, impact: 0.7 });
+        if (!e.boss) e.stunT = Math.max(e.stunT, dur);
+        else e.stunT = Math.max(e.stunT, dur * 0.4);
+      }
+      this.audio.mace();
+      this.engine.addShake(0.25);
+    } else if (cfg.type === 'burnRing') {
+      const dps = cfg.amount || 10;
+      const dur = cfg.dur || 4;
+      for (const e of enemies) {
+        e.takeDamage(dps * 0.8, cfg.damageType || 'fire', { command: true, impact: 0.45 });
+        e.applyBurn(dps, dur);
+      }
+      this.audio.fire();
+    } else if (cfg.type === 'bindChains') {
+      const dur = cfg.dur || cfg.amount || 1.8;
+      for (const e of enemies) {
+        e.takeDamage(14 + dur * 5, cfg.damageType || 'magic', { command: true, impact: 0.55 });
+        e.applyBind(dur);
+        e.applyMark(0.15, dur + 3);
+      }
+      this.audio.chain();
+    } else if (cfg.type === 'goldProvision') {
+      this.gold += cfg.amount || 100;
+      this.audio.coin();
+    } else if (cfg.type === 'rangeVision') {
+      const dur = cfg.dur || 11;
+      const bonus = cfg.amount || 0.22;
+      for (const tw of affectedTowers) {
+        tw.palaceRangeT = Math.max(tw.palaceRangeT || 0, dur);
+        tw.palaceRangeBonus = Math.max(tw.palaceRangeBonus || 0, bonus);
+        tw.attackCd = Math.min(tw.attackCd, 0.05);
+      }
+      for (const e of this.enemies) if (e.alive && e.group.position.distanceTo(front) <= radius * 1.4) e.applyMark(0.18, dur);
+      this.audio.longArrow();
+    } else if (cfg.type === 'repairFortifications') {
+      const amt = cfg.amount || 0.4;
+      for (const tw of affectedTowers) tw.hp = Math.min(tw.maxHp, tw.hp + tw.maxHp * amt);
+      for (const pad of this.map.pads) {
+        if ((pad.rubbleT || 0) > 0 && (pad.pos.distanceTo(front) <= radius || pad.pos.distanceTo(keep) <= radius)) pad.rubbleT = 0;
+      }
+      this.audio.forgeHammer();
     }
-    const p = cit.group.position;
-    this.particles?.burst?.(p.clone().setY(p.y + (cit.height || 16) * 0.5), 32, { speed: 3, life: 1.2, size: 0.7, color: [1, 0.86, 0.46], grav: -1 });
-    this.audio?.victory?.();
+    const synergyCount = this._palaceCommandCommitBeat(cit, front, front.clone().sub(keep), {
+      type: cfg.type,
+      kind: 'boon',
+      radius,
+      targetCount: (enemies?.length || 0) + (affectedTowers?.length || 0),
+      pressure: cfg.type === 'burnRing' || cfg.type === 'stunPulse' || cfg.type === 'bindChains' ? 0.96 : 0.78,
+      dur: Math.max(3.8, Math.min(6.2, cfg.dur || 4.8)),
+    });
+    this.emit('palaceCommand', {
+      kind: 'boon',
+      palace: cit,
+      type: cfg.type,
+      targetCount: (enemies?.length || 0) + (affectedTowers?.length || 0),
+      amount: cfg.amount || 0,
+      synergyCount,
+    });
     this.emit('goldChanged', this.gold);
     return true;
   }
@@ -245,9 +3012,12 @@ export class Game {
   // swap the procedural citadel for the now-loaded palace GLB, preserving placement + guard wiring
   _swapToPalace() {
     const m = this.map;
-    if (!m || !m.citadel || m.citadel.isPalace) return;
+    if (!m || !m.citadel || m.citadel.isCustomPalace) return;
     const cit = buildLandCitadel(this.mapDef.id);
     if (!cit.isPalace) return; // still not ready — keep the procedural citadel
+    const prev = m.citadel;
+    cit.musterCd = prev.musterCd || 0;
+    cit.boonCd = prev.boonCd || 0;
     m.group.remove(m.citadel.group);
     cit.group.position.copy(m.exitPos);
     const s = m.paths[0].samples;
@@ -256,6 +3026,7 @@ export class Game {
     m.group.add(cit.group);
     m.citadel = cit;
     this.citadelGuard = new CitadelGuard(this, cit);
+    this._rebuildPalaceStage();
   }
 
   // ---------- hero upgrade tree (persistent across battles) ----------
@@ -358,6 +3129,540 @@ export class Game {
     if (tower.hero) this.assignedHeroes.delete(tower.hero.id);
   }
 
+  _bossChallengeEnemy(ch = this.bossChallenge) {
+    return ch ? this.enemies.find((e) => e.id === ch.enemyId) : null;
+  }
+
+  _isEliteEnemy(enemy) {
+    if (!enemy?.alive || enemy.boss || enemy.isLarva) return false;
+    if ((enemy.def?.bounty || 0) >= 80) return true;
+    const eliteAbilities = new Set([
+      'divRally',
+      'rampage',
+      'dynasticBanner',
+      'duelistParry',
+      'banneredAdvance',
+      'princelyWrath',
+      'ironSkin',
+      'jealousVeil',
+      'feudFury',
+    ]);
+    return (enemy.def?.abilities || []).some((ability) => eliteAbilities.has(ability));
+  }
+
+  _palaceApproach(cit = this.map.citadel) {
+    const front = this._palaceFront(cit);
+    const keep = cit?.group?.position || this.map.exitPos || front;
+    const dir = front.clone().sub(keep);
+    if (dir.lengthSq() < 0.01) dir.set(0, 0, -1); else dir.normalize();
+    return { cit, front, keep, dir };
+  }
+
+  _rebuildPalaceStage() {
+    if (!this.palaceStage || !this.map?.citadel) return;
+    this.palaceStage.rebuild(this._palaceApproach(this.map.citadel));
+  }
+
+  _palaceThreatWeight(enemy, front, keep) {
+    if (!enemy?.alive || enemy.isLarva) return 0;
+    const elite = enemy.boss || this._isEliteEnemy(enemy);
+    if (!elite) return 0;
+    const p = enemy.group.position;
+    const dFront = p.distanceTo(front);
+    const dKeep = p.distanceTo(keep);
+    const pathLeft = Number.isFinite(enemy.path?.length) ? enemy.path.length - (enemy.dist || 0) : Infinity;
+    const inApproach = dFront <= 34 || dKeep <= 46 || pathLeft <= 48;
+    if (!inApproach) return 0;
+    let base = enemy.boss ? 3.0 : 1.15 + Math.min(1.1, (enemy.def?.bounty || 0) / 150);
+    const ab = enemy.def?.abilities || [];
+    if (ab.includes('siegeHorns') || ab.includes('rampage') || ab.includes('ironSkin')) base += 0.35;
+    if (ab.includes('banneredAdvance') || ab.includes('dynasticBanner') || ab.includes('princelyWrath')) base += 0.25;
+    const proximity = Math.max(
+      0,
+      1 - Math.min(dFront / 34, dKeep / 46, pathLeft / 48),
+    );
+    return base * (0.55 + proximity * 0.75);
+  }
+
+  _bracePalaceDefenders(front, dir, pressure, dur = 1.15, focus = null) {
+    const radius = 8.2 + pressure * 3.2;
+    const mult = 1.12 + pressure * 0.24;
+    let braced = 0;
+    const bracedMembers = [];
+    for (const sq of this._allDefenderSquads()) {
+      const alive = sq.members.filter((m) => m.alive);
+      if (!alive.length) continue;
+      const nearFront = alive.some((m) => m.group.position.distanceTo(front) <= 30);
+      const palaceSquad = sq.tower?.isPalaceMuster || sq.palaceStandAnchor;
+      const towerNear = sq.tower?.pos?.distanceTo?.(front) <= 42;
+      if (!palaceSquad && !nearFront && !towerNear) continue;
+      sq.gateLineT = Math.max(sq.gateLineT || 0, dur);
+      sq.gateLineDur = Math.max(sq.gateLineDur || 0, dur);
+      sq.gateLineAnchor = front.clone();
+      sq.gateLineDir = dir.clone();
+      sq.gateLineRadius = Math.max(sq.gateLineRadius || 0, radius);
+      sq.gateLineWidth = Math.max(sq.gateLineWidth || 0, Math.max(6, radius * 1.18));
+      sq.gateLineMult = Math.max(sq.gateLineMult || 1, mult);
+      sq.triggerGateBrace?.(front, { dur: Math.min(0.95, Math.max(0.58, dur * 0.16)), power: 0.85 + pressure * 0.38 });
+      if (sq.palaceStandAnchor) {
+        sq.palaceStandDepth = Math.max(sq.palaceStandDepth || 0, 0.55 + pressure * 0.62);
+        sq.palaceStandSpread = Math.max(sq.palaceStandSpread || 1, 1.02 + pressure * 0.12);
+        sq.palaceStandWidth = Math.max(sq.palaceStandWidth || 0, 10 + pressure * 4.2);
+        if (focus?.alive) {
+          sq.palaceEngageT = Math.max(sq.palaceEngageT || 0, Math.min(1.1, dur));
+          sq.palaceEngageDur = Math.max(sq.palaceEngageDur || 0, sq.palaceEngageT);
+          sq.palaceEngagePower = Math.max(sq.palaceEngagePower || 0, 0.92 + pressure * 0.18);
+          sq.palaceEngagePoint = focus.group.position.clone();
+        }
+      }
+      for (const m of alive) {
+        m.fearT = Math.min(m.fearT || 0, 0.2);
+        if (m.group.position.distanceTo(front) <= 34) {
+          m.sortieT = Math.max(m.sortieT || 0, m.model?.mounted ? 1.4 : 1.05);
+          m.gateReadT = Math.max(m.gateReadT || 0, m.model?.mounted ? 0.82 : 0.95);
+        }
+        if (focus?.alive && m.group.position.distanceTo(focus.group.position) <= 18) m.target = focus;
+      }
+      bracedMembers.push(...alive);
+      braced++;
+    }
+    const now = this._time || 0;
+    if (bracedMembers.length && now - (this._lastDefenderHoldFormation || -99) > 0.48) {
+      this._lastDefenderHoldFormation = now;
+      this._showDefenderHoldFormation(front, dir, bracedMembers, {
+        pressure,
+        dur: Math.min(4.4, Math.max(1.8, dur * 0.42)),
+      });
+    }
+    return { squads: braced, defenders: bracedMembers.length };
+  }
+
+  _palaceDangerAlarm(enemy, approach, weight, time) {
+    if (enemy._palaceDangerSeen) return;
+    enemy._palaceDangerSeen = true;
+    const pressure = Math.max(0.35, Math.min(1, weight / 3.2));
+    const { cit, front, keep, dir } = approach;
+    const radius = 8.5 + pressure * 4.5;
+    this._bracePalaceDefenders(front, dir, pressure, 4.2 + pressure * 1.6, enemy);
+    this._showAssaultColumn(enemy.path, enemy.dist || 0, enemy.boss ? 5 : 3, dir, 3.4 + pressure * 1.2);
+    this._showGateMarker(front, dir, radius, 4.6);
+    this._showPalaceShieldLine(front, dir, { width: Math.max(8.2, radius * 1.05), pressure, dur: 4.2 });
+    this.palaceStage?.signalAlarm?.({ front, keep, dir, pressure: pressure * 0.72, dur: 3.2 + pressure * 0.9 });
+    this.palaceBoonField.trigger(cit, { type: 'rallyDamage', radius: 30 + pressure * 12, dur: 4 }, {
+      front,
+      keep,
+      radius: 30 + pressure * 12,
+      enemies: [enemy],
+      towers: this.towers.filter((t) => t.alive && t.pos.distanceTo(front) <= 42),
+    });
+    enemy.applyMark(0.12 + pressure * 0.08, 4.5);
+    this.particles.burst(front.clone().setY(front.y + 1.5), 20 + Math.round(pressure * 18), {
+      speed: 2.6 + pressure,
+      up: 1.4,
+      life: 0.9,
+      size: 0.52,
+      color: enemy.boss ? FXC.blood : FXC.gold,
+      grav: 0.5,
+      spread: 3.8,
+      drag: 0.45,
+    });
+    this.engine.addShake?.(enemy.boss ? 0.42 : 0.18 + pressure * 0.12);
+    this.engine.bloomPulse?.(0.24 + pressure * 0.22);
+    if (time - (this._palaceDanger.hornT || -99) > 2.0) {
+      this._palaceDanger.hornT = time;
+      if (this.audio.palaceAlarm) this.audio.palaceAlarm();
+      else this.audio.hornCall();
+    }
+    this.emit('palaceDanger', { enemy, pressure, front });
+  }
+
+  _updatePalaceDanger(dt, time) {
+    const cit = this.map.citadel;
+    if (!cit || this.phase !== 'combat' || !this.waveActive) {
+      if (this._palaceDanger) this._palaceDanger.pressure = 0;
+      return;
+    }
+    const approach = this._palaceApproach(cit);
+    const threats = [];
+    let pressureSum = 0;
+    for (const enemy of this.enemies) {
+      const weight = this._palaceThreatWeight(enemy, approach.front, approach.keep);
+      if (weight <= 0) continue;
+      pressureSum += weight;
+      threats.push({ enemy, weight });
+      this._palaceDangerAlarm(enemy, approach, weight, time);
+    }
+    if (!threats.length) {
+      this._palaceDanger.pressure = Math.max(0, (this._palaceDanger.pressure || 0) - dt * 1.5);
+      this._palaceDanger.pulseT = 0;
+      return;
+    }
+    threats.sort((a, b) => b.weight - a.weight);
+    const pressure = Math.max(0.25, Math.min(1, pressureSum / 5.2));
+    this._palaceDanger.pressure = pressure;
+    this._bracePalaceDefenders(approach.front, approach.dir, pressure, 1.0 + pressure * 0.6, threats[0].enemy);
+    this._palaceDanger.pulseT -= dt;
+    this._palaceDanger.fxT -= dt;
+    if (this._palaceDanger.pulseT <= 0) {
+      this._palaceDanger.pulseT = Math.max(0.72, 1.75 - pressure * 0.8);
+      this.particles.burst(approach.front.clone().setY(approach.front.y + 1.2), 8 + Math.round(pressure * 10), {
+        speed: 1.8 + pressure * 1.4,
+        up: 1.1,
+        life: 0.66,
+        size: 0.42,
+        color: FXC.gold,
+        grav: 0.35,
+        spread: 2.6 + pressure * 1.4,
+        drag: 0.5,
+      });
+      this.engine.addShake?.(0.035 + pressure * 0.08);
+      if (time - (this._palaceDanger.markerT || -99) > 2.6) {
+        this._palaceDanger.markerT = time;
+        this._showGateMarker(approach.front, approach.dir, 7.5 + pressure * 3.8, 1.45);
+      }
+    }
+    if (this._palaceDanger.fxT <= 0) {
+      this._palaceDanger.fxT = 3.2;
+      this.palaceBoonField.trigger(approach.cit, { type: 'repairFortifications', radius: 26 + pressure * 14, dur: 2.4 }, {
+        front: approach.front,
+        keep: approach.keep,
+        radius: 26 + pressure * 14,
+        enemies: threats.map((t) => t.enemy).slice(0, 4),
+        towers: this.towers.filter((t) => t.alive && t.pos.distanceTo(approach.front) <= 44),
+      });
+      if (time - (this._palaceDanger.hornT || -99) > 4.0) {
+        this._palaceDanger.hornT = time;
+        this.audio.hornCall();
+      }
+    }
+  }
+
+  _bossChallengeView(ch = this.bossChallenge) {
+    if (!ch) return null;
+    const enemy = this._bossChallengeEnemy(ch);
+    const def = enemy?.def || ENEMIES_BY_ID[ch.defId];
+    const needed = Math.max(1, ch.startHp - ch.targetHp);
+    const progress = enemy ? Math.max(0, Math.min(1, (ch.startHp - enemy.hp) / needed)) : 1;
+    return {
+      def,
+      defId: ch.defId,
+      titleKey: ch.titleKey,
+      loreKey: ch.loreKey,
+      t: Math.max(0, ch.t),
+      dur: ch.dur,
+      progress,
+      hpFrac: ch.hpFrac,
+      rewardFarr: ch.rewardFarr,
+      rewardGold: ch.rewardGold,
+      failType: ch.failType,
+      successType: ch.successType,
+      saga: ch.saga,
+    };
+  }
+
+  _bossChallengePressure(ch = this.bossChallenge) {
+    if (!ch) return 0;
+    const enemy = this._bossChallengeEnemy(ch);
+    if (!enemy?.alive) return 0;
+    const needed = Math.max(1, ch.startHp - ch.targetHp);
+    const progress = Math.max(0, Math.min(1, (ch.startHp - enemy.hp) / needed));
+    const timePressure = 1 - Math.max(0, Math.min(1, (ch.t || 0) / Math.max(1, ch.dur || 1)));
+    const unbroken = 1 - progress;
+    const bossWeight = enemy.boss ? 0.18 : 0.1;
+    return Math.max(0, Math.min(0.88, bossWeight + timePressure * 0.42 + unbroken * 0.2));
+  }
+
+  _bossHpBucket(enemy) {
+    const hpFrac = Math.max(0, Math.min(1, enemy.hp / Math.max(1, enemy.maxHp)));
+    if (hpFrac <= 0.15) return 0;
+    if (hpFrac <= 0.33) return 1;
+    if (hpFrac <= 0.66) return 2;
+    return 3;
+  }
+
+  _updateBossPhaseReactions() {
+    for (const enemy of this.enemies) {
+      if (!enemy?.alive || !enemy.boss) continue;
+      const bucket = this._bossHpBucket(enemy);
+      if (enemy._bossHpBucket == null) {
+        enemy._bossHpBucket = bucket;
+        continue;
+      }
+      if (bucket >= enemy._bossHpBucket) continue;
+      enemy._bossHpBucket = bucket;
+      const hpFrac = Math.max(0, Math.min(1, enemy.hp / Math.max(1, enemy.maxHp)));
+      this.bossOmen.phase?.(enemy, bucket, hpFrac);
+      this.engine.bloomPulse?.(bucket <= 0 ? 1.0 : bucket === 1 ? 0.82 : 0.62);
+      this.engine.addShake?.(bucket <= 0 ? 0.65 : bucket === 1 ? 0.45 : 0.28);
+      this.engine.hitStop?.(bucket <= 1 ? 0.04 : 0.025);
+      if (bucket <= 1) {
+        this.audio.roar?.();
+        this._cameraFocusBeat(enemy.group.position, { dur: bucket <= 0 ? 1.15 : 0.9, strength: bucket <= 0 ? 0.36 : 0.28, dist: bucket <= 0 ? 45 : 52, pitch: 0.76, yawOffset: 0.08 });
+      }
+    }
+  }
+
+  _startBossChallenge(enemy) {
+    if (!enemy?.alive || this.bossChallenge) return;
+    const cfg = bossChallengeDef(enemy.def.id);
+    this.bossChallenge = {
+      ...cfg,
+      defId: enemy.def.id,
+      enemyId: enemy.id,
+      t: cfg.dur,
+      startHp: enemy.hp,
+      targetHp: Math.max(1, enemy.hp * (1 - cfg.hpFrac)),
+      emitT: 0,
+    };
+    this.bossOmen.start(enemy, this.bossChallenge);
+    this.emit('bossChallengeStarted', this._bossChallengeView());
+  }
+
+  _completeBossChallenge(enemy = this._bossChallengeEnemy()) {
+    const ch = this.bossChallenge;
+    if (!ch) return;
+    const view = this._bossChallengeView(ch);
+    this.bossChallenge = null;
+    this.gold += ch.rewardGold || 0;
+    this.emit('goldChanged', this.gold);
+    this.addFarr(ch.rewardFarr || 0, 'bossChallenge');
+    recordBossSaga(ch.defId, this.mapDef.id, 'broken');
+    if (enemy?.alive) {
+      this.bossOmen.success(enemy, ch.successType);
+      enemy.applyMark(0.28, 8);
+      enemy.applySlow(0.68, 4.5);
+      this._applyBossChallengeSuccess(enemy, ch);
+      enemy.takeDamage(Math.min(160, enemy.maxHp * 0.035), 'true');
+      this._cameraFocusBeat(enemy.group.position, { dur: 0.95, strength: 0.25, dist: 55, pitch: 0.82, yawOffset: -0.05 });
+      this.particles.burst(enemy.group.position.clone().setY(enemy.group.position.y + 2), 28, {
+        speed: 3.2, up: 2.2, life: 0.9, size: 0.55, color: FXC.gold, grav: 1.2, spread: 2.6,
+      });
+    } else {
+      this.bossOmen.clear();
+    }
+    this.engine.bloomPulse(0.55);
+    this.audio.shimmer();
+    this.emit('bossChallengeCompleted', view);
+    saveBattle(this);
+  }
+
+  _failBossChallenge(enemy = this._bossChallengeEnemy()) {
+    const ch = this.bossChallenge;
+    if (!ch) return;
+    const view = this._bossChallengeView(ch);
+    this.bossChallenge = null;
+    recordBossSaga(ch.defId, this.mapDef.id, 'hardened');
+    if (enemy?.alive) {
+      this.bossOmen.failure(enemy, ch.failType);
+      enemy.buffSpeed *= ch.failSpeed || 1.08;
+      enemy.buffDamage *= ch.failDamage || 1.12;
+      enemy.applySlow(0.88, 1.2);
+      this._applyBossChallengeFailure(enemy, ch);
+      this.particles.burst(enemy.group.position.clone().setY(enemy.group.position.y + 2), 22, {
+        speed: 2.8, up: 1.8, life: 0.8, size: 0.5, color: FXC.shadow, grav: 0.9, spread: 2.4,
+      });
+      this._cameraFocusBeat(enemy.group.position, { dur: 1.05, strength: 0.34, dist: 48, pitch: 0.76, yawOffset: 0.08 });
+      this.engine.addShake(0.35);
+      this.audio.roar();
+    } else {
+      this.bossOmen.clear();
+    }
+    this.emit('bossChallengeFailed', view);
+    saveBattle(this);
+  }
+
+  _applyBossChallengeSuccess(enemy, ch) {
+    const type = ch.successType || 'mark';
+    const p = enemy.group.position;
+    const near = this._bossFailureFront(enemy, 18);
+    if (type === 'antiTyrantChains') {
+      enemy.fogBrokenT = Math.max(enemy.fogBrokenT, 10);
+      enemy.applyBind(4.2);
+      enemy.applyMark(0.36, 10);
+      for (const e of this.enemies) if (e.alive && e.def.id === 'zahhak-serpents') { e.stunT = Math.max(e.stunT, 1.4); e.applySlow(0.55, 6); }
+      this.audio.chain();
+      this.particles.burst(p, 24, { speed: 2.8, up: 2.0, life: 1.0, size: 0.55, color: FXC.chain, grav: 0.4, spread: 3.2 });
+    } else if (type === 'clearFog') {
+      enemy.fogBrokenT = Math.max(enemy.fogBrokenT, 11);
+      enemy.stunT = Math.max(enemy.stunT, 0.9);
+      for (const t of near.towers.length ? near.towers : this.towers) {
+        if (!t.alive) continue;
+        t.palaceRangeT = Math.max(t.palaceRangeT || 0, 8);
+        t.palaceRangeBonus = Math.max(t.palaceRangeBonus || 0, 0.14);
+      }
+      this.particles.burst(p, 28, { speed: 2.2, up: 2.0, life: 1.1, size: 0.6, color: FXC.sacred, grav: -0.4, spread: 4.5 });
+    } else if (type === 'rakhshWarning') {
+      enemy.untargetableT = 0;
+      enemy.applySlow(0.55, 6);
+      enemy.applyMark(0.32, 9);
+      enemy.dist = Math.max(0, enemy.dist - 2.5);
+      this.particles.burst(p, 22, { speed: 3.2, up: 1.7, life: 0.9, size: 0.55, color: FXC.gold, grav: 0.5, spread: 3.5 });
+    } else if (type === 'silenceSiege') {
+      enemy.siegeSilencedT = Math.max(enemy.siegeSilencedT, 12);
+      enemy.stunT = Math.max(enemy.stunT, 1.0);
+      for (const t of near.towers) t.hp = Math.min(t.maxHp, t.hp + t.maxHp * 0.08);
+      this.particles.burst(p, 22, { speed: 2.6, up: 1.6, life: 0.9, size: 0.5, color: FXC.gold, grav: 0.6, spread: 3 });
+    } else if (type === 'crackIron') {
+      enemy.armor = Math.max(0, enemy.armor - 0.16);
+      enemy.shieldNext = 0;
+      enemy.applyMark(0.32, 9);
+      this.particles.burst(p, 26, { speed: 3.0, up: 1.3, life: 0.8, size: 0.55, color: FXC.spark, grav: 1.4, spread: 3 });
+    } else if (type === 'cutBrood') {
+      enemy.broodSilencedT = Math.max(enemy.broodSilencedT, 13);
+      for (const e of this.enemies) if (e.alive && e.isLarva && e.def.id === enemy.def.id) e.takeDamage(e.maxHp, 'true');
+      enemy.applySlow(0.62, 6);
+      this.particles.burst(p, 22, { speed: 2.8, up: 1.4, life: 0.9, size: 0.55, color: FXC.venom, grav: 1.0, spread: 3.5 });
+    } else if (type === 'unmaskCounsel' || type === 'unmaskTrail') {
+      enemy.counselBrokenT = Math.max(enemy.counselBrokenT, 12);
+      for (const s of near.soldiers) s.fearT = 0;
+      for (const t of near.towers) { t.silencedT = 0; t.garrisonDisabledT = Math.min(t.garrisonDisabledT, 0.5); }
+      enemy.applyMark(0.34, 9);
+      this.particles.burst(p, 22, { speed: 2.4, up: 1.8, life: 0.9, size: 0.5, color: FXC.sacred, grav: 0.2, spread: 3 });
+    } else if (type === 'breakGuard' || type === 'breakBanner' || type === 'breakCavalry' || type === 'breakRoyalGuard') {
+      enemy.guardBrokenT = Math.max(enemy.guardBrokenT, type === 'breakRoyalGuard' ? 12 : 9);
+      for (const e of near.enemies) {
+        if (e.def.class !== 'human') continue;
+        e.applySlow(0.72, 5);
+        e.takeDamage(22, 'true');
+      }
+      enemy.applySlow(0.66, 5.5);
+      this.particles.burst(p, 24, { speed: 2.8, up: 1.8, life: 0.9, size: 0.52, color: FXC.gold, grav: 0.5, spread: 3.2 });
+    } else if (type === 'coolWrath') {
+      enemy.wrathStacks = 0;
+      enemy.buffSpeed = Math.min(enemy.buffSpeed, 1.08);
+      enemy.buffDamage = Math.min(enemy.buffDamage, 1.08);
+      enemy.applySlow(0.62, 6);
+      this.particles.burst(p, 20, { speed: 2.3, up: 1.8, life: 0.9, size: 0.5, color: FXC.sacred, grav: 0.2, spread: 3 });
+    } else if (type === 'settleFeud' || type === 'pierceJealousy') {
+      const siblingId = enemy.def.id === 'tur' ? 'salm' : 'tur';
+      const sibling = this.enemies.find((e) => e.alive && e.def.id === siblingId);
+      enemy.feudBrokenT = Math.max(enemy.feudBrokenT, 12);
+      if (sibling) sibling.feudBrokenT = Math.max(sibling.feudBrokenT, 12);
+      if (type === 'pierceJealousy') enemy.armor = Math.max(0, enemy.armor - 0.08);
+      enemy.applyMark(0.32, 9);
+      this.particles.burst(p, 22, { speed: 2.5, up: 1.7, life: 0.9, size: 0.52, color: FXC.gold, grav: 0.4, spread: 3 });
+    }
+  }
+
+  _spawnEnemyNear(defId, anchor, count = 1, { isLarva = false, boss = false, gap = 1.2 } = {}) {
+    const def = ENEMIES_BY_ID[defId];
+    if (!def || !anchor || this.enemies.length > 86) return [];
+    const out = [];
+    for (let i = 0; i < count && this.enemies.length < 90; i++) {
+      const e = new Enemy(this, def, anchor.pathIndex || 0, this.waveHpMult, isLarva, { forceBoss: boss });
+      e.dist = Math.max(0, anchor.dist - gap * (i + 1));
+      e.laneOffset += (i - (count - 1) / 2) * 0.85;
+      this.enemies.push(e);
+      out.push(e);
+    }
+    return out;
+  }
+
+  _bossFailureFront(enemy, radius = 15) {
+    const p = enemy.group.position;
+    return {
+      towers: this.towers.filter((t) => t.alive && t.pos.distanceTo(p) <= radius),
+      soldiers: this.allSoldiers().filter((s) => s.alive && s.group.position.distanceTo(p) <= radius),
+      enemies: this.enemies.filter((e) => e.alive && e !== enemy && e.group.position.distanceTo(p) <= radius),
+    };
+  }
+
+  _applyBossChallengeFailure(enemy, ch) {
+    const p = enemy.group.position;
+    const near = this._bossFailureFront(enemy, 16);
+    const type = ch.failType || 'surge';
+    if (type === 'serpentFeed') {
+      enemy.hp = Math.min(enemy.maxHp, enemy.hp + enemy.maxHp * 0.1);
+      this._spawnEnemyNear('zahhak-serpents', enemy, 2, { gap: 1.4 });
+      this.particles.burst(p, 18, { speed: 2, up: 1.4, life: 0.9, size: 0.5, color: FXC.venom, grav: 0.5, spread: 2.5 });
+    } else if (type === 'whiteFog') {
+      for (const t of near.towers) t.silencedT = Math.max(t.silencedT, 2.8);
+      for (const s of near.soldiers) s.fearT = Math.max(s.fearT, 2.0);
+      this.particles.burst(p, 30, { speed: 2.4, up: 1.2, life: 1.2, size: 0.75, color: FXC.snow, grav: -0.2, spread: 5 });
+    } else if (type === 'dragonBurrow') {
+      enemy.untargetableT = Math.max(enemy.untargetableT, 1.2);
+      enemy.dist = Math.min(enemy.path.length - 2, enemy.dist + 5);
+      for (const s of near.soldiers) s.takeDamage(18, 'fire');
+      this.particles.burst(p, 22, { speed: 4, up: 1.0, life: 0.8, size: 0.7, color: FXC.ember, grav: 2, spread: 4 });
+    } else if (type === 'visehGuard' || type === 'royalGuard') {
+      this._spawnEnemyNear('barman', enemy, type === 'royalGuard' ? 3 : 2, { gap: 1.1 });
+      for (const e of near.enemies) if (e.def.class === 'human') e.buffSpeed = Math.max(e.buffSpeed, 1.18);
+      this.particles.burst(p, 18, { speed: 2.4, up: 1.8, life: 0.8, size: 0.5, color: FXC.gold, grav: 0.4, spread: 3 });
+      if (type === 'royalGuard') enemy.untargetableT = Math.max(enemy.untargetableT, 0.7);
+    } else if (type === 'bannerAdvance') {
+      for (const e of near.enemies) {
+        if (e.dist <= enemy.dist) {
+          e.buffSpeed = Math.max(e.buffSpeed, 1.28);
+          e.roadShield = Math.max(e.roadShield || 0, 0.45);
+        }
+      }
+      this.particles.burst(p, 16, { speed: 2.6, up: 2.0, life: 0.8, size: 0.45, color: FXC.gold, grav: 0.2, spread: 2.8 });
+    } else if (type === 'falseCounsel' || type === 'falseTrail') {
+      for (const s of near.soldiers) s.fearT = Math.max(s.fearT, type === 'falseTrail' ? 3.0 : 2.2);
+      for (const t of near.towers.filter((tw) => tw.hero)) t.silencedT = Math.max(t.silencedT, 2.0);
+      if (type === 'falseTrail') {
+        for (const t of near.towers.filter((tw) => tw.squads.length)) t.garrisonDisabledT = Math.max(t.garrisonDisabledT, 3.0);
+      }
+      this.particles.burst(p, 18, { speed: 2.2, up: 1.3, life: 0.9, size: 0.5, color: FXC.shadow, grav: 0.3, spread: 3 });
+    } else if (type === 'princelyWrath') {
+      enemy.wrathStacks = (enemy.wrathStacks || 0) + 3;
+      enemy.buffSpeed = Math.max(enemy.buffSpeed, 1.45);
+      enemy.buffDamage = Math.max(enemy.buffDamage, 1.45);
+      for (const e of near.enemies) if (e.def.class === 'human') e.buffDamage = Math.max(e.buffDamage, 1.2);
+      this.particles.burst(p, 18, { speed: 3.2, up: 1.8, life: 0.8, size: 0.55, color: FXC.blood, grav: 0.6, spread: 3 });
+    } else if (type === 'siegeHorns') {
+      for (const t of near.towers) {
+        t.takeDamage(28);
+        t.disabledT = Math.max(t.disabledT, 1.4);
+      }
+      this.engine.addShake(0.45);
+      this.particles.burst(p, 20, { speed: 2.8, up: 1.3, life: 0.8, size: 0.55, color: FXC.dust, grav: 1, spread: 3.5 });
+    } else if (type === 'ironHide') {
+      enemy.armor = Math.min(0.95, enemy.armor + 0.12);
+      enemy.shieldNext = Math.max(enemy.shieldNext || 0, 2);
+      this.particles.burst(p, 20, { speed: 2.2, up: 1.3, life: 0.9, size: 0.5, color: FXC.chain, grav: 0.5, spread: 2.5 });
+    } else if (type === 'wormBrood') {
+      enemy.maxHp *= 1.04;
+      enemy.hp = Math.min(enemy.maxHp, enemy.hp + enemy.maxHp * 0.08);
+      this._spawnEnemyNear(enemy.def.id, enemy, 3, { isLarva: true, gap: 1.0 });
+      this.particles.burst(p, 20, { speed: 2.5, up: 1.2, life: 0.9, size: 0.55, color: FXC.venom, grav: 1, spread: 3 });
+    } else if (type === 'cavalryOath') {
+      this._spawnEnemyNear('barman', enemy, 3, { gap: 1.0 });
+      for (const e of near.enemies) if (e.def.class === 'human') e.buffSpeed = Math.max(e.buffSpeed, 1.24);
+      this.particles.burst(p, 20, { speed: 3.0, up: 1.6, life: 0.8, size: 0.5, color: FXC.dust, grav: 1, spread: 3.5 });
+    } else if (type === 'bloodFeud' || type === 'jealousVeil') {
+      const siblingId = enemy.def.id === 'tur' ? 'salm' : 'tur';
+      const sibling = this.enemies.find((e) => e.alive && e.def.id === siblingId);
+      const target = sibling || enemy;
+      target.buffSpeed = Math.max(target.buffSpeed, 1.35);
+      target.buffDamage = Math.max(target.buffDamage, 1.45);
+      if (type === 'jealousVeil') target.armor = Math.min(0.9, target.armor + 0.08);
+      this.particles.burst(target.group.position, 18, { speed: 2.8, up: 1.8, life: 0.8, size: 0.52, color: FXC.blood, grav: 0.5, spread: 2.8 });
+    }
+  }
+
+  _clearBossChallenge() {
+    if (!this.bossChallenge) return;
+    this.bossChallenge = null;
+    this.bossOmen.clear();
+    this.emit('bossChallengeCleared');
+  }
+
+  _updateBossChallenge(dt) {
+    const ch = this.bossChallenge;
+    if (!ch) return;
+    const enemy = this._bossChallengeEnemy(ch);
+    if (!enemy || !enemy.alive) { this._completeBossChallenge(enemy); return; }
+    if (enemy.hp <= ch.targetHp) { this._completeBossChallenge(enemy); return; }
+    ch.t -= dt;
+    if (ch.t <= 0) { this._failBossChallenge(enemy); return; }
+    ch.emitT = (ch.emitT || 0) - dt;
+    if (ch.emitT <= 0) {
+      ch.emitT = 0.12;
+      this.emit('bossChallengeUpdated', this._bossChallengeView(ch));
+    }
+  }
+
   // ---------- waves ----------
   earlyBonus() { return Math.max(0, Math.round(this.waveCountdown)) * this.earlyGoldPerSec; }
 
@@ -370,6 +3675,7 @@ export class Game {
         this.gold += bonus;
         this.emit('goldChanged', this.gold);
         this.emit('earlyBonus', bonus);
+        this.addFarr(Math.min(12, Math.max(2, Math.round(bonus / 20))), 'early');
         this.particles.burst(this.map.exitPos.clone().setY(this.map.exitPos.y + 3), 18, { speed: 2, life: 0.9, size: 0.5, color: [1, 0.85, 0.3], grav: -0.5 });
         this.audio.coin();
       }
@@ -383,9 +3689,10 @@ export class Game {
     this.waveT = 0;
     this.waveActive = true;
     this.phase = 'combat';
+    this._waveStartLives = this.lives;
     for (const t of this.towers) { t.borderArrowUsed = false; t.brazenUsed = false; t.rebuildUsed = false; }
     this.emit('waveStarted', { wave: this.waveIdx, boss: wave.isBossWave, mod: wave.modifier });
-    if (wave.isBossWave) { this.audio.bossCue(); this.emit('toast', 'hud.bossIncoming'); }
+    if (wave.isBossWave) { this.audio.bossCue(); this.audio.bossSwell?.(); this.emit('toast', 'hud.bossIncoming'); }
     this.audio.setIntensity(wave.isBossWave ? 1 : Math.min(0.85, 0.3 + this.waveIdx * 0.05));
     saveBattle(this); // checkpoint the start of the wave
   }
@@ -404,9 +3711,13 @@ export class Game {
     this.audio.coin();
     this.emit('goldChanged', this.gold);
     this.emit('enemyKilled', enemy);
+    this.addFarr(enemy.boss ? 22 : enemy.def.bounty >= 55 ? 3 : 1, enemy.boss ? 'bossKill' : 'kill');
+    if (this.bossChallenge?.enemyId === enemy.id) this._completeBossChallenge(enemy);
+    if (enemy.boss) recordBossSaga(enemy.def.id, this.mapDef.id, 'defeated');
   }
 
   onEnemyReachedEnd(enemy) {
+    if (this.bossChallenge?.enemyId === enemy.id) this._failBossChallenge(enemy);
     if (this.sandbox) { this.engine.addShake(0.15); return; } // invulnerable while testing
     this.lives -= enemy.boss ? 3 : 1;
     this.engine.addShake(0.3);
@@ -415,10 +3726,13 @@ export class Game {
     if (this.lives <= 0 && this.phase !== 'lost') {
       this.phase = 'lost';
       this.audio.setIntensity(0);
+      this.audio.defeatSwell?.();
+      this.bossOmen.finale?.('defeat', enemy.group.position);
       // defeat lands hard: time crawls, the screen heaves, the bloom flares
       this.engine.slowMo(0.25, 1.8);
       this.engine.addShake(1.6);
       this.engine.bloomPulse(0.9);
+      this._cameraFocusBeat(enemy.group.position, { dur: 1.75, strength: 0.5, dist: 44, pitch: 0.72, yawOffset: 0.12 });
       clearBattle(); // defeat — no resume; retry starts fresh
       this.emit('defeat');
     }
@@ -454,6 +3768,7 @@ export class Game {
   _endWave() {
     this.waveActive = false;
     this.phase = 'build';
+    this._clearBossChallenge();
     // income from economy towers + base wave reward
     let income = 25 + this.waveIdx * 4;
     for (const t of this.towers) if (t.alive) income += Math.round(t.getStats().income || 0);
@@ -462,6 +3777,7 @@ export class Game {
     this.audio.setIntensity(0.15);
     this.emit('goldChanged', this.gold);
     this.emit('waveEnded', { wave: this.waveIdx, income });
+    if (this.lives >= (this._waveStartLives ?? this.lives)) this.addFarr(10 + (this.waveMod ? 3 : 0), 'perfectWave');
 
     const isLastCampaignWave = !this.endlessMode && this.waveIdx >= this.mapDef.waves;
     if (isLastCampaignWave && this.phase !== 'lost') {
@@ -470,9 +3786,13 @@ export class Game {
       const newHeroes = HEROES.filter((h) => h.unlock.type === 'campaign' && h.unlock.map === this.mapDef.id);
       for (const h of newHeroes) unlockHero(h.id);
       this.audio.victory();
+      this.audio.victorySwell?.();
+      this.bossOmen.finale?.('victory', this.map.citadel?.group?.position || this.map.exitPos);
       // victory swells: a triumphant slow-mo and a bloom bloom as the last foe falls
       this.engine.slowMo(0.45, 1.5);
       this.engine.bloomPulse(1.1);
+      this.engine.addShake(0.7);
+      this._cameraFocusBeat(this.map.citadel?.group?.position || this.map.exitPos, { dur: 1.85, strength: 0.46, dist: 50, pitch: 0.8, yawOffset: -0.08 });
       this.emit('victory', { unlockedHeroes: newHeroes });
     }
     if (this.endlessMode) recordEndless(this.mapDef.id, this.waveIdx);
@@ -492,6 +3812,7 @@ export class Game {
   allSoldiers() {
     const out = [];
     for (const t of this.towers) for (const sq of t.squads) for (const m of sq.members) if (m.alive) out.push(m);
+    for (const sq of this.palaceSquads) for (const m of sq.members) if (m.alive) out.push(m);
     return out;
   }
 
@@ -521,12 +3842,10 @@ export class Game {
 
   rhythmBonusAt(pos) {
     let bonus = 1;
-    for (const t of this.towers) {
-      for (const sq of t.squads) {
-        if (sq.def.ability?.key === 'warRhythm' || sq.def.ability?.key === 'standardAura') {
-          for (const m of sq.members) {
-            if (m.alive && m.group.position.distanceTo(pos) < 8) { bonus = Math.max(bonus, 1.2); break; }
-          }
+    for (const sq of this._allDefenderSquads()) {
+      if (sq.def.ability?.key === 'warRhythm' || sq.def.ability?.key === 'standardAura') {
+        for (const m of sq.members) {
+          if (m.alive && m.group.position.distanceTo(pos) < 8) { bonus = Math.max(bonus, 1.2); break; }
         }
       }
     }
@@ -595,9 +3914,9 @@ export class Game {
     for (const e of this.enemies) {
       if (!e.alive) continue;
       const ab = e.def.abilities || [];
-      if (ab.includes('tyrantDread') || ab.includes('blindingFog')) this._dreadSources.push(e.group.position);
-      if (ab.includes('poisonCounsel')) this._poisonSources.push(e.group.position);
-      if (ab.includes('siegeHorns')) this.siegeHornsActive = true;
+      if ((ab.includes('tyrantDread') || ab.includes('blindingFog')) && (e.fogBrokenT || 0) <= 0) this._dreadSources.push(e.group.position);
+      if (ab.includes('poisonCounsel') && (e.counselBrokenT || 0) <= 0) this._poisonSources.push(e.group.position);
+      if (ab.includes('siegeHorns') && (e.siegeSilencedT || 0) <= 0) this.siegeHornsActive = true;
     }
     // wiseTruce: Piran — human enemies slowed near his tower
     for (const t of this.towers) {
@@ -628,6 +3947,7 @@ export class Game {
 
   // ---------- main loop ----------
   update(dt, time) {
+    this._time = time;
     if (this.phase === 'lost') dt *= 0.25; // slow-motion fall
 
     // sandbox: keep the treasury topped up so every upgrade/fusion stays affordable
@@ -650,6 +3970,22 @@ export class Game {
       if (this.waveCountdown <= 0) { this.waveCountdown = 0; this.startWave(false); }
     }
 
+    if (this.oathT > 0) {
+      this.oathT -= dt;
+      this._oathFxT -= dt;
+      if (this._oathFxT <= 0) {
+        this._oathFxT = 0.45;
+        this.oathField.pulse(this.map.citadel, this.towers);
+        this._oathVisualPulse(this.map.citadel, false);
+      }
+    }
+    this.oathField.update(dt, this.engine.camera, time);
+    this.bossOmen.update(dt, this.engine.camera, time);
+    this.palaceBoonField.update(dt, this.engine.camera, time);
+    this.heroCommandField.update(dt, this.engine.camera, time);
+    this._updateGateMarkers(dt, time);
+    this._updateGatePressureOmen(dt);
+
     // pad rubble timers
     for (const pad of this.map.pads) if (pad.rubbleT > 0) pad.rubbleT -= dt;
 
@@ -660,15 +3996,21 @@ export class Game {
         if (this.spawnQueue[i].delay <= this.waveT) {
           const entry = this.spawnQueue.splice(i, 1)[0];
           const def = ENEMIES_BY_ID[entry.defId];
-          const e = new Enemy(this, def, entry.pathIndex, this.waveHpMult);
+          const e = new Enemy(this, def, entry.pathIndex, this.waveHpMult, false, { forceBoss: !!entry.boss });
           this.enemies.push(e);
           if (entry.boss) {
+            this.bossOmen.arrival?.(e);
             this.emit('bossSpawned', def);
+            this._startBossChallenge(e);
             this.audio.roar();
+            this.audio.bossSwell?.();
             // epic arrival beat: time dilates, the bloom swells, the ground quakes
             this.engine.slowMo(0.4, 1.3);
             this.engine.bloomPulse(1.0);
             this.engine.addShake(1.0);
+            this._cameraFocusBeat(e.group.position, { dur: 1.35, strength: 0.42, dist: 48, pitch: 0.74, yawOffset: 0.1 });
+          } else if (this._isEliteEnemy(e)) {
+            this.bossOmen.elite?.(e);
           }
         }
       }
@@ -684,12 +4026,45 @@ export class Game {
         this.enemies.splice(i, 1);
       }
     }
+    this._updateBossPhaseReactions();
+    this._updatePalaceDanger(dt, time);
+    this._updateBossChallenge(dt);
+    const stagePressure = Math.max(this._palaceDanger?.pressure || 0, this._bossChallengePressure());
+    this.palaceStage?.setPressure(stagePressure);
+    this.palaceStage?.update(dt, time, this.particles);
     for (const t of this.towers) t.update(dt, time);
-    for (const sq of this.palaceSquads) sq.update(dt, time);
+    for (let i = this.palaceSquads.length - 1; i >= 0; i--) {
+      const sq = this.palaceSquads[i];
+      if (sq.royalGateGuardT > 0) {
+        sq.royalGateGuardT = Math.max(0, sq.royalGateGuardT - dt);
+        if (sq.royalGateGuardT <= 2.1 && !sq.royalGateGuardEnding) {
+          sq.royalGateGuardEnding = true;
+          const anchor = sq.gateLineAnchor || sq.palaceStandAnchor || sq.anchor;
+          const dir = sq.gateLineDir || sq.palaceStandDir || null;
+          const alive = sq.members.filter((m) => m.alive);
+          for (const m of alive) m.gateReadT = Math.max(m.gateReadT || 0, 1.25);
+          this._showRoyalGateGuardFade(anchor, dir, { count: alive.length, dur: 1.9 });
+        }
+        if (sq.royalGateGuardT <= 0) {
+          const anchor = sq.gateLineAnchor || sq.palaceStandAnchor || sq.anchor;
+          const dir = sq.gateLineDir || sq.palaceStandDir || null;
+          this._showRoyalGateGuardFade(anchor, dir, { count: sq.members.filter((m) => m.alive).length, ending: true, dur: 1.25 });
+          sq.destroy();
+          this.palaceSquads.splice(i, 1);
+          continue;
+        }
+      }
+      sq.update(dt, time);
+    }
+    if (this.palaceAssaultStatus) {
+      this.palaceAssaultStatus.t = Math.max(0, (this.palaceAssaultStatus.t || 0) - dt);
+      if (this.palaceAssaultStatus.t <= 0) this.palaceAssaultStatus = null;
+    }
     const _pal = this.map.citadel;
     if (_pal && _pal.isPalace) {
       if (_pal.musterCd > 0) _pal.musterCd -= dt;
       if (_pal.boonCd > 0) _pal.boonCd -= dt;
+      if (_pal.gateCommandCd > 0) _pal.gateCommandCd -= dt;
     }
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       this.projectiles[i].update(dt);
@@ -760,10 +4135,19 @@ export class Game {
 
   dispose() {
     for (const t of this.towers) t.destroy();
+    for (const sq of this.palaceSquads) sq.destroy();
+    this.palaceSquads.length = 0;
     for (const e of this.enemies) e.destroy();
     for (const p of this.projectiles) p.alive && p._die();
     this.debris.clear();
     this.scene.remove(this.particles.points);
+    this.oathField.dispose();
+    this.bossOmen.dispose();
+    this.palaceBoonField.dispose();
+    this.heroCommandField.dispose();
+    this.palaceStage.dispose();
+    this.clearPalaceCommandPreview();
+    this._clearGateMarkers();
     this.ambient.dispose();
     this.scene.remove(this.ambient.group);
     this.map.dispose();

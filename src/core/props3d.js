@@ -12,6 +12,7 @@
 // existing procedural builders; the map can never break.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { sanitizeVisualArtifacts } from './visualguards.js';
 
 // Dedupe shared asset fetches across the ~150 gltf we load at boot. Many props share trim
 // textures + .bin buffers (the Quaternius things kit reuses 4 trim-sheets across dozens of
@@ -226,6 +227,7 @@ function loadGlbSet(names, files, started, onReady) {
         const box = new THREE.Box3().setFromObject(gltf.scene);
         const size = box.getSize(new THREE.Vector3());
         gltf.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.geometry) o.geometry.userData.cached = true; } });
+        if (name.startsWith('range_')) sanitizeVisualArtifacts(gltf.scene, { scope: 'horizon', hide: true });
         cache.set(name, { scene: gltf.scene, baseW: size.x || 1, baseH: size.y || 1, baseD: size.z || 1, baseY: box.min.y || 0 });
       } finally { check(); }
     }, undefined, () => { cache.set(name, 'failed'); check(); });

@@ -2,6 +2,8 @@
 import * as THREE from 'three';
 import { fbm } from './noise.js';
 
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
 export const BIOMES = {
   highland: {
     hills: 4.5, ground: [0x6f9a44, 0x8aae52], rock: 0x8a8270, high: 0x9aa489,
@@ -91,44 +93,61 @@ export function buildTerrain(heightAt, biome, flattenFn) {
     c.lerpColors(cGround0, cGround1, t + 0.25);
     if (h > biome.hills * 1.6 + 2) c.lerp(cHigh, Math.min(1, (h - biome.hills * 1.6 - 2) / 6));
     else if (h > biome.hills * 0.9) c.lerp(cRock, Math.min(1, (h - biome.hills * 0.9) / 4) * 0.6);
+    const broad = fbm(x * 0.013 + 17, z * 0.013 - 11, 3, 31);
+    const grit = fbm(x * 0.18 - 5, z * 0.18 + 9, 2, 19);
+    const hsl = {};
+    c.getHSL(hsl);
+    c.setHSL(
+      hsl.h + (broad - 0.5) * 0.018,
+      clamp01(hsl.s * (0.96 + broad * 0.12)),
+      clamp01(hsl.l + (grit - 0.5) * 0.055),
+    );
     colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
+  const edgeTint = new THREE.Color(biome.ground?.[1] ?? biome.ground?.[0] ?? 0x6f8050)
+    .lerp(new THREE.Color(biome.mood?.fogColor ?? 0xb3c4d8), 0.55);
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true, roughness: 0.95, metalness: 0,
     map: detailTexture(), // high-frequency soil detail multiplied under the vertex colors
-    transparent: true,    // outer edge alpha-fades so the board dissolves into the surrounding apron (no hard border)
   });
   mat.onBeforeCompile = (sh) => {
+    sh.uniforms.edgeTint = { value: edgeTint };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying float vTed;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vTed = max(abs(position.x), abs(position.z));');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vTed;')
-      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n  gl_FragColor.a *= 1.0 - smoothstep(48.0, 74.0, vTed);'); // wide, soft dissolve into the apron (was a sharp 13u band)
+      .replace('#include <common>', '#include <common>\nuniform vec3 edgeTint;\nvarying float vTed;')
+      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n  float edgeBlend = smoothstep(58.0, 75.0, vTed);\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, edgeTint, edgeBlend * 0.42);');
   };
   // progressive upgrade: real CC0 ground photo-texture replaces the canvas detail. The two
   // photos are the SAME for every map, so load them ONCE and reuse (was re-loaded per map →
   // a 2-texture/map GPU leak). vertexColors carry the base color until they finish loading.
-  groundPhotos(mat);
+  groundPhotos(mat, biome);
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.receiveShadow = true;
+  // The board is a large receiver; shadow-map edges from distant scenery read as
+  // hard black rectangles. GTAO keeps ground contact while terrain stays clean.
+  mesh.receiveShadow = false;
   return mesh;
 }
 
-// Shared CC0 ground photo (color + normal) — loaded ONCE and reused by every map's terrain
-// material (was a fresh TextureLoader per map → leaked 2 textures/map).
-let _groundColor = null, _groundNormal = null;
-function groundPhotos(mat) {
-  if (!_groundColor) {
+// Shared CC0 ground normal — loaded ONCE and reused by every map's terrain material.
+// The diffuse layer stays procedural/neutral so biome vertex colors do not turn into
+// camera-sized dark texture rectangles at the board edge.
+let _groundNormal = null;
+function groundPhotos(mat, biome) {
+  if (!_groundNormal) {
     const tl = new THREE.TextureLoader();
-    _groundColor = tl.load('assets/textures/ground-color.jpg', (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(26, 26); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; });
     _groundNormal = tl.load('assets/textures/ground-normal.jpg', (t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(26, 26); t.needsUpdate = true; });
   }
-  mat.map = _groundColor;
   mat.normalMap = _groundNormal;
-  mat.normalScale = new THREE.Vector2(0.55, 0.55);
+  const dry = !!biome.props?.dryGrass;
+  const snow = !!biome.props?.snow;
+  mat.map = detailTexture();
+  const scale = snow ? 0.24 : dry ? 0.3 : 0.34;
+  mat.normalScale = new THREE.Vector2(scale, scale);
+  mat.roughness = snow ? 0.88 : dry ? 1.0 : 0.95;
   mat.needsUpdate = true;
 }
 

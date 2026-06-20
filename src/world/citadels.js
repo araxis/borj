@@ -15,7 +15,7 @@ import { colorMat } from '../models/humanoid.js';
 import { buildSoldierModel } from '../models/creature.js';
 import { Projectile, lashEffect } from '../entities/projectile.js';
 import { FXC } from '../fx/particles.js';
-import { clonePalaceScene, hasPalace } from '../core/assets.js';
+import { clonePalaceScene, hasPalace, sanitizePalaceShadows } from '../core/assets.js';
 
 // landmarks are monumental: everything in a style is authored small, then the whole
 // architecture is scaled up; garrison guards are added AFTER scaling at human size
@@ -521,9 +521,11 @@ function buildPalaceCitadel(placeId) {
   const height = size.y * s;
   const cx = (box.min.x + box.max.x) * 0.5, cz = (box.min.z + box.max.z) * 0.5;
   scene.position.set(-cx * s, -box.min.y * s, -cz * s); // centered on exit, base at y=0
-  scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  sanitizePalaceShadows(scene);
 
   const outer = new THREE.Group();
+  outer.castShadow = false;
+  outer.receiveShadow = false;
   outer.add(scene); // the GLB carries its own rocky base; the terrain flatten seats it
 
   const style = STYLES[citadelStyleFor(placeId)];
@@ -540,6 +542,7 @@ function buildPalaceCitadel(placeId) {
     defense: { ...style.defense },
     styleId: 'palace-' + placeId,
     isPalace: true,
+    isCustomPalace: true,
     placeId,
   };
 
@@ -586,6 +589,9 @@ export function buildLandCitadel(placeId) {
   built.group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   built.styleId = styleId;
   built.defense = { ...style.defense };
+  built.isPalace = true;
+  built.isCustomPalace = false;
+  built.placeId = placeId;
   return built;
 }
 

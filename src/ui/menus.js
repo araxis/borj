@@ -1,14 +1,16 @@
 // Main menu, campaign selection, map intro, and victory/defeat screens.
-import { el, $, clear, backMedallion } from './dom.js';
+import { el, $, clear, backMedallion, wireAction } from './dom.js';
 import { t, tf, tName, tNameAlt, tNum, tOpt, toggleLang, onLangChange } from '../core/i18n.js';
 import { applyAtlasCell } from '../core/atlas.js';
 import { MAPS } from '../data/campaign.js';
 import { PLACES_BY_ID, PLACE_ATLAS } from '../data/places.js';
 import { HEROES, HERO_ATLAS } from '../data/heroes.js';
+import { ENEMIES_BY_ID } from '../data/enemies.js';
+import { bossChallengeDef } from '../data/bosschallenges.js';
 import { loadProfile } from '../core/save.js';
 import { audio } from '../core/audio.js';
 import { loadPalace } from '../core/assets.js';
-import { loadForestTrees, loadForestEnrich, loadRanges } from '../core/props3d.js';
+import { loadForestTrees, loadForestEnrich } from '../core/props3d.js';
 import { loadBattle, clearBattle } from '../core/battlesave.js';
 import { currentDifficulty, setDifficulty, DIFFICULTY_ORDER } from '../core/difficulty.js';
 
@@ -52,6 +54,7 @@ export class Menus {
         el('p', { class: 'storyref', id: 'miRef', style: { color: '#a8c4c0', fontStyle: 'italic', margin: '6px 0' } }),
         el('div', { class: 'introtext', id: 'miText' }),
         el('div', { class: 'introtext', id: 'miText2', style: { fontSize: '0.9rem', color: '#bfae88', fontStyle: 'italic' } }),
+        el('div', { class: 'boss-saga-intro', id: 'miBossSaga', hidden: true }),
         el('div', { class: 'intro-flourish', 'aria-hidden': 'true' }),
         el('div', { class: 'diffpick', id: 'miDiff' }),
         el('div', { class: 'intro-launch' },
@@ -100,23 +103,29 @@ export class Menus {
     const grid = clear($('#campaignGrid'));
     const profile = loadProfile();
     const sorted = [...MAPS].sort((a, b) => a.order - b.order);
+    const sandboxPick = location.hash.toLowerCase().includes('sandbox');
     for (const m of sorted) {
       const place = PLACES_BY_ID[m.id];
       const prev = sorted.find((x) => x.order === m.order - 1);
       const unlocked = m.order === 1 || (prev && profile.completedMaps.includes(prev.id));
       const done = profile.completedMaps.includes(m.id);
-      const available = endlessPick ? done : unlocked;
+      const available = sandboxPick || (endlessPick ? done : unlocked);
       const img = el('div', { class: 'mapimg' });
       applyAtlasCell(img, PLACE_ATLAS, place.atlas);
-      const card = el('div', { class: 'mapcard' + (available ? '' : ' locked') },
+      const bossSaga = this._renderCampaignBossSaga(m, profile);
+      const card = el('div', {
+        class: 'mapcard' + (available ? '' : ' locked'),
+        'aria-label': `${tName(place)}. ${t('campaign.waves')}: ${tNum(m.waves)}`,
+      },
         img,
         el('div', { class: 'mapname' }, tName(place)),
         el('div', { class: 'mapsub' },
           `${t('campaign.waves')}: ${tNum(m.waves)}` + (endlessPick && profile.bestEndless[m.id] ? ` · ∞ ${tNum(profile.bestEndless[m.id])}` : '')),
+        bossSaga,
         el('div', { class: 'ordern' }, tNum(m.order)),
         done ? el('div', { class: 'done' }, '✓ ' + t('campaign.completed')) : null,
       );
-      if (available) card.onclick = () => { audio.ui(); this.showMapIntro(m, endlessPick); };
+      wireAction(card, () => { audio.ui(); this.showMapIntro(m, endlessPick); }, { disabled: !available });
       grid.append(card);
     }
   }
@@ -127,7 +136,6 @@ export class Menus {
     loadPalace(mapDef.id); // warm the giant palace GLB while the player reads the intro
     const place = PLACES_BY_ID[mapDef.id];
     if (place?.biome === 'forest') { loadForestTrees(); loadForestEnrich(); } // warm forest trees + floor enrichment
-    loadRanges(); // warm the distant horizon range tiles (every stage)
     applyAtlasCell($('#miImg'), PLACE_ATLAS, place.atlas);
     $('#miName').textContent = tName(place);
     $('#miFa').textContent = tNameAlt(place);
@@ -135,6 +143,7 @@ export class Menus {
     $('#miText').textContent = t(mapDef.introKey);
     const deep = t('intro2.' + mapDef.id);
     $('#miText2').textContent = deep !== 'intro2.' + mapDef.id ? deep : '';
+    this._renderIntroBossSaga(mapDef);
     const unlockHeroes = HEROES.filter((h) => h.unlock.type === 'campaign' && h.unlock.map === mapDef.id);
     // resume a saved mid-battle for this stage, if one exists (else a normal fresh start)
     const startBtn = $('#miStart');
@@ -169,6 +178,61 @@ export class Menus {
       seg.append(b);
     }
     box.append(seg);
+  }
+
+  _bossSagaState(profile, bossId) {
+    const rec = profile?.bossSagas?.[bossId] || null;
+    if (!rec) return { rec, label: t('bossSaga.unclaimed'), cls: 'unclaimed' };
+    if (rec.defeated) return { rec, label: t('bossSaga.defeated'), cls: 'defeated' };
+    if (rec.best === 'broken') return { rec, label: t('bossSaga.broken'), cls: 'broken' };
+    return { rec, label: t('bossSaga.hardened'), cls: 'hardened' };
+  }
+
+  _renderCampaignBossSaga(mapDef, profile = loadProfile()) {
+    if (!mapDef.boss) return null;
+    const boss = ENEMIES_BY_ID[mapDef.boss];
+    const ch = bossChallengeDef(mapDef.boss);
+    const saga = ch.saga || {};
+    const state = this._bossSagaState(profile, mapDef.boss);
+    const twin = mapDef.twinBoss ? bossChallengeDef(mapDef.twinBoss) : null;
+    return el('div', { class: `mapboss-saga ${state.cls}` },
+      el('span', { class: `boss-saga-seal tone-${saga.tone || 'banner'}`, 'aria-hidden': 'true' }, saga.sealIcon || '◆'),
+      el('span', { class: 'mapboss-copy' },
+        el('b', {}, t('bossSaga.campaign')),
+        el('small', {}, `${tOpt(ch.titleKey, t('bossChallenge.default.title'))}${twin ? ` · ${tOpt(twin.titleKey, '')}` : ''}`),
+      ),
+      el('span', { class: 'mapboss-state' }, `${state.rec?.best === 'broken' || state.rec?.defeated ? '✓ ' : ''}${state.label}`),
+      boss ? el('span', { class: 'sr-only' }, tName(boss)) : null,
+    );
+  }
+
+  _renderIntroBossSaga(mapDef) {
+    const box = clear($('#miBossSaga'));
+    if (!box || !mapDef.boss) {
+      if (box) box.hidden = true;
+      return;
+    }
+    const profile = loadProfile();
+    const ch = bossChallengeDef(mapDef.boss);
+    const saga = ch.saga || {};
+    const boss = ENEMIES_BY_ID[mapDef.boss];
+    const state = this._bossSagaState(profile, mapDef.boss);
+    const twin = mapDef.twinBoss ? bossChallengeDef(mapDef.twinBoss) : null;
+    box.hidden = false;
+    box.className = `boss-saga-intro ${state.cls}`;
+    box.append(
+      el('div', { class: `boss-saga-seal big tone-${saga.tone || 'banner'}`, 'aria-hidden': 'true' }, saga.sealIcon || '◆'),
+      el('div', { class: 'boss-saga-intro-copy' },
+        el('div', { class: 'boss-saga-kicker' }, t('bossSaga.kicker')),
+        el('b', {}, tOpt(ch.titleKey, t('bossChallenge.default.title'))),
+        el('p', {}, tOpt(saga.arrivalKey, tOpt(ch.loreKey, ''))),
+        twin ? el('p', { class: 'boss-saga-twin' }, t('bossSaga.twin', { name: tOpt(twin.titleKey, '') })) : null,
+      ),
+      el('div', { class: 'boss-saga-intro-state' },
+        el('span', {}, boss ? tName(boss) : t('bossSaga.enemy')),
+        el('strong', {}, state.label),
+      ),
+    );
   }
 
   showEnd({ victory, unlockedHeroes = [], wave, endless, mapDef, onRetry, onContinueEndless, onExit }) {

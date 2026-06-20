@@ -12,6 +12,14 @@ function roadTexture(style = 'stone') {
   const g = c.getContext('2d');
   if (style === 'earth') {
     g.fillStyle = '#8a7458'; g.fillRect(0, 0, 128, 256);
+    const edge = g.createLinearGradient(0, 0, 128, 0);
+    edge.addColorStop(0, 'rgba(225,198,142,0.28)');
+    edge.addColorStop(0.16, 'rgba(255,255,255,0)');
+    edge.addColorStop(0.5, 'rgba(255,236,176,0.12)');
+    edge.addColorStop(0.84, 'rgba(255,255,255,0)');
+    edge.addColorStop(1, 'rgba(70,52,33,0.22)');
+    g.fillStyle = edge;
+    g.fillRect(0, 0, 128, 256);
     for (let i = 0; i < 700; i++) {
       const v = Math.random() * 40 - 20;
       g.fillStyle = `rgba(${110 + v},${92 + v},${66 + v},0.6)`;
@@ -22,6 +30,12 @@ function roadTexture(style = 'stone') {
     g.fillRect(28, 0, 9, 256); g.fillRect(91, 0, 9, 256);
   } else {
     g.fillStyle = '#6e685c'; g.fillRect(0, 0, 128, 256);
+    const wash = g.createLinearGradient(0, 0, 128, 0);
+    wash.addColorStop(0, 'rgba(34,28,20,0.2)');
+    wash.addColorStop(0.5, 'rgba(236,219,172,0.12)');
+    wash.addColorStop(1, 'rgba(34,28,20,0.18)');
+    g.fillStyle = wash;
+    g.fillRect(0, 0, 128, 256);
     // irregular flagstones
     for (let y = 0; y < 8; y++) {
       for (let x = 0; x < 4; x++) {
@@ -90,9 +104,21 @@ export function buildRoadMesh(sampled, style = 'stone', seed = 'road') {
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
-  const mat = new THREE.MeshStandardMaterial({ map: style === 'earth' ? earthTex : stoneTex, roughness: 0.95 });
+  const tex = style === 'earth' ? earthTex : stoneTex;
+  const mat = new THREE.MeshStandardMaterial({
+    map: tex,
+    bumpMap: tex,
+    bumpScale: style === 'earth' ? 0.035 : 0.022,
+    roughness: style === 'earth' ? 0.98 : 0.92,
+    metalness: 0,
+    color: style === 'earth' ? 0xf0dfbd : 0xe6dcc6,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.receiveShadow = true;
+  mesh.receiveShadow = false;
+  mesh.renderOrder = 2;
 
   const group = new THREE.Group();
   group.add(mesh);
@@ -100,7 +126,7 @@ export function buildRoadMesh(sampled, style = 'stone', seed = 'road') {
   // curbstones + occasional waymark pillars
   const rng = makeRng(seed);
   const curbGeo = new THREE.BoxGeometry(0.34, 0.22, 0.6);
-  const curbMat = new THREE.MeshStandardMaterial({ color: 0x7d7563, roughness: 1 });
+  const curbMat = new THREE.MeshStandardMaterial({ color: 0x92846a, roughness: 1 });
   const curbs = [];
   for (let i = 2; i < samples.length - 2; i += 3) {
     const s = samples[i];
@@ -116,7 +142,7 @@ export function buildRoadMesh(sampled, style = 'stone', seed = 'road') {
   }
   const curbInst = new THREE.InstancedMesh(curbGeo, curbMat, curbs.length);
   curbs.forEach((m, i) => curbInst.setMatrixAt(i, m));
-  curbInst.castShadow = true; curbInst.receiveShadow = true;
+  curbInst.castShadow = true; curbInst.receiveShadow = false;
   group.add(curbInst);
   return group;
 }

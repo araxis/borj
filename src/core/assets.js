@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { sanitizeVisualArtifacts } from './visualguards.js';
 
 const MODEL_FILES = {
   // KayKit (CC0) — chibi proportions; kept as deep fallbacks only
@@ -242,6 +243,24 @@ export function palaceReady(placeId) {
   const c = palaceCache.get(placeId);
   return !!c && c !== 'loading' && c !== 'failed';
 }
+
+export function sanitizePalaceShadows(root) {
+  if (!root) return root;
+  root.castShadow = false;
+  root.receiveShadow = false;
+  root.traverse((o) => {
+    if (o.isMesh || o.isSkinnedMesh || o.isInstancedMesh) {
+      // Custom palace GLBs can include very large helper planes or deep roof slabs.
+      // Keep them lit by scene lights, but remove them from the shadow pass entirely.
+      o.castShadow = false;
+      o.receiveShadow = false;
+      o.frustumCulled = false;
+    }
+  });
+  sanitizeVisualArtifacts(root, { scope: 'palace', hide: true });
+  return root;
+}
+
 // kick a lazy load (idempotent); onReady fires once the GLB is parsed (or immediately if already ready).
 export function loadPalace(placeId, onReady) {
   if (!PALACE_FILES[placeId]) return;
@@ -252,6 +271,7 @@ export function loadPalace(placeId, onReady) {
   loader.load(
     PALACE_FILES[placeId],
     (gltf) => {
+      sanitizePalaceShadows(gltf.scene);
       palaceCache.set(placeId, { scene: gltf.scene });
       (palaceWaiters.get(placeId) || []).forEach((fn) => fn());
       palaceWaiters.delete(placeId);
@@ -264,8 +284,7 @@ export function clonePalaceScene(placeId) {
   const c = palaceCache.get(placeId);
   if (!c || c === 'loading' || c === 'failed') return null;
   const s = c.scene.clone(true);
-  s.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  return s;
+  return sanitizePalaceShadows(s);
 }
 
 // Spawn an animated instance. Returns null if not (yet) available → caller falls back.

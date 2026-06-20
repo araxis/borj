@@ -94,6 +94,49 @@ export function heroModel(heroDef) {
 
 function mesh(geo, mat) { const m = new THREE.Mesh(geo, mat); m.castShadow = true; return m; }
 
+function mountedTackGroup(kind = 'scout') {
+  const mats = MATS();
+  const heroic = kind === 'rakhsh';
+  const group = new THREE.Group();
+  const cloth = heroic ? mats.clothRed : mats.clothGold;
+  const trim = heroic ? mats.gold : mats.bronze;
+  const leather = mats.woodDark || mats.wood;
+
+  const pad = mesh(new THREE.BoxGeometry(0.62, 0.05, 0.78), cloth);
+  pad.position.set(0, 1.17, -0.08);
+  group.add(pad);
+  for (const z of [-0.46, 0.3]) {
+    const band = mesh(new THREE.BoxGeometry(0.66, 0.06, 0.035), trim);
+    band.position.set(0, 1.2, z);
+    group.add(band);
+  }
+  for (const side of [-1, 1]) {
+    const girth = mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.72, 6), leather);
+    girth.position.set(side * 0.31, 0.96, -0.08);
+    girth.rotation.x = 0.12;
+    group.add(girth);
+    for (const z of [-0.28, 0.12]) {
+      const boss = mesh(new THREE.SphereGeometry(heroic ? 0.055 : 0.045, 8, 6), trim);
+      boss.scale.set(1, 0.52, 1);
+      boss.position.set(side * 0.34, 1.16, z);
+      group.add(boss);
+    }
+    if (heroic) {
+      const staff = mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.48, 6), mats.woodDark);
+      staff.position.set(side * 0.42, 1.42, -0.4);
+      group.add(staff);
+      const drafsh = mesh(new THREE.PlaneGeometry(0.26, 0.18), mats.clothRed);
+      drafsh.position.set(side * 0.42, 1.55, -0.4);
+      drafsh.rotation.y = side * Math.PI / 2;
+      group.add(drafsh);
+      const edge = mesh(new THREE.BoxGeometry(0.016, 0.19, 0.018), mats.gold);
+      edge.position.set(side * 0.42, 1.55, -0.27);
+      group.add(edge);
+    }
+  }
+  return group;
+}
+
 // ---------- jointed quadruped ----------
 // Two-mass body (chest + hindquarters), two-segment legs with knees and paws,
 // detailed head (skull, muzzle, jaw, ears, eyes), segmented tail.
@@ -926,20 +969,21 @@ export function buildSoldierModel(modelKey) {
     // seat the rider astride (thighs forward, feet back) — shared by both mount paths
     h.group.position.y = 1.15;
     h.rig.legL.rotation.x = -0.9; h.rig.legR.rotation.x = -0.9;
+    const tackKind = spec.coat === 'horseBlack' ? 'rakhsh' : 'scout';
     // Prefer the real animated horse GLB (a_horse) — a proper equine silhouette + gallop. The
     // rider rides on top and the existing 'gltf' soldier path drives the horse's clip & mixer.
     // Fall back to the (coat-fixed) procedural horse if the GLB hasn't loaded yet — never-break.
-    const glb = spawnAsset('a_horse', { height: 1.9 });
+    const glb = spawnAsset('a_horse', { height: 1.9, tint: spec.coat === 'horseBlack' ? 0x201b17 : null });
     if (glb) {
       glb.group.rotation.y = rotFix('a_horse'); // a_horse faces +Z natively (rotFix 0)
       glb.play('walk');                          // single-clip gallop; the soldier drives its speed
       const combined = new THREE.Group();
-      combined.add(glb.group, h.group);
+      combined.add(glb.group, mountedTackGroup(tackKind), h.group);
       return { group: combined, rig: h.rig, anim: glb, animType: 'gltf', headH: 2.5, mounted: true };
     }
     const horse = buildHorse({ coat: spec.coat || 'horseBrown', scale: 0.95 });
     const combined = new THREE.Group();
-    combined.add(horse.group, h.group);
+    combined.add(horse.group, mountedTackGroup(tackKind), h.group);
     return { group: combined, rig: { ...h.rig, mount: horse.rig }, animType: 'quad', headH: 2.4, mounted: true };
   }
   return { ...h, animType: 'biped', headH: 1.6, mounted: false };

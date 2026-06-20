@@ -88,6 +88,7 @@ const TREE_PLAN = {
 };
 
 const kitOn = (pool) => propReady(NV[pool][0]); // representative readiness probe for a pool
+const GROUND_COVER_OPTS = Object.freeze({ castShadow: false, receiveShadow: false, frustumCulled: false });
 
 // Bucket random ground points by random kit variant → one InstancedMesh per variant.
 // scaleFn(rng)→uniform scale (folds NATURE_UNIT=1.0 in, so it IS the final world scale —
@@ -410,7 +411,10 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
   if (biomeProps.reeds) {
     const pts = place(biomeProps.reeds, 3);
     const ms = pts.map(([x, y, z]) => m4(x, y, z, rng() * 6.28, 0.7 + rng() * 0.7));
-    group.add(instanced(new THREE.ConeGeometry(0.16, 1.7, 6).translate(0, 0.85, 0), colorMat(0x7a8a4a, 0.95), ms));
+    const reedInst = instanced(new THREE.ConeGeometry(0.16, 1.7, 6).translate(0, 0.85, 0), colorMat(0x7a8a4a, 0.95), ms);
+    reedInst.castShadow = false;
+    reedInst.receiveShadow = false;
+    group.add(reedInst);
   }
   // low bushes / undergrowth — kit shrubs (Plant/Fern, +red autumn bushes in forest);
   // procedural sphere fallback
@@ -452,7 +456,7 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
     const pebPool = ['desert', 'steppe', 'mountain', 'snowpeak'].includes(biomeId) ? 'pebbleSquare' : 'pebbleRound';
     if (kitOn(pebPool)) {
       const ppts = place(biomeProps.rock * 2, 2);
-      placeKit(group, ppts, rng, NV[pebPool], (r) => 0.5 + r() * 0.5, { castShadow: false, frustumCulled: false });
+      placeKit(group, ppts, rng, NV[pebPool], (r) => 0.5 + r() * 0.5, GROUND_COVER_OPTS);
     }
   }
 
@@ -473,11 +477,11 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
     let placed = 0;
     if (kitOn(gPool)) {
       placed = placeKit(group, gpts, rng, NV[gPool], (r) => 0.7 + r() * 0.5,
-        { castShadow: false, receiveShadow: true, frustumCulled: false });
+        GROUND_COVER_OPTS);
       // sparse n2 tall-grass overlay (~1/6 of points) for silhouette/height variety in green biomes
       if (placed && !dry && propReady(NV.tallGrass2[0])) {
         placeKit(group, gpts.filter((_, i) => i % 6 === 0), rng, NV.tallGrass2,
-          (r) => 0.7 + r() * 0.5, { castShadow: false, frustumCulled: false });
+          (r) => 0.7 + r() * 0.5, GROUND_COVER_OPTS);
       }
     }
     if (!placed) {
@@ -505,25 +509,26 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
         }
       }
       inst.count = k;
-      inst.receiveShadow = true;
+      inst.castShadow = false;
+      inst.receiveShadow = false;
       group.add(inst);
     }
   }
 
   // forest-floor mushrooms — Mazandaran only, tiny, no shadow
   if (biomeId === 'forest' && kitOn('mushroom')) {
-    placeKit(group, place(24, 3), rng, NV.mushroom, (r) => 0.5 + r() * 0.5, { castShadow: false, frustumCulled: false });
+    placeKit(group, place(24, 3), rng, NV.mushroom, (r) => 0.5 + r() * 0.5, GROUND_COVER_OPTS);
   }
   // kit flower clumps — lush-meadow accents only (the red poppy field below stays procedural)
   if (biomeProps.grass && !biomeProps.dryGrass
       && ['valley', 'highland', 'river', 'wetland', 'plains'].includes(biomeId) && kitOn('flower')) {
-    placeKit(group, place(12, 4), rng, NV.flower, (r) => 0.8 + r() * 0.4, { castShadow: false, frustumCulled: false });
+    placeKit(group, place(12, 4), rng, NV.flower, (r) => 0.8 + r() * 0.4, GROUND_COVER_OPTS);
   }
   // n2 flower clumps + a few flowering bushes — extra meadow color in green biomes
   if (biomeProps.grass && !biomeProps.dryGrass
       && ['valley', 'highland', 'river', 'wetland', 'plains'].includes(biomeId)) {
     if (propReady(NV.flowerClump2[0])) {
-      placeKit(group, place(10, 4), rng, NV.flowerClump2, (r) => 0.7 + r() * 0.4, { castShadow: false, frustumCulled: false });
+      placeKit(group, place(10, 4), rng, NV.flowerClump2, (r) => 0.7 + r() * 0.4, GROUND_COVER_OPTS);
     }
     if (propReady(NV.bushFlower2[0])) {
       placeKit(group, place(5, 4), rng, NV.bushFlower2, (r) => 0.6 + r() * 0.5);
@@ -753,5 +758,11 @@ export function buildPad() {
   b.box(3.2, 0.1, 0.4, 'relief', 0, 0.62, 1.45);
   b.box(3.2, 0.1, 0.4, 'relief', 0, 0.62, -1.45);
   const g = b.build();
+  g.traverse((o) => {
+    if (o.isMesh) {
+      o.castShadow = false;
+      o.receiveShadow = false;
+    }
+  });
   return g;
 }

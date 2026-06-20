@@ -10,6 +10,8 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { settings } from './settings.js';
 
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
 // Final cinematic grade — runs on the display-referred image after tone-mapping:
 // edge chromatic aberration, a soft vignette, and per-biome contrast / saturation / shadow-lift.
 // Subtle by design; the point is film polish, not an Instagram filter.
@@ -51,7 +53,9 @@ export class Engine {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
-    this.renderer.shadowMap.enabled = settings.get('shadows');
+    // Dynamic shadow maps and screen-space AO both misread the scene's dense instanced
+    // alpha foliage as hard rectangular slabs. Keep depth from lighting, bloom, and grade.
+    this.renderer.shadowMap.enabled = false;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.scene = new THREE.Scene();
@@ -106,7 +110,7 @@ export class Engine {
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xffe3b3, 2.2);
     this.sun.position.set(45, 70, 25);
-    this.sun.castShadow = true;
+    this.sun.castShadow = false;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.camera.left = -85; this.sun.shadow.camera.right = 85;
     this.sun.shadow.camera.top = 85; this.sun.shadow.camera.bottom = -85;
@@ -118,11 +122,12 @@ export class Engine {
     this.composer = new EffectComposer(this.renderer);
     this.renderPass = new RenderPass(this.scene, this.camera);
     this.composer.addPass(this.renderPass);
-    // ground-contact ambient occlusion — darkens the creases where towers/figures/props meet the
-    // terrain and each other, so nothing reads as floating. Expensive, so high-quality tier only.
+    // Ground-contact ambient occlusion is constructed but disabled: GTAO's depth/normal prepass
+    // treats stylized alpha foliage as solid cards, producing camera-aligned black rectangles.
     this.gtao = new GTAOPass(this.scene, this.camera, window.innerWidth, window.innerHeight);
     this.gtao.blendIntensity = 0.85;
     this.gtao.updateGtaoMaterial({ radius: 2.0, distanceExponent: 1.0, thickness: 1.0, scale: 1.0, samples: 16, screenSpaceRadius: false });
+    this.gtao.enabled = false;
     this.composer.addPass(this.gtao);
     this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.35, 0.6, 0.85);
     this.composer.addPass(this.bloom);
@@ -134,7 +139,7 @@ export class Engine {
     this.gradePass = new ShaderPass(GradeShader);
     this.composer.addPass(this.gradePass);
 
-    this.speed = 1;          // 0 paused, 1, 2
+    this.speed = 1;          // 0 paused, selected battle speed multiplier
     this.timeScaleUI = 1;    // unaffected by pause (camera, UI anims)
     this._updates = new Set();
     this._clock = new THREE.Clock();
@@ -155,7 +160,7 @@ export class Engine {
     const pr = Math.min(window.devicePixelRatio || 1, q === 'high' ? 2 : q === 'medium' ? 1.5 : 1);
     this.renderer.setPixelRatio(pr);
     this.composer.setPixelRatio(pr);
-    this.renderer.shadowMap.enabled = settings.get('shadows') && q !== 'low';
+    this.renderer.shadowMap.enabled = false;
     const sz = q === 'high' ? 2048 : 1024;
     if (this.sun.shadow.mapSize.x !== sz) {
       this.sun.shadow.mapSize.set(sz, sz);
@@ -163,7 +168,7 @@ export class Engine {
     }
     this.bloom.enabled = settings.get('bloom') && q !== 'low';
     if (this.smaa) this.smaa.enabled = q !== 'low';   // skip AA pass on the low tier
-    if (this.gtao) this.gtao.enabled = q === 'high';  // contact AO is high-tier only (depth+normal prepass)
+    if (this.gtao) this.gtao.enabled = false;
     this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
   }
 
@@ -235,18 +240,20 @@ export class Engine {
   setMood({ fogColor = 0x9fb4c8, fogNear = 90, fogFar = 260, sunColor = 0xffe3b3, sunIntensity = 2.0, hemiSky = 0xbdd1e8, hemiGround = 0x8a7a64, hemiIntensity = 1.3, background = 0x87a6c4, exposure = 1.12, skyTop = null, bloom = null, grade = null } = {}) {
     // per-biome bloom — a dreamier glow in moody biomes (fireflies, fae mushrooms, palace glow);
     // reset to the default each map so non-moody stages aren't over-bloomed.
-    this.bloom.strength = bloom?.strength ?? 0.35;
-    this.bloom.threshold = bloom?.threshold ?? 0.85;
-    this.bloom.radius = bloom?.radius ?? 0.6;
+    this.bloom.strength = clamp(bloom?.strength ?? 0.35, 0.18, 0.58);
+    this.bloom.threshold = clamp(bloom?.threshold ?? 0.85, 0.54, 0.94);
+    this.bloom.radius = clamp(bloom?.radius ?? 0.6, 0.34, 0.74);
     this._bloomBase = this.bloom.strength; // pulses (bloomPulse) ease back to this
-    this.scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
+    const safeFogNear = clamp(fogNear, 52, 135);
+    const safeFogFar = Math.max(safeFogNear + 96, clamp(fogFar, 170, 330));
+    this.scene.fog = new THREE.Fog(fogColor, safeFogNear, safeFogFar);
     this.scene.background = new THREE.Color(background);
     this.sun.color.set(sunColor);
-    this.sun.intensity = sunIntensity;
+    this.sun.intensity = clamp(sunIntensity, 1.45, 2.65);
     this.hemi.color.set(hemiSky);
     this.hemi.groundColor.set(hemiGround);
-    this.hemi.intensity = hemiIntensity;
-    this.renderer.toneMappingExposure = exposure;
+    this.hemi.intensity = clamp(hemiIntensity, 0.9, 1.58);
+    this.renderer.toneMappingExposure = clamp(exposure, 0.96, 1.16);
     // skydome: deep zenith derived from the background, horizon from the fog
     const top = new THREE.Color(skyTop ?? background);
     if (skyTop == null) {
@@ -262,10 +269,10 @@ export class Engine {
     // defaults give every map a light, neutral film polish.
     if (this.gradePass) {
       const u = this.gradePass.uniforms;
-      u.vignette.value = grade?.vignette ?? 0.34;
-      u.aberration.value = grade?.aberration ?? 0.5;
-      u.contrast.value = grade?.contrast ?? 1.06;
-      u.saturation.value = grade?.saturation ?? 1.08;
+      u.vignette.value = clamp(grade?.vignette ?? 0.34, 0.22, 0.4);
+      u.aberration.value = clamp(grade?.aberration ?? 0.5, 0, 0.56);
+      u.contrast.value = clamp(grade?.contrast ?? 1.06, 1.0, 1.1);
+      u.saturation.value = clamp(grade?.saturation ?? 1.08, 1.0, 1.14);
       u.lift.value.set(grade?.lift ?? 0x000000);
     }
   }

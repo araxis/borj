@@ -9,7 +9,10 @@ import { audio } from './core/audio.js';
 import { Game } from './game/game.js';
 import { preloadAssets } from './core/assets.js';
 import { loadAllProps } from './core/props3d.js';
+import { auditVisualArtifacts, sanitizeVisualArtifacts } from './core/visualguards.js';
+import { backdropManifestReport, backdropSceneReport } from './world/backdrop.js';
 import { applyBattleSnapshot, saveBattle, clearBattle } from './core/battlesave.js';
+import { MAPS, MAPS_BY_ID } from './data/campaign.js';
 import { HUD } from './ui/hud.js';
 import { Menus } from './ui/menus.js';
 import { Codex } from './ui/codex.js';
@@ -37,26 +40,38 @@ let gameUpdateOff = null;
 let paused = false;
 
 // selection visuals
-const padRing = new THREE.Mesh(
-  new THREE.RingGeometry(1.9, 2.3, 24),
-  new THREE.MeshBasicMaterial({ color: 0xf4cd6e, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }),
-);
-padRing.rotation.x = -Math.PI / 2;
-padRing.visible = false;
-const rangeRing = new THREE.Mesh(
-  new THREE.RingGeometry(0.97, 1.0, 64),
-  new THREE.MeshBasicMaterial({ color: 0x2fa7a0, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false }),
-);
-rangeRing.rotation.x = -Math.PI / 2;
-rangeRing.visible = false;
+function ringLine(radius = 1, segments = 96) {
+  const pts = [];
+  for (let i = 0; i < segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    pts.push(new THREE.Vector3(Math.cos(a) * radius, 0, Math.sin(a) * radius));
+  }
+  return new THREE.BufferGeometry().setFromPoints(pts);
+}
+
+function makeOverlayRing(color, opacity, radius = 1, segments = 96) {
+  const ring = new THREE.LineLoop(
+    ringLine(radius, segments),
+    new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+    }),
+  );
+  ring.frustumCulled = false;
+  ring.renderOrder = 30;
+  ring.visible = false;
+  return ring;
+}
+
+const padRing = makeOverlayRing(0xf4cd6e, 0.92, 2.1, 32);
+const rangeRing = makeOverlayRing(0x2fa7a0, 0.82, 1, 128);
 
 // tight pulsing ring hugging the selected tower's footprint — disambiguates which tower is selected in a cluster
-const selRing = new THREE.Mesh(
-  new THREE.RingGeometry(0.84, 1.0, 40),
-  new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }),
-);
-selRing.rotation.x = -Math.PI / 2;
-selRing.visible = false;
+const selRing = makeOverlayRing(0xffe9a8, 0.85, 1, 48);
 
 // faint threads from a selected buff/aura tower to the towers it is currently boosting
 const AURA_LINE_MAX = 48;
@@ -76,6 +91,7 @@ engine.onUpdate(() => { if (selRing.visible) selRing.material.opacity = 0.65 + M
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
+const screenPoint = new THREE.Vector3();
 
 function pick(clientX, clientY, targets) {
   pointer.x = (clientX / window.innerWidth) * 2 - 1;
@@ -84,10 +100,53 @@ function pick(clientX, clientY, targets) {
   return raycaster.intersectObjects(targets, true);
 }
 
+function projectedScreenPoint(pos, lift = 0) {
+  const rect = canvas.getBoundingClientRect();
+  screenPoint.set(pos.x, pos.y + lift, pos.z).project(engine.camera);
+  if (screenPoint.z < -1 || screenPoint.z > 1) return null;
+  return {
+    x: (screenPoint.x * 0.5 + 0.5) * rect.width + rect.left,
+    y: (-screenPoint.y * 0.5 + 0.5) * rect.height + rect.top,
+  };
+}
+
+function forgivingPickRadius(basePx) {
+  const rect = canvas.getBoundingClientRect();
+  return Math.min(rect.width, rect.height) < 620 ? basePx + 10 : basePx;
+}
+
+function nearestScreenItem(items, clientX, clientY, maxPx, liftFor) {
+  let best = null;
+  let bestD = maxPx;
+  for (const item of items) {
+    const pos = item.pos || item.group?.position;
+    if (!pos) continue;
+    const lift = typeof liftFor === 'function' ? liftFor(item) : liftFor;
+    const sp = projectedScreenPoint(pos, lift || 0);
+    if (!sp) continue;
+    const d = Math.hypot(sp.x - clientX, sp.y - clientY);
+    if (d <= bestD) { best = item; bestD = d; }
+  }
+  return best;
+}
+
+function pickNearestPad(x, y) {
+  if (!game) return null;
+  return nearestScreenItem(game.map.pads || [], x, y, forgivingPickRadius(48), 0.6);
+}
+
+function pickNearestTower(x, y) {
+  if (!game) return null;
+  return nearestScreenItem(game.towers.filter((t) => t.alive), x, y, forgivingPickRadius(56), (tower) => {
+    const radius = tower.model?.radius || 1.2;
+    return Math.max(1.4, radius * 1.2);
+  });
+}
+
 function pickPad(x, y) {
   if (!game) return null;
   const hits = pick(x, y, game.map.pads.map((p) => p.mesh).filter(Boolean));
-  if (!hits.length) return null;
+  if (!hits.length) return pickNearestPad(x, y);
   let obj = hits[0].object;
   return game.map.pads.find((p) => p.mesh === obj || p.mesh.children.includes(obj) || isDescendant(p.mesh, obj)) || null;
 }
@@ -110,7 +169,10 @@ function pickEntity(x, y) {
   const eDist = enemyHits.length ? enemyHits[0].distance : Infinity;
   const pDist = palaceHits.length ? palaceHits[0].distance : Infinity;
   const m = Math.min(tDist, eDist, pDist);
-  if (m === Infinity) return null;
+  if (m === Infinity) {
+    const nearTower = pickNearestTower(x, y);
+    return nearTower ? { kind: 'tower', entity: nearTower } : null;
+  }
   if (eDist === m) {
     const en = enemyHits[0].object.userData.enemy;
     if (en?.alive) return { kind: 'enemy', entity: en };
@@ -120,6 +182,8 @@ function pickEntity(x, y) {
     if (tw) return { kind: 'tower', entity: tw };
   }
   if (pDist === m && palaceHits.length) return { kind: 'palace', entity: cit };
+  const nearTower = pickNearestTower(x, y);
+  if (nearTower) return { kind: 'tower', entity: nearTower };
   return null;
 }
 
@@ -263,9 +327,7 @@ canvas.addEventListener('pointerup', (e) => {
       }
       return;
     }
-    // clicked elsewhere: exit build mode
-    hud.setMode({ kind: 'none' });
-    padRing.visible = false; hideSelection();
+    hud.toast(t('hud.chooseFoundation'));
     return;
   }
   if (mode.kind === 'assign') {
@@ -278,7 +340,7 @@ canvas.addEventListener('pointerup', (e) => {
       hud.renderCards();
       return;
     }
-    hud.setMode({ kind: 'none' });
+    hud.toast(t('hud.chooseCommanderTower'));
     return;
   }
   if (mode.kind === 'rally') {
@@ -320,11 +382,27 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && game) { e.preventDefault(); togglePause(); }
   if (e.code === 'Escape' && hud) { hud.setMode({ kind: 'none' }); hud.closePanel(); padRing.visible = false; hideSelection(); }
   if (e.code === 'KeyR' && !e.ctrlKey) rts.reset();
-  // G = toggle sandbox/test mode (unlimited gold, no life loss, all heroes)
+  // G inspects the gate sequence in sandbox; Ctrl+G toggles sandbox/test mode.
   if (e.code === 'KeyG' && game && hud) {
-    const on = game.toggleSandbox();
-    hud.renderCards();
-    hud.toast(on ? '🛠 Sandbox ON — unlimited gold, no life loss, all heroes' : 'Sandbox OFF');
+    e.preventDefault();
+    if (game.sandbox && !e.ctrlKey) {
+      hud._runSandboxInspect?.();
+    } else {
+      const on = game.toggleSandbox();
+      hud.renderCards();
+      hud.toast(on ? t('hud.sandboxOn') : t('hud.sandboxOff'));
+    }
+  }
+  if (e.code === 'KeyF' && !e.ctrlKey && game?.sandbox && hud) {
+    e.preventDefault();
+    if (game.previewCommandFx()) hud.toast(t('hud.fxPreview'));
+  }
+  if (e.code === 'KeyH' && !e.ctrlKey && game?.sandbox && hud) {
+    e.preventDefault();
+    document.body.classList.add('panel-hidden');
+    hud._syncToggle?.();
+    const result = game.sandboxPalaceAssault(e.shiftKey ? { mode: 'royal', fullFx: true } : {});
+    if (result) hud.toast(t('hud.gateAssaultMode', { n: result.count, mode: tOpt('hud.gateAssault.' + result.mode, result.mode) }));
   }
 });
 
@@ -334,7 +412,12 @@ let inspectPaused = false; // auto-paused because the player is inspecting an en
 function setPaused(v) {
   paused = v;
   engine.speed = paused ? 0 : currentSpeed;
-  $('#pauseBtn') && ($('#pauseBtn').textContent = paused ? '▶' : '⏸');
+  const pauseBtn = $('#pauseBtn');
+  if (pauseBtn) {
+    pauseBtn.textContent = paused ? '▶' : '⏸';
+    pauseBtn.setAttribute('aria-label', paused ? t('hud.resume') : t('hud.pause'));
+    pauseBtn.title = paused ? t('hud.resume') : t('hud.pause');
+  }
 }
 
 function togglePause() {
@@ -366,7 +449,11 @@ function startBattle(mapDef, endless, sandbox = false, snapshot = null) {
     onSpeed: (s, btn) => {
       currentSpeed = s;
       if (!paused) engine.speed = s;
-      for (const b of document.querySelectorAll('#speedBtns .iconbtn')) b.classList.toggle('active', b === btn);
+      for (const b of document.querySelectorAll('#speedBtns .iconbtn')) {
+        const active = b === btn;
+        b.classList.toggle('active', active);
+        b.setAttribute('aria-pressed', active ? 'true' : 'false');
+      }
     },
     onCodex: () => codex.show(),
     onSettings: () => settingsUI.show(),
@@ -402,9 +489,13 @@ function startBattle(mapDef, endless, sandbox = false, snapshot = null) {
   if (!snapshot) {
     const s0 = game.map.paths[0].samples[0].pos;
     rts.flyIn(new THREE.Vector3(s0.x, s0.y, s0.z), 4.2);
+    const startedGame = game;
+    setTimeout(() => {
+      if (game === startedGame && !startedGame._qaSuppressBattleStartBanner) startedGame.emit('battleStarted', { mapDef });
+    }, 520);
   }
 
-  if (game.sandbox) hud.toast('🛠 Sandbox ON — unlimited gold, no life loss, all heroes (press G to toggle)');
+  if (game.sandbox) hud.toast(t('hud.sandboxOn'));
 }
 
 function cleanupBattle() {
@@ -433,16 +524,138 @@ menus.showMain(); // ready behind the splash
 // preload link, so it appears with the splash instead of after the JS bundle loads.
 // hold the splash for the intro animation, then fade to the menu (skip on reduced-motion)
 const _splashHold = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 400 : 2400;
-setTimeout(() => $('#loading').classList.add('hidden'), _splashHold);
+setTimeout(() => {
+  const loading = $('#loading');
+  if (!loading) return;
+  loading.classList.add('hidden');
+  loading.setAttribute('aria-hidden', 'true');
+  loading.inert = true;
+  setTimeout(() => { if (loading.classList.contains('hidden')) loading.remove(); }, 760);
+}, _splashHold);
 
 // debug/QA handle (harmless in production; used by automated browser tests)
-import { buildWeaponTestModel, buildEnemyModel, heroModel } from './models/creature.js';
+import { buildWeaponTestModel, buildEnemyModel, heroModel, buildSoldierModel } from './models/creature.js';
 const __clearTest = () => {
   for (let i = engine.scene.children.length - 1; i >= 0; i--)
     if (engine.scene.children[i].userData.__wt) engine.scene.children[i].removeFromParent();
 };
+const __defaultQaMap = () => MAPS_BY_ID.kabul || MAPS.find((m) => m.boss) || MAPS[0];
+const __ensureQaBattle = (mapId = null, sandbox = true) => {
+  const target = MAPS_BY_ID[mapId] || __defaultQaMap();
+  if (!game || (mapId && game.mapDef.id !== target.id)) startBattle(target, false, sandbox);
+  if (game && sandbox) game._qaSuppressBattleStartBanner = true;
+  document.querySelectorAll('.overlay.visible').forEach((node) => node.classList.remove('visible'));
+  const loading = $('#loading');
+  if (loading) {
+    loading.classList.add('hidden');
+    loading.setAttribute('aria-hidden', 'true');
+    loading.inert = true;
+  }
+  if (sandbox && game && !game.sandbox) game.toggleSandbox?.();
+  return game;
+};
+const __isOverflowQaVisible = (node) => {
+  const loading = node.closest?.('#loading');
+  if (loading) return false;
+  for (let cur = node; cur && cur !== document.body; cur = cur.parentElement) {
+    const style = getComputedStyle(cur);
+    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || 1) === 0) return false;
+  }
+  return true;
+};
+const __overflowReport = () => Array.from(document.querySelectorAll('body *'))
+  .map((node) => ({
+    node,
+    extra: Math.round((node.scrollWidth || 0) - (node.clientWidth || 0)),
+    tag: node.tagName?.toLowerCase(),
+    id: node.id || '',
+    cls: String(node.className || '').slice(0, 120),
+  }))
+  .filter((x) => x.extra > 1 && __isOverflowQaVisible(x.node) && !(x.id === 'ui' && document.documentElement.scrollWidth <= window.innerWidth))
+  .sort((a, b) => b.extra - a.extra)
+  .slice(0, 20)
+  .map(({ node, ...x }) => ({ ...x, text: (node.textContent || '').trim().slice(0, 90) }));
+const __qaBackdropView = (opts = {}) => {
+  rts.followEntity(null);
+  rts._fly = null;
+  const yaw = Number.isFinite(opts.yaw) ? opts.yaw : -Math.PI / 4 + (Number(opts.step || 0) * Math.PI / 3);
+  const pitch = Number.isFinite(opts.pitch) ? opts.pitch : 0.72;
+  const dist = Number.isFinite(opts.dist) ? opts.dist : 104;
+  rts.target.set(0, 0, 0);
+  rts.targetGoal.set(0, 0, 0);
+  rts.yaw = rts.yawGoal = yaw;
+  rts.pitch = rts.pitchGoal = pitch;
+  rts.dist = rts.distGoal = dist;
+  rts.update(0.016);
+};
 window.__dbg = {
   engine, rts, get game() { return game; }, get hud() { return hud; }, startMap: startBattle,
+  fxPreview: (options) => game?.previewCommandFx(options),
+  palaceAssault: (options) => game?.sandboxPalaceAssault(options),
+  visualQa: {
+    metrics: () => ({
+      viewport: { w: window.innerWidth, h: window.innerHeight },
+      scroll: { width: document.documentElement.scrollWidth, inner: window.innerWidth, overflow: document.documentElement.scrollWidth > window.innerWidth },
+      artifacts: auditVisualArtifacts(engine.scene, { scope: 'qa' }).slice(0, 24),
+      backdrops: backdropSceneReport(engine.scene),
+      renderer: { calls: engine.renderer.info.render.calls, triangles: engine.renderer.info.render.triangles },
+    }),
+    auditArtifacts: (opts = {}) => {
+      const findings = auditVisualArtifacts(engine.scene, { scope: opts.scope || 'qa' });
+      const sanitized = opts.hide ? sanitizeVisualArtifacts(engine.scene, { scope: opts.scope || 'qa', hide: true }) : null;
+      return { count: findings.length, findings: findings.slice(0, 30), sanitized };
+    },
+    overflow: __overflowReport,
+    backdrops: () => ({
+      manifest: backdropManifestReport(),
+      scene: backdropSceneReport(engine.scene),
+    }),
+    state: (name = 'normal', opts = {}) => {
+      const state = String(name || 'normal');
+      const mapByState = state.includes('fog') ? 'mazandaran'
+        : state.includes('twin') ? 'arash-watch'
+        : state.includes('final') ? 'gang-dez'
+        : state.toLowerCase().includes('backdrop') ? (opts.mapId || 'zabulistan')
+        : opts.mapId;
+      const g = __ensureQaBattle(mapByState, true);
+      if (!g) return { ok: false };
+      if (state === 'mobileRtl' || opts.rtl) document.body.classList.add('rtl');
+      if (opts.ltr) document.body.classList.remove('rtl');
+      if (state === 'backdrop' || state === 'backdropSweep') {
+        __qaBackdropView(opts);
+        return { ok: true, state, game: g.mapDef.id, backdrops: backdropSceneReport(engine.scene), metrics: window.__dbg.visualQa.metrics() };
+      }
+      if (state === 'palaceCommand') return { ok: true, state, result: g.palaceBoon?.(g.map.citadel) };
+      if (state === 'heroCommand') return { ok: true, state, result: g.previewCommandFx?.(opts) };
+      if (state === 'gateAssault') return { ok: true, state, result: g.sandboxPalaceAssault?.({ mode: opts.mode || 'royal', fullFx: true }) };
+      if (state === 'bossArrival') return { ok: true, state, result: g.sandboxBossSaga?.({ defId: opts.defId || g.mapDef.boss || 'houman', result: 'active' }) };
+      if (state === 'sagaTrial') return { ok: true, state, result: g.sandboxBossSaga?.({ defId: opts.defId || g.mapDef.boss || 'houman', result: 'active', skipArrival: true }) };
+      if (state === 'bossBroken') return { ok: true, state, result: g.sandboxBossSaga?.({ defId: opts.defId || g.mapDef.boss || 'houman', result: 'broken', resultDelay: opts.resultDelay ?? 0, skipArrival: true }) };
+      if (state === 'bossHardened' || state === 'fogFail') return { ok: true, state, result: g.sandboxBossSaga?.({ defId: opts.defId || g.mapDef.boss || 'div-e-sepid', result: 'hardened', resultDelay: opts.resultDelay ?? 0, skipArrival: true }) };
+      if (state === 'victory' || state === 'defeat') {
+        const banner = $('#bossBanner');
+        if (banner) {
+          banner.classList.remove('show', 'stage', 'arrival', 'challenge', 'victory', 'defeat');
+          banner.textContent = '';
+        }
+        g.bossOmen.finale?.(state, g.map.citadel?.group?.position || g.map.exitPos);
+        engine.bloomPulse?.(state === 'victory' ? 0.75 : 0.9);
+        engine.addShake?.(state === 'victory' ? 0.35 : 0.65);
+        menus.showEnd({
+          victory: state === 'victory',
+          mapDef: g.mapDef,
+          endless: g.endlessMode,
+          wave: g.waveIdx,
+          unlockedHeroes: [],
+          onRetry: () => {},
+          onContinueEndless: () => {},
+          onExit: () => {},
+        });
+        return { ok: true, state };
+      }
+      return { ok: true, state: 'normal', game: g.mapDef.id, metrics: window.__dbg.visualQa.metrics() };
+    },
+  },
   // weapon hand-angle calibration: spawn a rigged soldier holding any kind at world origin
   weaponTest: (weapon, asset = 'a_soldier_heavy') => {
     __clearTest();
@@ -463,6 +676,17 @@ window.__dbg = {
     window.__wt = m;
     if (m.anim?.play) m.anim.play(clip);
     return { ok: true, modelKey, animType: m.animType, headH: m.headH, glb: m.animType === 'gltf' };
+  },
+  // garrison soldier preview: useful for cavalry, muster units, and barracks fusions
+  soldierTest: (modelKey = 'lancer', clip = 'walk') => {
+    __clearTest();
+    const m = buildSoldierModel(modelKey);
+    if (!m) return { fallback: true };
+    m.group.userData.__wt = true;
+    engine.scene.add(m.group);
+    window.__wt = m;
+    if (m.anim?.play) m.anim.play(clip);
+    return { ok: true, modelKey, mounted: !!m.mounted, animType: m.animType, glb: m.animType === 'gltf', children: m.group.children.length };
   },
   // hero figure preview: build a hero commander model with its signature weapon
   heroTest: (id, weapon) => {

@@ -1,5 +1,5 @@
 // Settings overlay — audio, graphics, accessibility, language, save reset.
-import { el, $, clear, backMedallion } from './dom.js';
+import { el, $, clear, backMedallion, wireAction } from './dom.js';
 import { t, getLang, setLang } from '../core/i18n.js';
 import { settings } from '../core/settings.js';
 import { resetProfile } from '../core/save.js';
@@ -29,8 +29,15 @@ export class SettingsUI {
   }
 
   _toggle(key, label) {
-    const sw = el('div', { class: 'switch' + (settings.get(key) ? ' on' : '') });
-    sw.onclick = () => { settings.set(key, !settings.get(key)); sw.classList.toggle('on'); audio.ui(); };
+    const checked = !!settings.get(key);
+    const sw = el('div', { class: 'switch' + (checked ? ' on' : ''), role: 'switch', tabindex: '0', 'aria-checked': checked ? 'true' : 'false', 'aria-label': label });
+    wireAction(sw, () => {
+      const next = !settings.get(key);
+      settings.set(key, next);
+      sw.classList.toggle('on', next);
+      sw.setAttribute('aria-checked', next ? 'true' : 'false');
+      audio.ui();
+    });
     return el('div', { class: 'setrow' }, el('label', {}, label), sw);
   }
 

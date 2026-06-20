@@ -16,6 +16,8 @@ export class RTSCamera {
     this.minDist = 18; this.maxDist = 110;
     this.minPitch = 0.35; this.maxPitch = 1.35;
     this.follow = null; // entity with .group.position
+    this._focusBeat = null;
+    this._focusViewTarget = new THREE.Vector3();
     this._keys = new Set();
     this._drag = null;
     this.home = { target: new THREE.Vector3(0, 0, 0), yaw: -Math.PI / 4, pitch: 0.92, dist: 70 };
@@ -34,9 +36,29 @@ export class RTSCamera {
     this.pitchGoal = this.home.pitch;
     this.distGoal = this.home.dist;
     this.follow = null;
+    this._focusBeat = null;
   }
 
   followEntity(ent) { this.follow = ent; }
+
+  focusBeat(anchor, opts = {}) {
+    if (settings.get('reducedMotion') || this._fly) return;
+    const source = anchor?.isVector3 ? anchor : anchor?.position?.isVector3 ? anchor.position : anchor?.group?.position;
+    if (!source) return;
+    const point = new THREE.Vector3(source.x, opts.y ?? 0, source.z);
+    point.x = THREE.MathUtils.clamp(point.x, this.bounds.minX, this.bounds.maxX);
+    point.z = THREE.MathUtils.clamp(point.z, this.bounds.minZ, this.bounds.maxZ);
+    const zoom = opts.zoom ?? 0.82;
+    this._focusBeat = {
+      t: 0,
+      dur: Math.max(0.25, opts.dur ?? 1.15),
+      point,
+      strength: THREE.MathUtils.clamp(opts.strength ?? 0.38, 0.05, 0.78),
+      dist: THREE.MathUtils.clamp(opts.dist ?? this.distGoal * zoom, this.minDist, this.maxDist),
+      pitch: opts.pitch == null ? null : THREE.MathUtils.clamp(opts.pitch, this.minPitch, this.maxPitch),
+      yawOffset: opts.yawOffset ?? 0,
+    };
+  }
 
   _bind() {
     const d = this.dom;
@@ -50,6 +72,7 @@ export class RTSCamera {
 
     d.addEventListener('pointerdown', (e) => {
       if (e.button === 1 || e.button === 2) {
+        this._focusBeat = null;
         this._drag = { x: e.clientX, y: e.clientY, btn: e.button };
         d.setPointerCapture(e.pointerId);
         e.preventDefault();
@@ -74,6 +97,7 @@ export class RTSCamera {
     d.addEventListener('contextmenu', (e) => e.preventDefault());
     d.addEventListener('wheel', (e) => {
       e.preventDefault();
+      this._focusBeat = null;
       const k = 1 + Math.sign(e.deltaY) * 0.11;
       const newDist = THREE.MathUtils.clamp(this.distGoal * k, this.minDist, this.maxDist);
       // zoom toward the cursor: shift the target a fraction of the way to the point under it
@@ -92,6 +116,7 @@ export class RTSCamera {
   // cinematic fly-in: sweep from `from` to the home view over `dur` seconds
   flyIn(from, dur = 4.5) {
     if (settings.get('reducedMotion')) { this.reset(); return; }
+    this._focusBeat = null;
     this._fly = {
       t: 0, dur,
       fromTarget: from.clone(),
@@ -159,17 +184,48 @@ export class RTSCamera {
     this.pitch += (this.pitchGoal - this.pitch) * ease;
     this.dist += (this.distGoal - this.dist) * ease;
 
-    this._apply();
+    this._apply(this._focusView(rawDt));
   }
 
-  _apply() {
-    const y = Math.sin(this.pitch) * this.dist;
-    const r = Math.cos(this.pitch) * this.dist;
+  _focusView(rawDt) {
+    const beat = this._focusBeat;
+    if (!beat) return null;
+    beat.t += rawDt;
+    const t = Math.min(beat.t, beat.dur);
+    const attack = Math.max(0.08, Math.min(0.24, beat.dur * 0.22));
+    const release = Math.max(0.12, Math.min(0.42, beat.dur * 0.34));
+    let fade = 1;
+    if (t < attack) {
+      const k = THREE.MathUtils.clamp(t / attack, 0, 1);
+      fade = k * k * (3 - 2 * k);
+    } else if (t > beat.dur - release) {
+      const k = THREE.MathUtils.clamp((beat.dur - t) / release, 0, 1);
+      fade = k * k * (3 - 2 * k);
+    }
+    const w = beat.strength * fade;
+    this._focusViewTarget.copy(this.target).lerp(beat.point, w);
+    const view = {
+      target: this._focusViewTarget,
+      yaw: this.yaw + beat.yawOffset * w,
+      pitch: beat.pitch == null ? this.pitch : THREE.MathUtils.lerp(this.pitch, beat.pitch, w),
+      dist: THREE.MathUtils.lerp(this.dist, beat.dist, w),
+    };
+    if (beat.t >= beat.dur) this._focusBeat = null;
+    return view;
+  }
+
+  _apply(view = null) {
+    const target = view?.target || this.target;
+    const yaw = view?.yaw ?? this.yaw;
+    const pitch = view?.pitch ?? this.pitch;
+    const dist = view?.dist ?? this.dist;
+    const y = Math.sin(pitch) * dist;
+    const r = Math.cos(pitch) * dist;
     this.camera.position.set(
-      this.target.x + Math.sin(this.yaw) * r,
-      this.target.y + y,
-      this.target.z + Math.cos(this.yaw) * r,
+      target.x + Math.sin(yaw) * r,
+      target.y + y,
+      target.z + Math.cos(yaw) * r,
     );
-    this.camera.lookAt(this.target.x, this.target.y + 2, this.target.z);
+    this.camera.lookAt(target.x, target.y + 2, target.z);
   }
 }

@@ -1,13 +1,14 @@
 // Codex — browsable encyclopedia of heroes, adversaries, places, towers, soldiers.
 // Every entry shows ledger-exact name, story reference, and descriptions in EN/FA.
-import { el, $, clear, backMedallion } from './dom.js';
-import { t, tf, tName, tNameAlt, tOpt, toggleLang } from '../core/i18n.js';
+import { el, $, clear, backMedallion, wireAction } from './dom.js';
+import { t, tf, tName, tNameAlt, tNum, tOpt, toggleLang } from '../core/i18n.js';
 import { applyAtlasCell } from '../core/atlas.js';
 import { HEROES, HERO_ATLAS } from '../data/heroes.js';
 import { ENEMIES, ENEMY_ATLAS } from '../data/enemies.js';
 import { PLACES, PLACE_ATLAS, PLACES_BY_ID } from '../data/places.js';
 import { TOWERS } from '../data/towers.js';
 import { SOLDIERS } from '../data/soldiers.js';
+import { BOSS_CHALLENGES, bossChallengeDef } from '../data/bosschallenges.js';
 import { loadProfile, markCodexSeen } from '../core/save.js';
 import { audio } from '../core/audio.js';
 
@@ -71,8 +72,8 @@ export class Codex {
         if (place) applyAtlasCell(img, PLACE_ATLAS, place.atlas);
         else img.textContent = ROLE_ICONS[item.role] || '🏛️';
       } else img.textContent = '🛡️';
-      const card = el('div', { class: 'codexcard' }, img, el('div', { class: 'cname' }, tName(item)));
-      card.onclick = () => { audio.codex(); this._renderDetail(item); };
+      const card = el('div', { class: 'codexcard', 'aria-label': tName(item) }, img, el('div', { class: 'cname' }, tName(item)));
+      wireAction(card, () => { audio.codex(); this._renderDetail(item); });
       grid.append(card);
     }
   }
@@ -113,6 +114,7 @@ export class Codex {
             item.ledgerNote ? el('p', { class: 'ledgernote' }, `${t('panel.ledgerNote')}: ${tOpt('ledgernote.' + item.id, item.ledgerNote)}`) : null,
           ),
           item.abilityDesc ? el('div', { class: 'rp-section' }, el('h4', {}, t('panel.abilities')), el('p', {}, tOpt('ability.' + item.id, item.abilityDesc))) : null,
+          this.tab === 'enemies' && BOSS_CHALLENGES[item.id] ? this._bossSagaRecordSection(item) : null,
           item.special ? el('div', { class: 'rp-section' }, el('h4', {}, t('panel.special')), el('p', {}, tOpt('special.' + item.id, item.special.desc))) : null,
           item.ability?.desc ? el('div', { class: 'rp-section' }, el('h4', {}, t('panel.abilities')), el('p', {}, tOpt('sability.' + item.id, item.ability.desc))) : null,
           this.tab === 'places' && item.campaign ? el('div', { class: 'rp-section' },
@@ -120,6 +122,40 @@ export class Codex {
             el('p', {}, t('intro.' + item.id) !== 'intro.' + item.id ? t('intro.' + item.id) : '—'),
             t('intro2.' + item.id) !== 'intro2.' + item.id ? el('p', { style: { marginTop: '8px', fontStyle: 'italic', color: '#bfae88' } }, t('intro2.' + item.id)) : null,
           ) : null,
+        ),
+      ),
+    );
+  }
+
+  _bossSagaRecordSection(enemy) {
+    const ch = bossChallengeDef(enemy.id);
+    const saga = ch.saga || {};
+    const rec = loadProfile().bossSagas?.[enemy.id] || null;
+    const best = rec?.best === 'broken'
+      ? t('bossSaga.bestBroken')
+      : rec?.best === 'hardened'
+        ? t('bossSaga.bestHardened')
+        : t('bossSaga.noRecord');
+    const status = rec?.defeated
+      ? t('bossSaga.recordDefeated')
+      : rec?.best === 'broken'
+        ? t('bossSaga.recordBroken')
+        : rec?.best === 'hardened'
+          ? t('bossSaga.recordHardened')
+          : t('bossSaga.noRecord');
+    return el('div', { class: 'rp-section boss-saga-record' },
+      el('h4', {}, t('bossSaga.codexTitle')),
+      el('div', { class: `boss-saga-record-card tone-${saga.tone || 'banner'}` },
+        el('span', { class: `boss-saga-seal tone-${saga.tone || 'banner'}`, 'aria-hidden': 'true' }, saga.sealIcon || '◆'),
+        el('div', { class: 'boss-saga-record-copy' },
+          el('b', {}, tOpt(ch.titleKey, t('bossChallenge.default.title'))),
+          el('p', {}, tOpt(saga.trialKey, tOpt(ch.loreKey, ''))),
+          el('div', { class: 'boss-saga-record-stats' },
+            el('span', {}, status),
+            el('span', {}, t('bossSaga.recordBest', { best })),
+            el('span', {}, t('bossSaga.recordCounts', { broken: tNum(rec?.broken || 0), hardened: tNum(rec?.hardened || 0) })),
+          ),
+          rec?.defeated ? el('p', { class: 'ledgernote' }, tOpt(saga.trophyKey, '')) : null,
         ),
       ),
     );

@@ -29,6 +29,15 @@ const WEAPON_FIT = {
   barracks: ['spear', 'sword', 'lance', 'hooves', 'axe', 'shield', 'hammer'], trap: ['bow', 'sword'],
 };
 
+const HERO_COMMAND_COLORS = {
+  heal: 0x7fe7c1,
+  fire: 0xff7a24,
+  vision: 0x7fe7ff,
+  bind: 0xb8bdc8,
+  rally: 0xf4cd6e,
+  default: 0xf4cd6e,
+};
+
 // The clear, documented bond formula (also rendered in the UI):
 // bond = 0.12·affinityMatches + 0.25·storyTie + 0.15·weaponFit + 0.10·roleFit + 0.08·ageFit
 export function heroBond(heroDef, towerDef, ageIdx) {
@@ -64,10 +73,23 @@ export class Tower {
     this.borderArrowUsed = false;
     this.brazenUsed = false;
     this.rebuildUsed = false;
+    this.heroActiveCd = 0;
+    this.palaceDamageT = 0;
+    this.palaceDamageBonus = 0;
+    this.palaceRangeT = 0;
+    this.palaceRangeBonus = 0;
+    this.palaceSynergyT = 0;
+    this.palaceSynergyDamage = 0;
+    this.palaceSynergyRange = 0;
+    this.palaceSynergyRate = 0;
+    this._palacePulseT = 0;
+    this._palacePulseDur = 0;
+    this._palacePulsePower = 0;
     this.invested = def.cost;
     this.squads = [];
     this.auraCache = {};
     this.healPulseT = 0;
+    this._heroCommandT = 0;
 
     this._buildModel();
     this.maxHp = this._computeMaxHp();
@@ -82,7 +104,10 @@ export class Tower {
   }
 
   _buildModel() {
-    if (this.model) this.group?.removeFromParent();
+    if (this.model) {
+      this._removePalacePulseFx();
+      this.group?.removeFromParent();
+    }
     this.model = buildTower(this.def.model, this.ageIdx);
     this.group = this.model.group;
     this.group.position.copy(this.pos);
@@ -93,6 +118,7 @@ export class Tower {
   }
 
   _addHeroStandard() {
+    this._removeHeroStandard();
     // ring color follows the hero's rank: bronze → silver → gold → glowing gold
     const rank = getHeroRank(this.hero?.id);
     const colors = [0xb0793a, 0xc8ccd4, 0xe0b13e, 0xffd97a];
@@ -104,7 +130,125 @@ export class Tower {
     ring.position.y = 0.9;
     this.group.add(ring);
     this._heroRing = ring;
+
+    const ready = new THREE.Mesh(
+      new THREE.RingGeometry(this.model.radius * 1.23, this.model.radius * 1.38, 80),
+      new THREE.MeshBasicMaterial({
+        color: colors[rank] || colors[0],
+        transparent: true,
+        opacity: 0.18,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+      }),
+    );
+    ready.rotation.x = -Math.PI / 2;
+    ready.position.y = 0.22;
+    ready.renderOrder = 28;
+    this.group.add(ready);
+    this._heroReadyHalo = ready;
+
+    const flash = new THREE.Mesh(
+      new THREE.RingGeometry(this.model.radius * 1.46, this.model.radius * 1.62, 96),
+      new THREE.MeshBasicMaterial({
+        color: colors[rank] || colors[0],
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+      }),
+    );
+    flash.rotation.x = -Math.PI / 2;
+    flash.position.y = 0.34;
+    flash.renderOrder = 29;
+    this.group.add(flash);
+    this._heroFlashHalo = flash;
     this._addHeroFigure();
+  }
+
+  _disposeHeroMesh(mesh) {
+    if (!mesh) return;
+    mesh.removeFromParent();
+    mesh.geometry?.dispose?.();
+    mesh.material?.dispose?.();
+  }
+
+  _removeHeroStandard() {
+    this._disposeHeroMesh(this._heroRing);
+    this._disposeHeroMesh(this._heroReadyHalo);
+    this._disposeHeroMesh(this._heroFlashHalo);
+    this._heroRing = null;
+    this._heroReadyHalo = null;
+    this._heroFlashHalo = null;
+  }
+
+  commandFlash(kind = 'default', rank = 0) {
+    if (!this.hero || !this._heroRing) return;
+    const color = HERO_COMMAND_COLORS[kind] || HERO_COMMAND_COLORS.default;
+    this._heroCommandT = Math.max(this._heroCommandT || 0, 1.05 + rank * 0.08);
+    this._heroRing.material?.color?.setHex(color);
+    this._heroReadyHalo?.material?.color?.setHex(color);
+    this._heroFlashHalo?.material?.color?.setHex(color);
+    if (this._heroModel?.group) {
+      this._heroModel.group.position.y = Math.max(this._heroModel.group.position.y, 0.18 + rank * 0.03);
+    }
+  }
+
+  _ensurePalacePulseFx() {
+    if (this._palacePulseHalo) return;
+    const radius = Math.max(1.15, this.model?.radius || 1.5);
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: 0xffd36a,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    const crownMat = haloMat.clone();
+    const beamMat = haloMat.clone();
+    const halo = new THREE.Mesh(
+      new THREE.RingGeometry(radius * 1.34, radius * 1.82, 112),
+      haloMat,
+    );
+    halo.rotation.x = -Math.PI / 2;
+    halo.position.y = 0.18;
+    halo.renderOrder = 34;
+    const crown = new THREE.Mesh(
+      new THREE.TorusGeometry(radius * 0.62, 0.055, 8, 44),
+      crownMat,
+    );
+    crown.rotation.x = Math.PI / 2;
+    crown.position.y = Math.max(2.2, (this.model?.height || 4) * 0.72);
+    crown.renderOrder = 35;
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 0.12, radius * 0.32, Math.max(1.8, (this.model?.height || 4) * 0.66), 20, 1, true),
+      beamMat,
+    );
+    beam.position.y = Math.max(1.4, (this.model?.height || 4) * 0.42);
+    beam.renderOrder = 33;
+    this.group.add(halo, crown, beam);
+    this._palacePulseHalo = halo;
+    this._palacePulseCrown = crown;
+    this._palacePulseBeam = beam;
+  }
+
+  _removePalacePulseFx() {
+    this._disposeHeroMesh(this._palacePulseHalo);
+    this._disposeHeroMesh(this._palacePulseCrown);
+    this._disposeHeroMesh(this._palacePulseBeam);
+    this._palacePulseHalo = null;
+    this._palacePulseCrown = null;
+    this._palacePulseBeam = null;
+  }
+
+  palaceCounterchargeFlash(power = 1, dur = 2.5) {
+    this._ensurePalacePulseFx();
+    const pulseDur = Math.max(1.2, Math.min(3.6, dur || 2.5));
+    this._palacePulseT = Math.max(this._palacePulseT || 0, pulseDur);
+    this._palacePulseDur = Math.max(this._palacePulseDur || 0, pulseDur);
+    this._palacePulsePower = Math.max(this._palacePulsePower || 0, Math.max(0.75, Math.min(1.35, power || 1)));
   }
 
   // the hero stands on the platform of the tower they command (idle clip + signature weapon)
@@ -217,6 +361,17 @@ export class Tower {
     if (a.markDamage) s.markOnHit = a.markDamage;
     if (a.towerHpBonus) s.hpMod += a.towerHpBonus;
     if (a.attackSpeedBonus) s.attackSpeedMod += a.attackSpeedBonus;
+    if (this.palaceDamageT > 0) s.damage *= 1 + (this.palaceDamageBonus || 0);
+    if (this.palaceRangeT > 0) {
+      s.range *= 1 + (this.palaceRangeBonus || 0);
+      s.reveal = true;
+    }
+    if (this.palaceSynergyT > 0) {
+      s.damage *= 1 + (this.palaceSynergyDamage || 0);
+      s.range *= 1 + (this.palaceSynergyRange || 0);
+      s.attackSpeedMod += this.palaceSynergyRate || 0;
+      if (this.palaceSynergyRange > 0) s.reveal = true;
+    }
     // hero special: youngLion — fury below half HP
     if (this.hero?.special.key === 'youngLion' && this.hp < this.maxHp * 0.5) s.attackSpeedMod += 0.6;
     s.rate *= 1 + s.attackSpeedMod;
@@ -227,7 +382,6 @@ export class Tower {
 
   assignHero(heroDef) {
     this.hero = heroDef;
-    if (this._heroRing) this._heroRing.removeFromParent();
     this._addHeroStandard();
     const keepHpFrac = this.hp / this.maxHp;
     this.maxHp = this._computeMaxHp();
@@ -238,7 +392,7 @@ export class Tower {
 
   unassignHero() {
     this.hero = null;
-    if (this._heroRing) { this._heroRing.removeFromParent(); this._heroRing = null; }
+    this._removeHeroStandard();
     this._removeHeroFigure();
     const keepHpFrac = this.hp / this.maxHp;
     this.maxHp = this._computeMaxHp();
@@ -367,11 +521,12 @@ export class Tower {
     // garsivaz curse: hero bond weakened nearby
     if (this.hero && this.game.poisonCounselAt(this.pos)) dmg /= 1 + stats.bond * 0.5;
     const dmgType = stats.trueDamagePortion >= 1 ? 'true' : this.def.dmgType;
+    const hitImpact = (stats.splash > 0 || this.def.role === 'siege' || this.def.vfx === 'chainLash') ? 0.34 : this.hero ? 0.12 : 0;
     if (stats.trueDamagePortion > 0 && stats.trueDamagePortion < 1) {
-      enemy.takeDamage(dmg * (1 - stats.trueDamagePortion), dmgType === 'true' ? 'magic' : dmgType, { armorShred: stats.armorShred });
-      enemy.takeDamage(dmg * stats.trueDamagePortion, 'true');
+      enemy.takeDamage(dmg * (1 - stats.trueDamagePortion), dmgType === 'true' ? 'magic' : dmgType, { armorShred: stats.armorShred, impact: hitImpact });
+      enemy.takeDamage(dmg * stats.trueDamagePortion, 'true', { impact: hitImpact * 0.7 });
     } else {
-      enemy.takeDamage(dmg, dmgType, { armorShred: stats.armorShred });
+      enemy.takeDamage(dmg, dmgType, { armorShred: stats.armorShred, impact: hitImpact });
     }
     if (stats.burn) enemy.applyBurn(stats.burn.dps, stats.burn.dur);
     if (stats.slow) enemy.applySlow(stats.slow.factor, stats.slow.dur);
@@ -390,7 +545,7 @@ export class Tower {
       if (e.group.position.distanceTo(pos) < stats.splash) {
         let dmg = stats.damage * mult;
         if (e.boss) dmg *= stats.vsBoss;
-        e.takeDamage(dmg, this.def.dmgType === 'arrow' ? 'impact' : this.def.dmgType);
+        e.takeDamage(dmg, this.def.dmgType === 'arrow' ? 'impact' : this.def.dmgType, { impact: 0.34 });
         if (stats.burn) e.applyBurn(stats.burn.dps * 0.6, stats.burn.dur * 0.7);
         if (stats.slow) e.applySlow(stats.slow.factor, stats.slow.dur * 0.8);
       }
@@ -413,7 +568,7 @@ export class Tower {
       this.game.engine.addShake(0.15);
       for (const e of this.game.enemies) {
         if (e.alive && e.group.position.distanceTo(this.pos) < stats.range * 0.6) {
-          e.takeDamage(stats.damage * 1.2, 'impact');
+          e.takeDamage(stats.damage * 1.2, 'impact', { command: true, impact: 0.65 });
           if (!e.boss) e.stunT = Math.max(e.stunT, 0.8);
         }
       }
@@ -486,6 +641,10 @@ export class Tower {
     if (!this.alive) return;
     if (this._heroModel?.anim) this._heroModel.anim.mixer.update(dt); // hero idle clip
     this.silencedT -= dt; this.disabledT -= dt; this.garrisonDisabledT -= dt;
+    this.heroActiveCd -= dt;
+    this.palaceDamageT -= dt;
+    this.palaceRangeT -= dt;
+    this.palaceSynergyT -= dt;
     if (this._brazenT > 0) this._brazenT -= dt;
 
     // banner + flame idle animation
@@ -504,6 +663,8 @@ export class Tower {
       const s = 1 + Math.sin(time * 2.2 + this.id) * 0.25;
       gl.scale.set(s, s, s);
     }
+    this._updateHeroCommandStandard(dt, time, reduced);
+    this._updatePalacePulseFx(dt, time, reduced);
 
     // ambient flame column — fire altars/gates burn perpetually, not only when firing
     if (this.def.role === 'fire' && !reduced && Math.random() < dt * 34) {
@@ -597,8 +758,78 @@ export class Tower {
     }
   }
 
+  _updateHeroCommandStandard(dt, time, reduced) {
+    if (!this.hero || !this._heroRing) return;
+    const rank = getHeroRank(this.hero.id);
+    const ready = Math.max(0, this.heroActiveCd || 0) <= 0.05;
+    const pulse = 0.5 + Math.sin(time * (ready ? 3.6 : 1.6) + this.id) * 0.5;
+    const commandT = Math.max(0, this._heroCommandT || 0);
+    if (commandT > 0) this._heroCommandT = Math.max(0, commandT - dt);
+    const commandK = Math.min(1, commandT / 1.05);
+    const cooldown = ready ? 0 : Math.max(0, Math.min(1, (this.heroActiveCd || 0) / Math.max(1, 42 - rank * 4)));
+
+    if (this._heroRing) {
+      this._heroRing.rotation.z += dt * (ready ? 0.75 + rank * 0.12 : 0.22);
+      this._heroRing.scale.setScalar(1 + (ready ? pulse * 0.035 : 0) + commandK * 0.18);
+      this._heroRing.material.opacity = ready ? 0.58 + pulse * 0.2 + rank * 0.04 : 0.18 + (1 - cooldown) * 0.18;
+    }
+    if (this._heroReadyHalo) {
+      this._heroReadyHalo.rotation.z -= dt * (ready ? 0.9 : 0.25);
+      this._heroReadyHalo.scale.setScalar(1 + pulse * (ready ? 0.14 : 0.04) + commandK * 0.5);
+      this._heroReadyHalo.material.opacity = ready
+        ? 0.14 + pulse * 0.2 + rank * 0.025
+        : 0.04 + (1 - cooldown) * 0.08;
+    }
+    if (this._heroFlashHalo) {
+      this._heroFlashHalo.rotation.z += dt * 1.9;
+      this._heroFlashHalo.scale.setScalar(0.75 + commandK * 1.35);
+      this._heroFlashHalo.material.opacity = commandK * (reduced ? 0.28 : 0.62);
+    }
+    if (this._heroModel?.group) {
+      const targetY = 0.05 + commandK * 0.18;
+      this._heroModel.group.position.y += (targetY - this._heroModel.group.position.y) * Math.min(1, dt * 8);
+      this._heroModel.group.rotation.y += commandK * dt * 0.55;
+    }
+  }
+
+  _updatePalacePulseFx(dt, time, reduced) {
+    if (!this._palacePulseHalo || (this._palacePulseT || 0) <= 0) return;
+    this._palacePulseT = Math.max(0, this._palacePulseT - dt);
+    const dur = Math.max(0.001, this._palacePulseDur || 1);
+    const k = Math.max(0, Math.min(1, this._palacePulseT / dur));
+    const out = 1 - k;
+    const power = this._palacePulsePower || 1;
+    const wave = reduced ? 0.55 : 0.62 + Math.sin(time * 9.5 + this.id) * 0.18;
+    const flare = Math.sin(Math.min(1, out * 1.7) * Math.PI);
+    const baseOpacity = (0.14 + flare * 0.26) * k * power;
+
+    this._palacePulseHalo.rotation.z += dt * (1.25 + power * 0.5);
+    this._palacePulseHalo.scale.setScalar(0.82 + out * (1.35 + power * 0.18));
+    this._palacePulseHalo.material.opacity = reduced ? baseOpacity * 0.55 : baseOpacity;
+
+    if (this._palacePulseCrown) {
+      this._palacePulseCrown.rotation.z -= dt * (2.2 + power);
+      this._palacePulseCrown.scale.setScalar(0.8 + flare * 0.42 + out * 0.18);
+      this._palacePulseCrown.material.opacity = (reduced ? 0.28 : 0.52) * k * wave * power;
+    }
+    if (this._palacePulseBeam) {
+      this._palacePulseBeam.rotation.y += dt * 1.6;
+      this._palacePulseBeam.scale.setScalar(0.72 + flare * 0.32);
+      this._palacePulseBeam.material.opacity = (reduced ? 0.06 : 0.14) * k * wave * power;
+    }
+
+    if (this._palacePulseT <= 0) {
+      this._palacePulsePower = 0;
+      this._palacePulseDur = 0;
+      this._palacePulseHalo.material.opacity = 0;
+      if (this._palacePulseCrown) this._palacePulseCrown.material.opacity = 0;
+      if (this._palacePulseBeam) this._palacePulseBeam.material.opacity = 0;
+    }
+  }
+
   destroy() {
     for (const s of this.squads) s.destroy();
+    this._removePalacePulseFx();
     this.group.removeFromParent();
   }
 }
