@@ -35,6 +35,14 @@ const HERO_ICONS = {
 // at render time so they are always complete. TOWER_ROLE_ORDER only curates order.
 const TOWER_ROLE_ORDER = ['archer', 'siege', 'fire', 'magic', 'support', 'aura', 'economy', 'barracks', 'trap'];
 
+const PALACE_ACTION_ICONS = {
+  oath: '/assets/ui/palace-actions/oath.svg',
+  muster: '/assets/ui/palace-actions/muster.svg',
+  boon: '/assets/ui/palace-actions/boon.svg',
+  rally: '/assets/ui/palace-actions/rally.svg',
+  gate: '/assets/ui/palace-actions/gate.svg',
+};
+
 const HERO_TONES = {
   heal: new Set(['featherCall', 'simurghAegis', 'secretProvision', 'simurghBirthright', 'steadfastPrayer', 'royalContinuity', 'courtGrace']),
   fire: new Set(['sadehFlame', 'fireJudgment']),
@@ -83,7 +91,10 @@ export class HUD {
     this._challengeRevealTimer = null;
     this._build();
     this._autoCollapsedPanel = false;
-    if (window.matchMedia?.('(max-width: 700px)').matches && !document.body.classList.contains('panel-hidden')) {
+    this._lowChrome = this.game.mapDef?.id === 'zabulistan';
+    document.body.classList.toggle('hud-low-chrome', this._lowChrome);
+    const shouldAutoCollapse = this._lowChrome || window.matchMedia?.('(max-width: 700px)').matches;
+    if (shouldAutoCollapse && !document.body.classList.contains('panel-hidden')) {
       document.body.classList.add('panel-hidden');
       this._autoCollapsedPanel = true;
     }
@@ -111,7 +122,11 @@ export class HUD {
     // (NOT #ui) so it survives the HUD's refreshAll() DOM rebuild on language change.
     this.heroMarkerLayer = el('div', { class: 'hero-marker-layer' });
     document.body.appendChild(this.heroMarkerLayer);
-    this._markerOff = this.game.engine.onUpdate(() => this.updateHeroMarkers());
+    this._makePalaceActionRail();
+    this._markerOff = this.game.engine.onUpdate(() => {
+      this.updateHeroMarkers();
+      this.updatePalaceQuickActions();
+    });
   }
 
   _makeHeroMarker(tower) {
@@ -174,14 +189,263 @@ export class HUD {
     for (const [t, m] of this._heroMarkers) { if (!seen.has(t)) { m.remove(); this._heroMarkers.delete(t); } }
   }
 
+  _makePalaceActionRail() {
+    this._palaceActionButtons = new Map();
+    this.palaceActionLayer = el('div', { class: 'palace-action-layer' });
+    document.body.appendChild(this.palaceActionLayer);
+    this.palaceActionRail = el('div', {
+      class: 'palace-action-rail',
+      role: 'toolbar',
+      'aria-label': tOpt('palace.commands', 'Royal Commands'),
+      style: { display: 'none' },
+    });
+    const ids = ['oath', 'muster', 'boon', 'rally', 'gate'];
+    for (const id of ids) {
+      const button = el('button', { class: 'palace-action-btn', type: 'button', 'data-action': id },
+        el('span', { class: 'palace-action-icon', 'aria-hidden': 'true' },
+          el('img', { class: 'palace-action-img', alt: '', decoding: 'async', draggable: 'false' }),
+        ),
+        el('span', { class: 'palace-action-label' }),
+        el('span', { class: 'palace-action-state', 'aria-hidden': 'true' }),
+      );
+      button.onclick = (ev) => {
+        ev.stopPropagation();
+        audio.ui();
+        this._runPalaceQuickAction(id);
+      };
+      this._palaceActionButtons.set(id, button);
+      this.palaceActionRail.append(button);
+    }
+    this.palaceActionLayer.append(this.palaceActionRail);
+  }
+
+  _palaceQuickState({ cd = 0, cost = 0, ready = true, active = false, state = '' } = {}) {
+    if (state) return state;
+    if (active) return tOpt('palace.command.ready', 'Ready');
+    if (cd > 0.05) return this._palaceSeconds(Math.ceil(cd));
+    if (cost > 0 && (this.game.gold || 0) < cost) return `${tNum(cost)} 🪙`;
+    if (!ready) return tOpt('palace.command.awaitingFarr', 'Awaiting Farr');
+    return tOpt('palace.command.ready', 'Ready');
+  }
+
+  _palaceQuickActions(palace) {
+    const placeId = palace.placeId || this.game.mapDef.id;
+    const cfg = palaceDef(placeId);
+    const musterDef = SOLDIERS_BY_ID[cfg.muster.unit];
+    const maxFarr = this.game.farrMax || 100;
+    const farr = Math.max(0, Math.min(maxFarr, this.game.farr || 0));
+    const oathReady = this.game.canUseOath?.();
+    const muCd = Math.max(0, palace.musterCd || 0);
+    const boCd = Math.max(0, palace.boonCd || 0);
+    const gateCommandCost = this.game.sandbox ? 0 : 135;
+    const gateCommandCdMax = this.game.sandbox ? 1 : 52;
+    const gateCommandCd = this.game.sandbox ? 0 : Math.max(0, palace.gateCommandCd || 0);
+    const gateCommandStatus = this.game.palaceAssaultStatus || null;
+    const gateActive = (gateCommandStatus?.t || 0) > 0.05;
+    const muSurge = this._palaceMusterSurge();
+    const boonName = tOpt('palace.boonType.' + cfg.boon.type, tOpt('palace.boon', "King's Boon"));
+    const gateTiming = this._palaceGateTiming(palace);
+    return [
+      {
+        id: 'oath',
+        tone: 'rally',
+        icon: '✦',
+        iconSrc: PALACE_ACTION_ICONS.oath,
+        label: t('hud.farr'),
+        title: t('oath.title'),
+        disabled: !oathReady,
+        active: (this.game.oathT || 0) > 0.05,
+        state: oathReady ? tOpt('palace.command.ready', 'Ready') : `${tNum(farr)}/${tNum(maxFarr)}`,
+        fill: Math.round((farr / Math.max(1, maxFarr)) * 100),
+      },
+      {
+        id: 'muster',
+        tone: 'rally',
+        icon: '⚔',
+        iconSrc: PALACE_ACTION_ICONS.muster,
+        label: tOpt('palace.muster', 'Muster'),
+        title: `${tOpt('palace.muster', 'Muster')} ${musterDef ? tName(musterDef) : ''}`,
+        disabled: muCd > 0 || (this.game.gold || 0) < cfg.muster.cost,
+        active: muSurge.t > 0.05,
+        state: this._palaceQuickState({
+          cd: muCd,
+          cost: cfg.muster.cost,
+          active: muSurge.t > 0.05,
+          state: muSurge.t > 0.05 ? this._palaceSeconds(Math.ceil(muSurge.t)) : '',
+        }),
+        fill: muSurge.t > 0.05
+          ? Math.round(Math.max(0, Math.min(1, muSurge.t / Math.max(1, muSurge.dur))) * 100)
+          : muCd > 0 ? Math.round((1 - Math.max(0, Math.min(1, muCd / Math.max(1, cfg.muster.cd)))) * 100) : 100,
+      },
+      {
+        id: 'boon',
+        tone: palaceTone(cfg.boon.type),
+        icon: palaceSigil(cfg.boon.type),
+        iconSrc: PALACE_ACTION_ICONS.boon,
+        label: boonName,
+        title: boonName,
+        disabled: boCd > 0 || (this.game.gold || 0) < cfg.boon.cost,
+        active: false,
+        state: this._palaceQuickState({ cd: boCd, cost: cfg.boon.cost }),
+        fill: boCd > 0 ? Math.round((1 - Math.max(0, Math.min(1, boCd / Math.max(1, cfg.boon.cd)))) * 100) : 100,
+      },
+      {
+        id: 'rally',
+        tone: 'rally',
+        icon: '⚑',
+        iconSrc: PALACE_ACTION_ICONS.rally,
+        label: tOpt('palace.rally', 'Rally to the Keep'),
+        title: tOpt('palace.rally', 'Rally to the Keep'),
+        disabled: false,
+        active: false,
+        state: tOpt('palace.command.ready', 'Ready'),
+        fill: 100,
+      },
+      {
+        id: 'gate',
+        tone: 'impact',
+        icon: '◉',
+        iconSrc: PALACE_ACTION_ICONS.gate,
+        label: tOpt('palace.command.gateTest', 'Royal Gate Command'),
+        title: `${tOpt('palace.command.gateTest', 'Royal Gate Command')} — ${gateTiming.label}`,
+        disabled: gateCommandCd > 0 || (gateCommandCost > 0 && (this.game.gold || 0) < gateCommandCost),
+        active: gateActive,
+        state: gateActive
+          ? this._palaceSeconds(Math.ceil(gateCommandStatus.t))
+          : this._palaceQuickState({ cd: gateCommandCd, cost: gateCommandCost }),
+        fill: gateActive
+          ? Math.round(Math.max(0, Math.min(1, gateCommandStatus.t / Math.max(1, gateCommandStatus.dur || 1))) * 100)
+          : gateCommandCd > 0 ? Math.round((1 - Math.max(0, Math.min(1, gateCommandCd / Math.max(1, gateCommandCdMax)))) * 100) : 100,
+      },
+    ];
+  }
+
+  updatePalaceQuickActions() {
+    const rail = this.palaceActionRail;
+    const palace = this.game.map?.citadel;
+    const cam = this.game.engine.camera;
+    if (!rail || this.selectedEntity !== palace || !palace?.isPalace || !palace.group?.position || !cam || this.game.phase === 'won' || this.game.phase === 'lost') {
+      if (rail) rail.style.display = 'none';
+      return;
+    }
+    const pos = palace.group.position;
+    const lift = Math.max(16, (palace.height || 18) + 5);
+    const v = this._mkVec.set(pos.x, pos.y + lift, pos.z).project(cam);
+    if (v.z > 1) {
+      rail.style.display = 'none';
+      return;
+    }
+    rail.style.display = '';
+    const clampedX = Math.max(-0.96, Math.min(0.96, v.x));
+    const clampedY = Math.max(-0.96, Math.min(0.96, v.y));
+    let screenX = (clampedX * 0.5 + 0.5) * window.innerWidth;
+    let screenY = (-clampedY * 0.5 + 0.5) * window.innerHeight;
+    rail.style.left = `${screenX.toFixed(1)}px`;
+    rail.style.top = `${screenY.toFixed(1)}px`;
+    rail.setAttribute('aria-label', tOpt('palace.commands', 'Royal Commands'));
+    const actions = this._palaceQuickActions(palace);
+    const compact = window.matchMedia?.('(max-width: 700px)').matches;
+    const mid = (actions.length - 1) / 2;
+    const stepX = compact ? 46 : 58;
+    const stepY = compact ? 9 : 14;
+    const readyText = tOpt('palace.command.ready', 'Ready');
+    for (let i = 0; i < actions.length; i++) {
+      const def = actions[i];
+      const button = this._palaceActionButtons.get(def.id);
+      if (!button) continue;
+      const unit = i - mid;
+      const hideState = def.state === readyText;
+      button.className = `palace-action-btn tone-${def.tone}${def.active ? ' active' : ''}${def.disabled && !def.active ? ' locked' : ''}${!def.disabled && !def.active ? ' ready' : ''}${hideState ? ' state-empty' : ''}`;
+      button.disabled = !!def.disabled;
+      button.title = `${def.title}: ${def.state}`;
+      button.setAttribute('aria-label', button.title);
+      button.style.setProperty('--arc-x', `${Math.round(unit * stepX)}px`);
+      button.style.setProperty('--arc-y', `${Math.round(Math.abs(unit) * stepY)}px`);
+      button.style.setProperty('--palace-action-fill', `${Math.max(0, Math.min(100, def.fill || 0))}%`);
+      const iconImg = button.querySelector('.palace-action-img');
+      if (iconImg) {
+        if (iconImg.getAttribute('src') !== def.iconSrc) iconImg.setAttribute('src', def.iconSrc);
+        iconImg.dataset.fallback = def.icon;
+      }
+      button.querySelector('.palace-action-label').textContent = def.label;
+      button.querySelector('.palace-action-state').textContent = hideState ? '' : def.state;
+    }
+    const rect = rail.getBoundingClientRect();
+    const margin = 12;
+    const safeTop = window.matchMedia?.('(max-width: 700px)').matches ? 122 : 84;
+    let minX = margin + rect.width * 0.5;
+    let maxX = window.innerWidth - margin - rect.width * 0.5;
+    for (const panel of [
+      document.querySelector('#leftPanel'),
+      document.querySelector('#rightPanel.visible'),
+      document.querySelector('#palaceContextChip'),
+    ].filter(Boolean)) {
+      const style = getComputedStyle(panel);
+      if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || 1) === 0) continue;
+      const p = panel.getBoundingClientRect();
+      if (p.width < 40 || p.height < 40) continue;
+      if (p.left > window.innerWidth * 0.5) maxX = Math.min(maxX, p.left - margin - rect.width * 0.5);
+      else minX = Math.max(minX, p.right + margin + rect.width * 0.5);
+    }
+    if (minX <= maxX) screenX = Math.max(minX, Math.min(maxX, screenX));
+    else screenX = Math.max(margin + rect.width * 0.5, Math.min(window.innerWidth - margin - rect.width * 0.5, screenX));
+    screenY = Math.max(safeTop + rect.height * 1.18, Math.min(window.innerHeight - margin, screenY));
+    rail.style.left = `${screenX.toFixed(1)}px`;
+    rail.style.top = `${screenY.toFixed(1)}px`;
+  }
+
+  _runPalaceGateCommand(palace) {
+    const result = this.game.sandbox
+      ? this.game.sandboxPalaceAssault?.({
+        mode: 'royal',
+        fullFx: true,
+        label: tOpt('palace.command.gateLineRoyal', 'Royal Gate Command'),
+        subLabel: tOpt('palace.command.gateLineSub', 'Palace defenders hold the threshold'),
+      })
+      : this.game.palaceGateCommand?.(palace, {
+        forceFx: true,
+        label: tOpt('palace.command.gateLineRoyal', 'Royal Gate Command'),
+        subLabel: tOpt('palace.command.gateLineSub', 'Palace defenders hold the threshold'),
+      });
+    if (this.game.sandbox) this.game.previewCommandFx?.({ mode: 'royal' });
+    if (result) {
+      const toastKey = (result.gateGuard || 0) > 0 ? 'hud.gateTestResultToastGuard' : 'hud.gateTestResultToast';
+      this.toast(t(toastKey, {
+        defenders: tNum(result.defenders || 0),
+        guards: tNum(result.gateGuard || 0),
+        attackers: tNum(result.staggered || result.count || 0),
+      }));
+      this.gateTestResultBanner(result);
+    }
+    return !!result;
+  }
+
+  _runPalaceQuickAction(id) {
+    const palace = this.game.map?.citadel;
+    if (!palace?.isPalace) return false;
+    this.game.clearPalaceCommandPreview?.();
+    let ok = false;
+    if (id === 'oath') ok = this.game.triggerOath?.(palace);
+    else if (id === 'muster') ok = this.game.palaceMuster?.(palace);
+    else if (id === 'boon') ok = this.game.palaceBoon?.(palace);
+    else if (id === 'rally') {
+      ok = this.game.palaceRally?.(palace) > 0;
+      if (ok) this.toast(tOpt('palace.rallied', 'The host rallies to the keep!'));
+    } else if (id === 'gate') ok = this._runPalaceGateCommand(palace);
+    if (ok && this.selectedEntity === palace && $('#rightPanel')?.classList.contains('visible')) this.showPalace(palace);
+    else if (ok && this._lowChrome && this.selectedEntity === palace) this._showPalaceContextChip(palace);
+    this.updatePalaceQuickActions();
+    return ok;
+  }
+
   _build() {
     this.root.append(
       el('div', { id: 'topbar', class: 'frame' },
-        el('span', { class: 'statchip' }, el('span', { class: 'ico' }, '🪙'), el('b', { id: 'goldVal' }, '0'), el('span', { id: 'goldLbl' }, t('hud.gold'))),
+        el('span', { class: 'statchip gold-chip' }, el('span', { class: 'ico' }, '🪙'), el('b', { id: 'goldVal' }, '0'), el('span', { id: 'goldLbl' }, t('hud.gold'))),
         el('div', { class: 'sep' }),
-        el('span', { class: 'statchip' }, el('span', { class: 'ico' }, '🏛️'), el('b', { id: 'livesVal' }, '0'), el('span', { id: 'livesLbl' }, t('hud.lives'))),
+        el('span', { class: 'statchip lives-chip' }, el('span', { class: 'ico' }, '🏛️'), el('b', { id: 'livesVal' }, '0'), el('span', { id: 'livesLbl' }, t('hud.lives'))),
         el('div', { class: 'sep' }),
-        el('span', { class: 'statchip' }, el('span', { class: 'ico' }, '🌊'), el('b', { id: 'waveVal' }, '0'), el('span', { id: 'waveLbl' }, t('hud.wave'))),
+        el('span', { class: 'statchip wave-chip' }, el('span', { class: 'ico' }, '🌊'), el('b', { id: 'waveVal' }, '0'), el('span', { id: 'waveLbl' }, t('hud.wave'))),
         el('span', { class: 'statchip wavemod', id: 'waveMod', style: { display: 'none' } }),
         el('div', { id: 'sandboxTools', class: 'sandbox-tools', style: { display: this.game.sandbox ? '' : 'none' }, 'aria-label': tOpt('hud.sandboxTools', 'Sandbox tools') },
           el('button', { class: 'iconbtn sandbox-btn', id: 'sandboxFxBtn', title: tOpt('hud.sandboxFxTip', 'Preview command FX'), 'aria-label': tOpt('hud.sandboxFxTip', 'Preview command FX') },
@@ -228,6 +492,15 @@ export class HUD {
         el('button', { class: 'iconbtn', id: 'menuBtn', title: t('hud.menu'), 'aria-label': t('hud.menu') }, '⌂'),
       ),
       el('div', { id: 'challengeChip', class: 'challenge-chip', 'aria-live': 'polite', style: { display: 'none' } }),
+      el('div', { id: 'quickBuildTray', class: 'quick-build-tray', role: 'toolbar', 'aria-label': t('hud.towers') }),
+      el('button', { id: 'palaceContextChip', class: 'palace-context-chip', type: 'button', style: { display: 'none' }, 'aria-live': 'polite' },
+        el('span', { class: 'palace-context-mark', 'aria-hidden': 'true' }, '🏛'),
+        el('span', { class: 'palace-context-main' },
+          el('span', { class: 'palace-context-name' }),
+          el('span', { class: 'palace-context-state' }),
+        ),
+        el('span', { class: 'palace-context-open', 'aria-hidden': 'true' }, '▦'),
+      ),
       el('div', { id: 'leftPanel', class: 'frame' },
         el('div', { id: 'leftTabs' },
           el('button', { class: 'tabbtn active', id: 'tabTowers' }, t('hud.towers')),
@@ -302,12 +575,19 @@ export class HUD {
       const btn = $('#waveBtn');
       btn.disabled = true;
       btn.classList.remove('urgent');
+      document.body.classList.add('wave-active');
+      btn.classList.add('wave-active');
+      $('#bottomBar')?.classList.add('wave-active');
       btn.textContent = t('hud.waveInProgress');
     });
     g.on('waveEnded', () => {
       this.updateTop();
       this._setWaveMod(null);
-      $('#waveBtn').disabled = false;
+      const btn = $('#waveBtn');
+      btn.disabled = false;
+      document.body.classList.remove('wave-active');
+      btn.classList.remove('wave-active');
+      $('#bottomBar')?.classList.remove('wave-active');
       if (this.selectedEntity?.def && this.selectedEntity.alive) this.showTower(this.selectedEntity);
     });
     g.on('countdownTick', ({ remaining, bonus }) => this._updateWaveBtn(remaining, bonus));
@@ -358,6 +638,49 @@ export class HUD {
     btn.setAttribute('aria-expanded', hidden ? 'false' : 'true');
   }
 
+  _quickTowerDefs() {
+    const priority = ['archer', 'siege', 'fire', 'magic', 'support', 'economy', 'barracks', 'trap'];
+    const byRole = new Map();
+    for (const def of TOWERS) {
+      if (!priority.includes(def.role)) continue;
+      const current = byRole.get(def.role);
+      if (!current || def.cost < current.cost) byRole.set(def.role, def);
+    }
+    return priority.map((role) => byRole.get(role)).filter(Boolean);
+  }
+
+  _openBuildCatalog() {
+    audio.ui();
+    this.activeTab = 'towers';
+    this._tabSync();
+    this.closePanel();
+    document.body.classList.remove('panel-hidden');
+    this._syncToggle();
+  }
+
+  _chooseTowerBuild(def) {
+    if (this._lowChrome) {
+      this.closePanel();
+      document.body.classList.add('panel-hidden');
+      this._syncToggle();
+      this.setMode({ kind: 'build', def });
+      return;
+    }
+    this.closePanel();
+    this.showTowerDef(def);
+    this.setMode({ kind: 'build', def });
+  }
+
+  _syncModeSelection() {
+    for (const c of document.querySelectorAll('#cardGrid .card, #quickBuildTray .quick-build-btn')) {
+      const selected =
+        (this.mode.kind === 'build' && c.dataset.id === this.mode.def?.id) ||
+        (this.mode.kind === 'assign' && c.dataset.id === this.mode.hero?.id);
+      c.classList.toggle('selected', selected);
+      if (c.tagName === 'BUTTON') c.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    }
+  }
+
   setMode(mode) {
     this.mode = mode;
     const hint = $('#modeHint');
@@ -366,11 +689,7 @@ export class HUD {
     else if (mode.kind === 'rally') { hint.textContent = t('hud.rallyHint'); hint.classList.add('visible'); }
     else if (mode.kind === 'fuse') { hint.textContent = t('hud.fuseHint'); hint.classList.add('visible'); }
     else hint.classList.remove('visible');
-    for (const c of document.querySelectorAll('#cardGrid .card')) {
-      c.classList.toggle('selected',
-        (mode.kind === 'build' && c.dataset.id === mode.def?.id) ||
-        (mode.kind === 'assign' && c.dataset.id === mode.hero?.id));
-    }
+    this._syncModeSelection();
   }
 
   updateTop() {
@@ -474,7 +793,17 @@ export class HUD {
   // wave button during the build-phase countdown: shows the timer + the early-call bonus
   _updateWaveBtn(remaining, bonus) {
     const btn = $('#waveBtn');
-    if (!btn || this.game.waveActive) return;
+    if (!btn) return;
+    const active = !!this.game.waveActive;
+    document.body.classList.toggle('wave-active', active);
+    btn.classList.toggle('wave-active', active);
+    $('#bottomBar')?.classList.toggle('wave-active', active);
+    if (active) {
+      btn.disabled = true;
+      btn.classList.remove('urgent');
+      btn.textContent = t('hud.waveInProgress');
+      return;
+    }
     btn.disabled = false;
     const secs = Math.ceil(remaining);
     const bonusTxt = bonus > 0 ? ` · +${tNum(bonus)} 🪙` : '';
@@ -486,8 +815,7 @@ export class HUD {
     if (!$('#tabTowers') || !$('#waveBtn')) return;
     $('#tabTowers').textContent = t('hud.towers');
     $('#tabHeroes').textContent = t('hud.heroes');
-    if (this.game.waveActive) $('#waveBtn').textContent = t('hud.waveInProgress');
-    else this._updateWaveBtn(this.game.waveCountdown, this.game.earlyBonus());
+    this._updateWaveBtn(this.game.waveCountdown, this.game.earlyBonus());
     $('#langBtn').textContent = t('lore.toggle');
     this.updateTop();
     this.updateFarr();
@@ -499,7 +827,7 @@ export class HUD {
   }
 
   refreshAffordability() {
-    for (const c of document.querySelectorAll('#cardGrid .card[data-cost]')) {
+    for (const c of document.querySelectorAll('#cardGrid .card[data-cost], #quickBuildTray .quick-build-btn[data-cost]')) {
       c.classList.toggle('unaffordable', this.game.gold < parseInt(c.dataset.cost, 10));
     }
   }
@@ -561,9 +889,7 @@ export class HUD {
         );
         wireAction(card, () => {
           audio.unlock(); audio.ui();
-          this.closePanel();
-          this.showTowerDef(def);
-          this.setMode({ kind: 'build', def });
+          this._chooseTowerBuild(def);
         });
         grid.append(card);
       }
@@ -595,11 +921,48 @@ export class HUD {
         grid.append(card);
       }
     }
+    this._renderQuickBuildTray();
     this.refreshAffordability();
+  }
+
+  _renderQuickBuildTray() {
+    const tray = $('#quickBuildTray');
+    if (!tray) return;
+    clear(tray);
+    for (const def of this._quickTowerDefs()) {
+      const title = `${tName(def)} · ${tOpt('role.' + def.role, def.role)} · ${t('hud.cost')}: ${tNum(def.cost)}`;
+      const btn = el('button', {
+        class: 'quick-build-btn',
+        type: 'button',
+        'data-id': def.id,
+        'data-cost': def.cost,
+        title,
+        'aria-label': title,
+        'aria-pressed': 'false',
+      },
+        el('span', { class: 'quick-build-icon', 'aria-hidden': 'true' }, ROLE_ICONS[def.role] || '▣'),
+        el('span', { class: 'quick-build-cost', 'aria-hidden': 'true' }, tNum(def.cost)),
+      );
+      btn.onclick = () => {
+        audio.unlock(); audio.ui();
+        this._chooseTowerBuild(def);
+      };
+      tray.append(btn);
+    }
+    const more = el('button', {
+      class: 'quick-build-more',
+      type: 'button',
+      title: tOpt('hud.showPanel', 'Show panel'),
+      'aria-label': tOpt('hud.showPanel', 'Show panel'),
+    }, el('span', { 'aria-hidden': 'true' }, '▦'));
+    more.onclick = () => this._openBuildCatalog();
+    tray.append(more);
+    this._syncModeSelection();
   }
 
   // ---------- right panel ----------
   openPanel() {
+    this._hidePalaceContextChip();
     if (window.matchMedia?.('(max-width: 700px)').matches) {
       document.body.classList.add('panel-hidden');
       this._syncToggle();
@@ -611,8 +974,49 @@ export class HUD {
     this.game.clearHeroCommandPreview?.();
     this.game.clearPalaceCommandPreview?.();
     $('#rightPanel').classList.remove('visible');
+    this._hidePalaceContextChip();
     this.selectedEntity = null;
     this.cb.onSelectionCleared?.();
+  }
+
+  _hidePalaceContextChip() {
+    const chip = $('#palaceContextChip');
+    if (!chip) return;
+    chip.style.display = 'none';
+    chip.onclick = null;
+  }
+
+  _showPalaceContextChip(palace) {
+    const chip = $('#palaceContextChip');
+    if (!chip || !palace?.isPalace) return;
+    const placeId = palace.placeId || this.game.mapDef.id;
+    const place = PLACES_BY_ID[placeId] || this.game.mapDef || {};
+    const actions = this._palaceQuickActions(palace);
+    const ready = actions.filter((action) => !action.disabled || action.active).length;
+    const gateTiming = this._palaceGateTiming(palace);
+    const state = `${tNum(ready)}/${tNum(actions.length)} ${tOpt('palace.command.readyShort', 'ready')} · ${gateTiming.label}`;
+    const nameEl = chip.querySelector('.palace-context-name');
+    const stateEl = chip.querySelector('.palace-context-state');
+    if (nameEl) nameEl.textContent = tName(place);
+    if (stateEl) stateEl.textContent = state;
+    const label = `${tName(place)}: ${state}. ${tOpt('hud.showPanel', 'Show panel')}`;
+    chip.title = label;
+    chip.setAttribute('aria-label', label);
+    chip.onclick = () => {
+      audio.ui();
+      this._openPalaceDrawer(palace);
+    };
+    chip.style.display = '';
+  }
+
+  _openPalaceDrawer(palace) {
+    if (!palace?.isPalace) return;
+    this._forcePalaceDrawer = true;
+    try {
+      this.showPalace(palace);
+    } finally {
+      this._forcePalaceDrawer = false;
+    }
   }
 
   _clearHeroCommandTimer() {
@@ -1023,6 +1427,8 @@ export class HUD {
   showTower(tower) {
     this._clearHeroCommandTimer();
     this.game.clearHeroCommandPreview?.();
+    this.game.clearPalaceCommandPreview?.();
+    this._hidePalaceContextChip();
     this.selectedEntity = tower;
     const def = tower.def;
     const stats = tower.getStats();
@@ -1198,9 +1604,20 @@ export class HUD {
     this._clearHeroCommandTimer();
     this.game.clearHeroCommandPreview?.();
     this.game.clearPalaceCommandPreview?.();
+    const wasPalaceDrawer = this.selectedEntity === palace && $('#rightPanel')?.classList.contains('visible');
     this.selectedEntity = palace;
     const placeId = palace.placeId || this.game.mapDef.id;
     const place = PLACES_BY_ID[placeId] || {};
+    if (this._lowChrome && !this._forcePalaceDrawer && !wasPalaceDrawer) {
+      $('#rightPanel')?.classList.remove('visible');
+      document.body.classList.add('panel-hidden');
+      this._syncToggle();
+      this._showPalaceContextChip(palace);
+      this.updatePalaceQuickActions();
+      requestAnimationFrame(() => this.updatePalaceQuickActions());
+      return;
+    }
+    this._hidePalaceContextChip();
     const c = clear($('#rpContent'));
     const d = palace.defense || {};
     const rows = [
@@ -1331,29 +1748,7 @@ export class HUD {
         gateTimingChip,
       ),
       onUse: () => {
-        const result = this.game.sandbox
-          ? this.game.sandboxPalaceAssault?.({
-            mode: 'royal',
-            fullFx: true,
-            label: tOpt('palace.command.gateLineRoyal', 'Royal Gate Command'),
-            subLabel: tOpt('palace.command.gateLineSub', 'Palace defenders hold the threshold'),
-          })
-          : this.game.palaceGateCommand?.(palace, {
-            forceFx: true,
-            label: tOpt('palace.command.gateLineRoyal', 'Royal Gate Command'),
-            subLabel: tOpt('palace.command.gateLineSub', 'Palace defenders hold the threshold'),
-          });
-        if (this.game.sandbox) this.game.previewCommandFx?.({ mode: 'royal' });
-        if (result) {
-          const toastKey = (result.gateGuard || 0) > 0 ? 'hud.gateTestResultToastGuard' : 'hud.gateTestResultToast';
-          this.toast(t(toastKey, {
-            defenders: tNum(result.defenders || 0),
-            guards: tNum(result.gateGuard || 0),
-            attackers: tNum(result.staggered || result.count || 0),
-          }));
-          this.gateTestResultBanner(result);
-        }
-        return true;
+        return this._runPalaceGateCommand(palace);
       },
     });
 
@@ -1456,11 +1851,28 @@ export class HUD {
     );
     this.openPanel();
     this._bindPalaceCommandRefresh(palace);
+    this.updatePalaceQuickActions();
+    requestAnimationFrame(() => this.updatePalaceQuickActions());
   }
 
   showHero(hero, unlocked = true) {
     this._clearHeroCommandTimer();
+    this.game.clearPalaceCommandPreview?.();
+    this._hidePalaceContextChip();
     this.selectedEntity = null;
+    if (this._lowChrome) {
+      $('#rightPanel')?.classList.remove('visible');
+      document.body.classList.add('panel-hidden');
+      this._syncToggle();
+      this.cb.onSelectionCleared?.();
+      if (unlocked) {
+        this.setMode({ kind: 'assign', hero });
+      } else {
+        this.setMode({ kind: 'none' });
+        this.toast(`${tName(hero)} — ${t('hud.locked')}`);
+      }
+      return;
+    }
     const c = clear($('#rpContent'));
     const assignedTower = this.game.assignedHeroes.get(hero.id);
     const modRows = Object.entries(hero.mods).filter(([, v]) => v !== 0).map(([k, v]) =>
@@ -1870,9 +2282,10 @@ export class HUD {
     if (this._markerOff) { this._markerOff(); this._markerOff = null; }
     if (this._gateOmenOff) { this._gateOmenOff(); this._gateOmenOff = null; }
     if (this.heroMarkerLayer) { this.heroMarkerLayer.remove(); this.heroMarkerLayer = null; }
+    if (this.palaceActionLayer) { this.palaceActionLayer.remove(); this.palaceActionLayer = null; }
     this._heroMarkers = null;
     if (this._autoCollapsedPanel) document.body.classList.remove('panel-hidden');
-    document.body.classList.remove('boss-challenge-active', 'boss-arrival-active');
+    document.body.classList.remove('boss-challenge-active', 'boss-arrival-active', 'hud-low-chrome', 'wave-active', 'visual-qa-capture');
     clear(this.root);
   }
 }

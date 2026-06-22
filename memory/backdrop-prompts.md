@@ -1,17 +1,25 @@
 # Borj — Per-Stage Horizon Backdrops (plan + image spec)
 
-> **STATUS (updated 2026-06-20):** the image-backed backdrop layer is LIVE again, but not as the old
-> unsafe flat/cylindrical plane. It is now a manifest-backed `DistantBackdrop` system:
-> `src/data/backdrops.js` declares all 20 campaign maps; `src/world/backdrop.js` builds inward-facing
-> curved quadrant bands for `far` and `mid` image layers plus procedural haze; files live under
-> `public/assets/backdrops/<placeId>/far_n.webp`, `far_e.webp`, `far_s.webp`, `far_w.webp`,
-> `mid_n.webp`, `mid_e.webp`, `mid_s.webp`, `mid_w.webp`. The procedural world apron and 3D range
-> ring remain as fallback/foreground depth.
+> **STATUS (updated 2026-06-20):** the image-backed backdrop layer is LIVE as a manifest-backed
+> `DistantBackdrop` system. Legacy maps use inward-facing curved quadrant bands for `far` and `mid`
+> image layers plus procedural haze; files live under `public/assets/backdrops/<placeId>/far_n.webp`,
+> `far_e.webp`, `far_s.webp`, `far_w.webp`, `mid_n.webp`, `mid_e.webp`, `mid_s.webp`, `mid_w.webp`.
+> Zabulistan is now the first layered 360 pilot and uses five seamless files:
+> `public/assets/backdrops/zabulistan/panorama_360.webp` (`mountains360`) and
+> `public/assets/backdrops/zabulistan/foothills_360.webp` (`foothills360`) and
+> `public/assets/backdrops/zabulistan/ridges_360.webp` (`ridges360`) and
+> `public/assets/backdrops/zabulistan/scrub_360.webp` (`scrub360`) and
+> `public/assets/backdrops/zabulistan/apron_360.webp` (`apron360`) with manifest mode `panorama360`. Sistan is now the
+> second converted map and uses `panorama_360.webp` (`marshSky360`), `reedline_360.webp` (`reedline360`),
+> `water_360.webp` (`waterChannels360`), and `apron_360.webp` (`apron360`). The procedural world apron, horizon blend,
+> and ground veil remain as foreground/depth blending helpers. The procedural 3D range ring is disabled only for
+> Zabulistan; Sistan keeps the normal square tactical board.
 
 Runtime rules now in force:
 - All backdrop meshes are no-shadow (`castShadow=false`, `receiveShadow=false`), `depthWrite=false`,
   low-opacity, and tagged `userData.visualLayer = "backdrop"`.
-- Missing manifest entries must never request missing files or create 404 noise.
+- Missing manifest entries must never request missing files or create 404 noise. Legacy quadrant support must remain
+  intact for unconverted maps while individual maps move to `panorama360`.
 - Backdrops are scenery only: no clickable-looking foreground objects, no European fantasy castles,
   no monsters, no gameplay objects, and no intersection with roads/pads/palace gates.
 - Contrast stays below gameplay contrast so towers, enemies, paths, pads, palace gates, and saga chips
@@ -23,13 +31,39 @@ Goal: kill the "board floating in white" by surrounding each level with its own 
 scenery. The procedural **world apron** (rolling hills → fog horizon) is already shipped and fixes the
 floating; this backdrop layer adds the rich, level-specific far environment on top.
 
-## How it renders (built, validated as a single cylinder; 4-arc upgrade pending real images)
-- A large inward-facing **cylinder** (`src/world/backdrop.js`) sits between the skydome and the apron.
-  Its TOP fades into the sky; its BOTTOM is occluded by the apron hills. It stays fixed (not camera-
-  locked) so panning gives gentle parallax → real depth. Lazy-loaded per stage; never-break (no image
-  → just the apron).
-- A single image wrapped 360° stretches ~6× — unusable. So the ring is **4 quadrants** (N/E/S/W), each
-  an ultra-wide image on a 90° arc → no stretch. (This is your 4-images idea, and it's the right call.)
+## How it renders
+- Legacy maps render as **4 quadrants** (N/E/S/W), each an ultra-wide image on a 90-degree curved arc for `far`
+  and `mid` layers.
+- Converted maps can render as **one full inward-facing cylinder** using `panorama360`. Zabulistan is the circular-board
+  pilot; Sistan is the first non-circular square-board conversion.
+  This is now preferred when a clean seamless wrap exists because it removes quadrant seam matching work.
+- Both modes sit between the skydome and apron, fade into the sky/ground, stay fixed rather than camera-locked, and
+  must remain no-shadow/depth-write-off scenery.
+
+## Zabulistan panorama360 prompt
+```
+Seamless 360-degree cylindrical panorama for a browser game backdrop, ultra-wide horizontal strip, stylized realism with faceted low-poly painterly forms, NOT photoreal, NOT European fantasy. Distant scenery only: dry Sistani / Zabulistan highland country from the Shahnameh, layered ochre and sand-gold mountain ranges surrounding the horizon, dusty atmospheric haze, sparse olive scrub on far slopes, warm pale blue daytime sky in the upper third, far ridges and foothills in the lower third. Continuous left-to-right horizon line, seamless wrap at both horizontal edges, no foreground, no close buildings, no people, no roads, no towers, no game board, no text, no frame, no watermark. Warm Persian epic palette: sunlit sandstone, muted ochre, dusty gold, faded olive, pale lapis sky. Soft distance contrast so gameplay remains readable in front.
+```
+
+## Zabulistan foothills360 prompt
+```
+Seamless 360-degree cylindrical panorama foothill band for a browser game backdrop, ultra-wide horizontal strip, stylized realism with faceted low-poly painterly forms, NOT photoreal, NOT European fantasy. Distant-to-mid scenery only: dry Sistani / Zabulistan highland foothills from the Shahnameh, layered short ochre ridges, low sand-gold hills, dusty atmospheric haze, sparse faded olive scrub on far slopes, pale warm blue haze above. Continuous left-to-right horizon line, seamless wrap at both horizontal edges, low ridges mostly in the lower half, soft empty haze/sky in the upper portion, designed as a lower closer landscape layer rather than a full mountain skyline. No foreground, no near rocks, no close grass, no buildings, no people, no roads, no towers, no game board, no text, no frame, no watermark. Avoid hard black silhouettes, strong vignette, birds, castles, European fantasy forms, and high dramatic peaks.
+```
+
+## Zabulistan ridges360 prompt
+```
+Seamless 360-degree cylindrical panorama low ridge skirt for a browser game backdrop, ultra-wide horizontal strip, stylized realism with faceted low-poly painterly forms, NOT photoreal, NOT European fantasy. Closest distant scenery just beyond a circular game board: very low ochre ridgelines, soft sand-gold berms, shallow dusty gullies, sparse faded olive scrub dots, pale haze above. Continuous seamless left-to-right band, wrap-compatible at both horizontal edges, low landforms concentrated in the lower 35-45 percent, upper 55-65 percent mostly empty dusty haze and pale blue sky, intentionally soft and low contrast so it reads as distance behind gameplay. No foreground closeup, no tall peaks, no buildings, no people, no roads, no towers, no game board, no text, no frame, no watermark. Avoid hard black silhouettes, strong vignette, birds, castles, European fantasy forms, dark cliffs, and high dramatic mountains.
+```
+
+## Zabulistan landmark360 prompt
+```
+Create a distant Persian epic citadel landmark strip on a perfectly flat solid #ff00ff chroma-key background for background removal. Far-away Zabulistan/Sistani highland fortress from the Shahnameh, designed as an optional distant landmark overlay on top of an existing mountain panorama: a large but very distant sandstone citadel complex spread along a low ridge, adobe-gold walls, stepped terraces, small towers, battlements, a few Persian iwan arches and domed roofs, subtle red banners, weathered ancient-fort silhouette. Stylized realism with faceted low-poly painterly forms, NOT photoreal, NOT European fantasy. Ultra-wide horizontal strip, low landmark band in the lower 35-45 percent, generous empty chroma-key background above and at both horizontal edges, no cropping, soft atmospheric contrast, usable as a transparent overlay cylinder. Keep the left and right edges empty/flat #ff00ff for seamless wrapping. Background must be one perfectly uniform flat #ff00ff with no gradients, no texture, no shadows, no floor plane, no sky, and no lighting variation. No people, no roads, no game board, no close foreground rocks, no text, no frame, no watermark, no European castle shapes, no black silhouettes.
+```
+
+Note: `landmark360` is retired from the active Zabulistan manifest for now. Keep this prompt only as a future optional low-horizon accent reference.
+
+## Zabulistan apron360 color target
+`apron360` is the closest panorama layer and should sit near the board color, not the distant blue haze. Use the playable grass as the color anchor: warm yellow-green around `#b4ce71`, with dry scrub detail and transparent top fade.
 
 ## The image spec (every backdrop image)
 - **4 images per stage**, named `<id>_n / _e / _s / _w` (the four 90° directions of a 360° surround).

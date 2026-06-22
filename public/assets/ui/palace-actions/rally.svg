@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Rally horn emblem">
+  <defs>
+    <linearGradient id="horn" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fff4bf"/>
+      <stop offset="0.55" stop-color="#d59d32"/>
+      <stop offset="1" stop-color="#6c3a16"/>
+    </linearGradient>
+    <linearGradient id="red" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#d74a2b"/>
+      <stop offset="1" stop-color="#651b1d"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="23" fill="#160f08" opacity="0.55"/>
+  <path fill="url(#horn)" d="M13 39c8 4 17 1 23-6l12-14c3-4 8 1 5 5L43 38c-8 12-21 14-32 7z"/>
+  <path fill="#fff2bd" d="M43 18c3 0 8 4 9 7l-5 6c-2-5-6-8-11-9z" opacity="0.85"/>
+  <path d="M17 38c8 3 15 0 21-7" fill="none" stroke="#6b3a16" stroke-width="3" stroke-linecap="round" opacity="0.55"/>
+  <path fill="url(#red)" d="M25 22h18v13H25l4-6z"/>
+  <path d="M23 18v29" stroke="#f4cf65" stroke-width="4" stroke-linecap="round"/>
+</svg>

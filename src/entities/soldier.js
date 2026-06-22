@@ -42,6 +42,7 @@ export class Soldier {
     this.braceT = 0;
     this.braceDur = 0;
     this.bracePower = 0;
+    this._palaceModelHidden = false;
   }
 
   takeDamage(amount, dmgType = 'impact') {
@@ -171,6 +172,7 @@ export class Soldier {
     const rig = this.model.rig;
     const pos = this.group.position;
     this._updateGateReadabilityScale();
+    this._updatePalaceStandModelVisibility();
 
     // flee when feared
     if (this.fearT > 0) {
@@ -226,10 +228,13 @@ export class Soldier {
           this._lunge = 1;
           this.model.anim?.strike();
           if (!isRanged) this.game.meleeClash(pos.clone().lerp(tp, 0.5).setY(pos.y + 1.0));
-          const dmg = this.damage * gateLineMult;
-          if (gateLineMult > 1) this.game.particles.burst(pos.clone().setY(pos.y + 1.0), 4, { speed: 1.6, up: 1.0, life: 0.4, size: 0.3, color: FXC.gold, grav: 1.4, spread: 0.8 });
           // capture locally: a killing first hit nulls this.target via enemy.die()
           const target = this.target;
+          const dmg = this.damage * gateLineMult;
+          if (this.model?.mounted && !isRanged && target?.group?.position && (gateLineMult > 1 || this.squad?.palaceStandAnchor)) {
+            this.game.cavalryLanceBeat?.(this, target, gateLineMult);
+          }
+          if (gateLineMult > 1) this.game.particles.burst(pos.clone().setY(pos.y + 1.0), 4, { speed: 1.6, up: 1.0, life: 0.4, size: 0.3, color: FXC.gold, grav: 1.4, spread: 0.8 });
           if (this.def.ability?.key === 'armorBite') {
             target.takeDamage(dmg, 'arrow', { armorShred: 0.3 });
           } else if (this.def.ability?.key === 'hornCharge' && !this._charged) {
@@ -269,6 +274,7 @@ export class Soldier {
       this._lunge = Math.max(0, this._lunge - dt * 3.4);
       this.model.group.position.z = Math.sin(Math.min(1, this._lunge) * Math.PI) * 0.26;
     } else if (this.model.group.position.z !== 0) this.model.group.position.z = 0;
+    this._updatePalaceStandModelVisibility();
     return true;
   }
 
@@ -344,6 +350,26 @@ export class Soldier {
     const boost = 1 + k * (this.model.mounted ? 0.22 : 0.32) + bracePower * (this.model.mounted ? 0.1 : 0.16);
     this.model.group.scale.copy(this._baseModelScale).multiplyScalar(boost);
     this.model.group.position.y = -bracePower * (this.model.mounted ? 0.035 : 0.075);
+  }
+
+  _updatePalaceStandModelVisibility() {
+    const group = this.model?.group;
+    if (!group) return;
+    if (!this.squad?.palaceStandAnchor) {
+      if (this._palaceModelHidden) {
+        group.visible = true;
+        this._palaceModelHidden = false;
+      }
+      return;
+    }
+    const activelyEngaging = !!(this.target?.alive)
+      || (this.squad.palaceEngageT || 0) > 0.05
+      || (this.braceT || 0) > 0.05;
+    const shouldHide = !activelyEngaging;
+    if (this._palaceModelHidden !== shouldHide) {
+      group.visible = !shouldHide;
+      this._palaceModelHidden = shouldHide;
+    }
   }
 
   _moveToward(targetPos, dt, time, rig, speedMult = 1) {
@@ -442,6 +468,7 @@ export class Squad {
     this.palaceStandDir = null;
     this.palaceStandDepth = 0;
     this.palaceStandSpread = 1;
+    this.members.forEach((m) => m._updatePalaceStandModelVisibility?.());
     if (!silent) this.game.audio.hornCall();
   }
 
@@ -456,6 +483,7 @@ export class Squad {
     this.palaceStandDepth = depth;
     this.palaceStandSpread = spread;
     this._palaceStandPulseT = 0;
+    this.members.forEach((m) => m._updatePalaceStandModelVisibility?.());
   }
 
   triggerPalaceSurge(enemy = null, { dur = 0.95, power = 1 } = {}) {
@@ -520,6 +548,7 @@ export class Squad {
     this.gateBraceT = 0;
     this.gateBraceDur = 0;
     this.gateBracePower = 0;
+    this.members.forEach((m) => m._updatePalaceStandModelVisibility?.());
   }
 
   slotFor(soldier) {

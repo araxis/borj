@@ -4,6 +4,45 @@ import { fbm } from './noise.js';
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
+function circularTerrainGeometry(radius, rings = 72, segments = 192) {
+  const positions = [0, 0, 0];
+  const uvs = [0.5, 0.5];
+  const indices = [];
+  const ringStarts = [0];
+  for (let r = 1; r <= rings; r++) {
+    ringStarts[r] = positions.length / 3;
+    const rr = (radius * r) / rings;
+    for (let s = 0; s < segments; s++) {
+      const a = (s / segments) * Math.PI * 2;
+      const x = Math.cos(a) * rr;
+      const z = Math.sin(a) * rr;
+      positions.push(x, 0, z);
+      uvs.push((x / radius + 1) * 0.5, (z / radius + 1) * 0.5);
+    }
+  }
+  const first = ringStarts[1];
+  for (let s = 0; s < segments; s++) {
+    indices.push(0, first + ((s + 1) % segments), first + s);
+  }
+  for (let r = 1; r < rings; r++) {
+    const inner = ringStarts[r];
+    const outer = ringStarts[r + 1];
+    for (let s = 0; s < segments; s++) {
+      const next = (s + 1) % segments;
+      const a = inner + s;
+      const b = inner + next;
+      const c = outer + s;
+      const d = outer + next;
+      indices.push(a, b, c, b, d, c);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  return geo;
+}
+
 export const BIOMES = {
   highland: {
     hills: 4.5, ground: [0x6f9a44, 0x8aae52], rock: 0x8a8270, high: 0x9aa489,
@@ -72,10 +111,14 @@ export function makeHeightField(seedNum, biome) {
   };
 }
 
-export function buildTerrain(heightAt, biome, flattenFn) {
+export function buildTerrain(heightAt, biome, flattenFn, opts = {}) {
   const seg = 110;
-  const geo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, seg, seg);
-  geo.rotateX(-Math.PI / 2);
+  const circular = opts.shape === 'circle';
+  const visualRadius = opts.radius ?? WORLD_SIZE / 2;
+  const geo = circular
+    ? circularTerrainGeometry(visualRadius, opts.rings ?? 72, opts.segments ?? 192)
+    : new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, seg, seg);
+  if (!circular) geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
   const colors = new Float32Array(pos.count * 3);
   const cGround0 = new THREE.Color(biome.ground[0]);
@@ -107,19 +150,25 @@ export function buildTerrain(heightAt, biome, flattenFn) {
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
   const edgeTint = new THREE.Color(biome.ground?.[1] ?? biome.ground?.[0] ?? 0x6f8050)
-    .lerp(new THREE.Color(biome.mood?.fogColor ?? 0xb3c4d8), 0.55);
+    .lerp(new THREE.Color(biome.mood?.fogColor ?? 0xb3c4d8), opts.edgeTintFogMix ?? 0.68);
+  const edgeStart = opts.edgeStart ?? (circular ? visualRadius * 0.72 : 52);
+  const edgeEnd = opts.edgeEnd ?? (circular ? visualRadius : WORLD_SIZE / 2);
+  const edgeTintStrength = opts.edgeTintStrength ?? 0.58;
+  const edgeMetric = circular ? 'length(position.xz)' : 'max(abs(position.x), abs(position.z))';
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true, roughness: 0.95, metalness: 0,
     map: detailTexture(), // high-frequency soil detail multiplied under the vertex colors
   });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.edgeTint = { value: edgeTint };
+    sh.uniforms.edgeStart = { value: edgeStart };
+    sh.uniforms.edgeEnd = { value: edgeEnd };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying float vTed;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vTed = max(abs(position.x), abs(position.z));');
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\n  vTed = ${edgeMetric};`);
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 edgeTint;\nvarying float vTed;')
-      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n  float edgeBlend = smoothstep(58.0, 75.0, vTed);\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, edgeTint, edgeBlend * 0.42);');
+      .replace('#include <common>', '#include <common>\nuniform vec3 edgeTint;\nuniform float edgeStart;\nuniform float edgeEnd;\nvarying float vTed;')
+      .replace('#include <dithering_fragment>', `#include <dithering_fragment>\n  float edgeBlend = smoothstep(edgeStart, edgeEnd, vTed);\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, edgeTint, edgeBlend * ${edgeTintStrength.toFixed(3)});`);
   };
   // progressive upgrade: real CC0 ground photo-texture replaces the canvas detail. The two
   // photos are the SAME for every map, so load them ONCE and reuse (was re-loaded per map →

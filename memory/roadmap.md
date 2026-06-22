@@ -93,18 +93,40 @@ prestige button · lion/elephant multi-clip re-export · fire-tower particle col
 ## Reconciled 2026-06-17 — current state
 The whole **visual-asset spine is DONE and shipped**: weapons (step 27), soldier archetypes + animated/GLB-mounted cavalry (steps 3–7), towers + FX + garrison visibility (steps 11–13,16–18), bosses + hero GLBs (steps 19–21), buildings (step 22). M0 polish (difficulty modes, wave modifiers) shipped; verify accessibility/shortcuts/prestige against the code before calling those individually closed.
 Work then went BEYOND this roadmap into a deep quality pass (auto-memory `wow-improvement-plan`): eased procedural animation + a real elbow joint, combat hit-stop/shake/muzzle-flash/recoil, AAA render (SMAA + GTAO contact AO + per-biome cinematic grade), cinematic UI entrances, and slow-mo epic moments — PRs #6/#7 — plus the cavalry GLB-mount overhaul (PR #8).
-**Still genuinely OPEN (now tracked in auto-memory `wow-asset-gaps`):** per-biome ground PBR + rough/AO, per-biome LUTs, 3 cinematic audio swells, desert/steppe horizon-range tiles, the remaining ~26 hero GLBs, a caparisoned Persian war-horse, tower-destruction rubble kit. The full original 25-step list lives above as the historical plan.
+**Still genuinely OPEN (now tracked in auto-memory `wow-asset-gaps`):** per-biome ground PBR + rough/AO, per-biome LUTs, 3 cinematic audio swells, desert/steppe horizon-range tiles, the remaining ~26 hero GLBs, and tower-destruction rubble kit. The full original 25-step list lives above as the historical plan.
 
 ## Updated 2026-06-20 — current next-layer state
 The roadmap has moved from asset acquisition into systems + visual clarity:
 - **Closed in this wave:** palace boons/muster on all 20 maps, hero command actives, Boss Saga records/UI,
   compact mobile HUD and language/speed controls, artifact guards, DistantBackdrop runtime + all 20 manifest
-  entries/assets, mobile RTL no-horizontal-scroll work, debug QA hooks for forced visual states.
+  entries/assets, mobile RTL no-horizontal-scroll work, debug QA hooks for forced visual states, and the dedicated
+  caparisoned lancer war-horse GLB with `Idle`/`Walk`/`Gallop` clips.
 - **Verification gate now in use:** `npm run build`, `window.__dbg.visualQa.metrics()`,
   `window.__dbg.visualQa.overflow()`, artifact audit, forced backdrop/boss/palace/hero/victory/defeat states,
   and mobile 390x844 RTL screenshots.
 - **Next roadmap item:** art-direct and tune the backdrop image sets per biome. The runtime is in place; the
   quality ceiling is now image composition, palette, contrast, and ensuring backdrops stay below gameplay
-  contrast.
+  contrast. Zabulistan and Sistan are now converted to layered `panorama360`; the next campaign-order target is Kabul,
+  unless a different biome is chosen to prove the pattern first.
 - **Still open after that:** real gameplay sims for boss saga success/fail paths, cinematic audio swells,
-  remaining optional hero GLBs/war-horse/rubble assets, and a final cross-browser/performance pass.
+  remaining optional hero GLBs/rubble assets, and a final cross-browser/performance pass.
+
+## Updated 2026-06-20 — local model-editing asset workflow
+The asset plan now has a direct local model-editing path in addition to generated/downloaded GLBs and
+procedural fallbacks. Use the local 3D editing workflow whenever a future improvement needs hands-on mesh,
+material, rig, animation, or export work.
+
+Priority uses:
+- **Asset inspection and cleanup:** open a GLB, inspect object scale/orientation/materials, fix pivots, remove
+  excess geometry, enforce +Z forward/Y-up conventions, then export a web-ready GLB.
+- **Animation polish:** add or repair idle/walk/attack/death clips for existing hero, boss, animal, cavalry, or
+  soldier assets before touching runtime animation code.
+- **Missing assets:** create or refine tower rubble kit, remaining hero figures, boss animation passes, follow-up
+  cavalry mount variants, and small signature props when a generated asset is not good enough.
+- **Material upgrades:** use local texture sources for PBR passes, then keep textures downscaled and bundled so the
+  game remains fully offline.
+
+Guardrails:
+- Keep procedural/runtime fallbacks. A new GLB path must still fail gracefully.
+- Preserve source-ledger identities and the cultural rules in `memory/art-direction.md`.
+- Keep all shipped assets local, optimized, and static-host friendly; verify with `npm run build` plus visual QA.

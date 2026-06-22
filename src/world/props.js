@@ -331,13 +331,13 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
   // pine+dead, steppe/desert=dead, the rest=common). Falls back to the procedural broadleaf
   // (3 spheres on a trunk) only if the kit isn't loaded yet (never-break).
   {
-    const plan = TREE_PLAN[biomeId];
+    const plan = biomeProps.treePlan === false ? null : TREE_PLAN[biomeId];
     let placed = 0;
     // Mazandaran (forest): dense realistic Meshy tree GLBs replace the kit trees. All forest trees
     // (GLB, or the kit/procedural fallback) go into a dedicated sub-group so map.js can swap JUST the
     // trees for the GLBs once the dedicated loader finishes (without re-running the whole scatter).
     let treeTarget = group;
-    if (biomeId === 'forest') {
+    if (biomeId === 'forest' && biomeProps.treePlan !== false) {
       const forestGroup = new THREE.Group();
       group.add(forestGroup);
       treeTarget = forestGroup;

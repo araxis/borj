@@ -8,19 +8,94 @@ import { samplePath, buildRoadMesh, ROAD_WIDTH } from './road.js';
 import { scatterProps, buildSpawnGate, buildPad, makeBanner, swapForestTrees, swapForestEnrich } from './props.js';
 import { buildLandCitadel, citadelFootprint } from './citadels.js';
 import { planRiver, buildRiverMesh, buildBridge, buildWorldApron, RIVER_WIDTH } from './ambient.js';
-import { buildBackdrop, buildMountainRing } from './backdrop.js';
-import { getProp, instanceProp, propReady, propBase, propRotFix, placeM4, KIT_UNIT, KIT_TINT, THINGS_UNIT, REALISTIC_UNIT, loadForestTrees, loadForestEnrich } from '../core/props3d.js';
+import { buildBackdrop, buildMountainRing, updateBackdropForCamera } from './backdrop.js';
+import { getProp, instanceProp, propReady, propBase, propRotFix, placeM4, KIT_UNIT, KIT_TINT, THINGS_UNIT, REALISTIC_UNIT, loadForestTrees, loadForestEnrich, loadZabulistanProps } from '../core/props3d.js';
 import { makeFlame } from '../models/towerkit.js';
 import { makeRng } from './noise.js';
+import { buildZabulistanVisualKit, rebuildZabulistanVisualKit } from './zabulistanVisualKit.js';
 
 export class GameMap {
   constructor(mapDef, scene) {
     this.def = mapDef;
     this.place = PLACES_BY_ID[mapDef.id];
-    this.biome = BIOMES[this.place?.biome || 'plains'];
+    const baseBiome = BIOMES[this.place?.biome || 'plains'];
+    this.biome = mapDef.id === 'zabulistan'
+      ? {
+        ...baseBiome,
+        hills: Math.max(baseBiome.hills || 4.5, 6.2),
+        ground: [0x4e5548, 0x70684f],
+        rock: 0x5f625f,
+        high: 0x9b9588,
+        mood: {
+          ...baseBiome.mood,
+          background: 0x6b6870,
+          skyTop: 0x303746,
+          fogColor: 0x9b9084,
+          fogNear: 72,
+          fogFar: 220,
+          sunColor: 0xffaa63,
+          sunIntensity: 1.58,
+          hemiSky: 0xbac8d4,
+          hemiGround: 0x4c4038,
+          hemiIntensity: 1.02,
+          exposure: 0.96,
+          bloom: { strength: 0.28, threshold: 0.88, radius: 0.5 },
+          grade: { vignette: 0.4, contrast: 1.1, saturation: 1.06, lift: 0x120f12 },
+        },
+        props: {
+          ...baseBiome.props,
+          cypress: 0,
+          tree: 0,
+          rock: 42,
+          reeds: 7,
+          bush: 0,
+          grass: 0,
+          treePlan: false,
+          dryGrass: true,
+          snow: false,
+        },
+      }
+      : baseBiome;
     // per-map prop overrides win over the biome defaults (e.g. Mazandaran zeroes cypress while
     // Manijeh Garden — same forest biome — keeps the garden sarv).
     this.effectiveProps = { ...this.biome.props, ...this.place?.props };
+    this.visualBoard = mapDef.id === 'zabulistan'
+      ? {
+        shape: 'circle',
+        radius: 86,
+        edgeStart: 62,
+        edgeTintFogMix: 0.34,
+        edgeTintStrength: 0.36,
+        apronFar: 286,
+        apronGroundColor: 0x686d58,
+        apronGroundFogMix: 0.08,
+        apronNearColor: 0x7a7762,
+        apronNearFogMix: 0.18,
+        apronFarColor: 0x8d8172,
+        apronFarFogMix: 0.34,
+        apronFogStart: 0.3,
+        apronFogEnd: 0.96,
+        apronFogMax: 0.76,
+        apronFogLinear: 0.06,
+        veilInner: 178,
+        veilOuter: 306,
+        veilOpacity: 0.072,
+        veilGroundColor: 0x777663,
+        veilGroundFogMix: 0.24,
+        edgeBlendInner: 70,
+        edgeBlendOuter: 152,
+        edgeBlendOpacity: 0.28,
+        edgeBlendGroundColor: 0x5e6753,
+        edgeBlendMidColor: 0x72735f,
+        edgeBlendOuterColor: 0x897b6e,
+        edgeBlendFogMix: 0.09,
+        edgeBlendFogStart: 0.8,
+        edgeBlendFogEnd: 1,
+        edgeBlendGroundMix: 0.54,
+        edgeBlendGroundMixRange: 0.16,
+        skipMountainRing: true,
+      }
+      : null;
     this.scene = scene;
     this.group = new THREE.Group();
     scene.add(this.group);
@@ -106,11 +181,22 @@ export class GameMap {
     this.heightAt = (x, z) => flatten(x, z, baseHeight(x, z));
 
     // terrain
-    this.terrain = buildTerrain(baseHeight, this.biome, flatten);
+    this.terrain = buildTerrain(baseHeight, this.biome, flatten, this.visualBoard
+      ? {
+        shape: 'circle',
+        radius: this.visualBoard.radius,
+        edgeStart: this.visualBoard.edgeStart,
+        edgeEnd: this.visualBoard.radius,
+        edgeTintFogMix: this.visualBoard.edgeTintFogMix,
+        edgeTintStrength: this.visualBoard.edgeTintStrength,
+      }
+      : {});
     this.group.add(this.terrain);
 
     // roads
-    const roadStyle = ['desert', 'steppe', 'wetland'].includes(this.place?.biome) ? 'earth' : 'stone';
+    const roadStyle = mapDef.id === 'zabulistan'
+      ? 'zabulistan'
+      : ['desert', 'steppe', 'wetland'].includes(this.place?.biome) ? 'earth' : 'stone';
     this.paths.forEach((p, i) => this.group.add(buildRoadMesh(p, roadStyle, mapDef.id + i)));
 
     // pads visuals
@@ -155,9 +241,43 @@ export class GameMap {
     }
 
     // distant mountain ranges ringing the land
-    buildWorldApron(this.group, this.biome, (x, z) => this.heightAt(x, z)); // surrounding landscape, mirrors the board surface
+    buildWorldApron(this.group, this.biome, (x, z) => this.heightAt(x, z), this.visualBoard
+      ? {
+        shape: 'circle',
+        boardRadius: this.visualBoard.radius,
+        farRadius: this.visualBoard.apronFar,
+        apronGroundColor: this.visualBoard.apronGroundColor,
+        apronGroundFogMix: this.visualBoard.apronGroundFogMix,
+        apronNearColor: this.visualBoard.apronNearColor,
+        apronNearFogMix: this.visualBoard.apronNearFogMix,
+        apronFarColor: this.visualBoard.apronFarColor,
+        apronFarFogMix: this.visualBoard.apronFarFogMix,
+        apronFogStart: this.visualBoard.apronFogStart,
+        apronFogEnd: this.visualBoard.apronFogEnd,
+        apronFogMax: this.visualBoard.apronFogMax,
+        apronFogLinear: this.visualBoard.apronFogLinear,
+        veilInnerRadius: this.visualBoard.veilInner,
+        veilOuterRadius: this.visualBoard.veilOuter,
+        veilOpacity: this.visualBoard.veilOpacity,
+        veilGroundColor: this.visualBoard.veilGroundColor,
+        veilGroundFogMix: this.visualBoard.veilGroundFogMix,
+        edgeBlendInnerRadius: this.visualBoard.edgeBlendInner,
+        edgeBlendOuterRadius: this.visualBoard.edgeBlendOuter,
+        edgeBlendOpacity: this.visualBoard.edgeBlendOpacity,
+        edgeBlendGroundColor: this.visualBoard.edgeBlendGroundColor,
+        edgeBlendMidColor: this.visualBoard.edgeBlendMidColor,
+        edgeBlendOuterColor: this.visualBoard.edgeBlendOuterColor,
+        edgeBlendFogMix: this.visualBoard.edgeBlendFogMix,
+        edgeBlendFogStart: this.visualBoard.edgeBlendFogStart,
+        edgeBlendFogEnd: this.visualBoard.edgeBlendFogEnd,
+        edgeBlendGroundMix: this.visualBoard.edgeBlendGroundMix,
+        edgeBlendGroundMixRange: this.visualBoard.edgeBlendGroundMixRange,
+      }
+      : {}); // surrounding landscape, mirrors the board surface
     this.backdrop = buildBackdrop(this.group, this.biome, mapDef.id); // manifest-backed distant scenery panorama on the horizon
-    buildMountainRing(this.group, this.biome, this.place?.biome || 'plains', () => this._disposed); // 3D distant range ring (real parallax)
+    if (!this.visualBoard?.skipMountainRing) {
+      buildMountainRing(this.group, this.biome, this.place?.biome || 'plains', () => this._disposed); // 3D distant range ring (real parallax)
+    }
 
     // spawn gates at each path start
     this.gates = this.paths.map((p) => {
@@ -171,6 +291,7 @@ export class GameMap {
 
     // props (clear of roads/pads/citadel/river)
     const isClear = (x, z, r) => {
+      if (this.visualBoard?.shape === 'circle' && Math.hypot(x, z) > this.visualBoard.radius - r) return false;
       if (Math.hypot(x - this.exitPos.x, z - this.exitPos.z) < footprint + 2 + r) return false;
       if (this._nearRoad(x, z, ROAD_WIDTH * 0.5 + r)) return false;
       if (nearRiver(x, z, RIVER_WIDTH * 0.7 + r)) return false;
@@ -179,6 +300,7 @@ export class GameMap {
     };
     this.propsGroup = new THREE.Group();
     const propsAnim = scatterProps(rng, (x, z) => this.heightAt(x, z), isClear, this.effectiveProps, this.propsGroup, this.place?.biome || 'plains');
+    if (mapDef.id === 'zabulistan') suppressZabulistanGenericScenery(this.propsGroup);
     this.group.add(this.propsGroup);
     // expose the clearance closures so the building-kit generators reuse them verbatim
     this._isClear = isClear;
@@ -232,8 +354,14 @@ export class GameMap {
     if (['plains', 'steppe', 'valley', 'river', 'desert'].includes(biome)) buildVillage(this, rng);
     if (['plains', 'steppe', 'valley', 'river', 'desert'].includes(biome)) dressMarket(this, rng);
     if (this.river) buildDocks(this, rng);
-    if (['desert', 'steppe', 'highland', 'plains', 'river'].includes(biome)) buildRuinedColumns(this, rng);
-    scatterHeroProps(this, rng); // realistic weathered rock/deadwood/dry props (biome-routed, capped)
+    if (mapDef.id !== 'zabulistan' && ['desert', 'steppe', 'highland', 'plains', 'river'].includes(biome)) buildRuinedColumns(this, rng);
+    if (mapDef.id !== 'zabulistan') scatterHeroProps(this, rng); // realistic weathered rock/deadwood/dry props (biome-routed, capped)
+    this.zabulistanVisualKit = buildZabulistanVisualKit(this, makeRng('map:' + mapDef.id + ':visual-kit'));
+    if (mapDef.id === 'zabulistan') {
+      loadZabulistanProps(() => {
+        if (!this._disposed) rebuildZabulistanVisualKit(this, makeRng('map:' + mapDef.id + ':visual-kit'));
+      });
+    }
   }
 
   _nearRoad(x, z, maxDist) {
@@ -300,6 +428,10 @@ export class GameMap {
       if (o.geometry && !o.geometry.userData.cached) o.geometry.dispose();
     });
   }
+
+  updateCameraVisuals(cameraState) {
+    if (this.backdrop) updateBackdropForCamera(this.backdrop, cameraState);
+  }
 }
 
 // ---------------- building-kit generators (module scope; all gated + never-break) ----------------
@@ -307,6 +439,7 @@ export class GameMap {
 // A fortified curtain wall arcing in front of the citadel, with a gate where the road
 // enters and stone towers at the ends — the "you defend a fortress" silhouette.
 function buildCurtainWall(map, rng) {
+  if (map.def?.id === 'zabulistan') return;
   if (!propReady('wall-fortified') || !propReady('wall-fortified-gate')) return;
   const base = propBase('wall-fortified');
   const segW = (base?.baseW || 1) * KIT_UNIT;            // exact tiled spacing
@@ -632,6 +765,14 @@ function instanceThings(map, name, placements) {
   const grp = instanceProp(name, mats, { unit: THINGS_UNIT, tint: null });
   if (grp) map.kitGroup.add(grp);
   return !!grp;
+}
+
+function suppressZabulistanGenericScenery(root) {
+  root.visible = false;
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    o.visible = false;
+  });
 }
 
 // Caravanserai bazaar: roadside stalls/carts, pottery, produce, treasury glint, torches

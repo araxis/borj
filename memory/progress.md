@@ -1424,3 +1424,646 @@ and Shahnameh-only language.
   dramatic while keeping paths, pads, enemies, palace gates, and HUD readable.
 - Continue boss saga gameplay sims on real wave paths, not only debug forcing.
 - Add/verify the remaining cinematic audio swells and any future generated hero/war-horse/rubble assets.
+
+## 2026-06-20 — Backdrop tone-tuning pass
+
+- Added data-driven per-map backdrop tone controls in `src/data/backdrops.js`: layer contrast, distance wash,
+  and extra desaturation where the shipped WebP sets were too saturated/dark for gameplay readability.
+- Wired the controls into `src/world/backdrop.js` so the existing curved panorama shader applies fog wash and
+  contrast before the established edge/top/bottom fades. No source images were rewritten.
+- Extended backdrop QA reporting: each loaded layer now reports texture dimensions and the active tone settings,
+  making future visual passes inspectable through `window.__dbg.visualQa.backdrops()`.
+- Verification: `npm run build` passed. Browser-driven forced `backdropSweep` checks passed for all 20 campaign
+  maps: each reported 8/8 layers loaded, 0 failed, 0 missing, 0 artifact audit hits, and 0 overflow reports.
+  Representative screenshots and contact sheets were generated under local ignored `artifacts/visual-qa/`.
+
+## 2026-06-20 — Backdrop visibility fix
+
+- User-visible issue: Zabulistan backdrops were technically wired but still too hard to see in normal play.
+- Root cause: the mountain/city silhouettes live in the lower part of the panorama images; the previous cylinder
+  height and bottom fade let terrain/apron depth hide much of the actual silhouette while haze washed out the rest.
+- Fix: raised the far/mid panorama layers, reduced low-fog wash, strengthened panorama opacity/contrast, reduced the
+  procedural haze band, and kept the lower fade small enough that the artwork survives above the horizon.
+- QA notes: `npm run build` passes. The in-app browser was reloaded and re-entered into the Zabulistan battle HUD after
+  the patch; screenshot capture was intermittently timing out, so future visual QA should explicitly verify both loaded
+  layer counts and horizon readability from a low-angle camera.
+
+## 2026-06-20 — Horizon blend pass
+
+- User-visible issue: after the backdrop became readable, the transition from playable land/apron into the panorama
+  still had a hard, flat band.
+- Fix: added a procedural `horizonBlend` cylinder in `src/world/backdrop.js` and default config in
+  `src/data/backdrops.js`. It is depth-tested, no-shadow scenery, and uses a vertical ground-to-fog gradient so it
+  covers the join without drawing over foreground gameplay.
+- Also softened the land side of the join: terrain edge tint now moves toward fog earlier/stronger, and the world apron
+  lifts into fog with a smoother curve before it reaches the panorama.
+- Follow-up: added a shallow `ground-horizon-veil` annulus in `src/world/ambient.js` outside the playable board. It sits
+  just above far terrain/apron with depth testing enabled, so it softens the distant green field before the vertical
+  panorama while staying behind foreground objects.
+- Inward-distance pass: pulled the merge helpers closer to the board (`horizonBlend` radius and `ground-horizon-veil`
+  outer radius) and moved the procedural range ring inward with narrower/more numerous tiles. The main image panorama
+  remains farther out to avoid clipping and bad flat-image parallax.
+- Second distance pass: pulled the image panorama in carefully after the merge helpers. Defaults now use far/mid/haze
+  radii of 374/292/320, with Zabulistan at 372/286/318. The procedural range ring's rear layer and jitter were tightened
+  so ridge tiles stay in front of the nearer mid panorama instead of depth-fighting it.
+- Third distance pass: after user inspection, pulled the panorama in again. Defaults now use far/mid/haze radii of
+  364/284/310, with Zabulistan at 356/274/302. The procedural range ring rear-layer spacing and radius jitter were
+  tightened again to keep the ridge band visually between the playable land and nearer panorama.
+- Board-shape decision: do not convert the actual tactical board to a circle as a quick backdrop fix. The map logic,
+  paths, foundations, palace/gate layout, camera bounds, and QA states assume a square tactical coordinate area. If the
+  square-to-cylinder transition still reads awkwardly, the safer next step is a circular visual apron/mask around the
+  square gameplay area, not a gameplay-board rewrite.
+- Verification: `npm run build` passes. The in-app browser was re-entered into Zabulistan and a top-down battle
+  screenshot captured successfully with no browser warnings after the distance passes; low-angle horizon inspection
+  remains the acceptance view for this specific polish.
+
+## 2026-06-20 — Local model-editing workflow added to the plan
+
+- Confirmed the local 3D editing connection is reachable from the session with the default scene loaded.
+- Confirmed the texture-library integration is enabled; external model/generation integrations are disabled in the
+  current local setup.
+- Updated `memory/roadmap.md` and `memory/resume-guide.md` so future asset work should use local 3D inspection,
+  mesh cleanup, pivot/orientation fixes, animation repair, material passes, and GLB export when that is more appropriate
+  than runtime workarounds.
+- No source assets were edited in this note-only update.
+
+## 2026-06-20 — Caparisoned war-horse GLB integrated
+
+- Added `public/assets/animals/WarHorse.glb`: a small self-contained cavalry mount with charcoal coat, red caparison,
+  gold trim, saddle/tack, +Z-forward orientation, and merged `Idle`, `Walk`, and `Gallop` animation clips.
+- Registered the asset as `a_warhorse` in `src/core/assets.js`.
+- Updated mounted soldier construction in `src/models/creature.js`: black lancers prefer `a_warhorse`, do not stack the
+  procedural tack overlay on top of it, and still fall back to `a_horse` and then the procedural horse. Scout riders stay
+  on the stock horse path.
+- Verification: `npm run build` passed. GLB inspection showed 53 nodes, 51 meshes, 10 materials, and 3 merged clips
+  (`Idle`, `Walk`, `Gallop`) in a 131 KB file. Runtime smoke checks showed `soldierTest('lancer')` using the GLB path
+  with 2 top-level children and `WarHorseRoot` nodes present; `soldierTest('scoutRider')` stayed on the stock horse path
+  with no `WarHorseRoot`. A framed local viewer screenshot and WebGL pixel sample were saved under
+  `artifacts/visual-qa/` as generated evidence.
+
+## 2026-06-20 — Zabulistan 360 panorama + circular visual board pilot
+
+- Generated a new Zabulistan distant-landscape source from the approved Sistani/Zabulistan 360 prompt, then processed it
+  into `public/assets/backdrops/zabulistan/panorama_360.webp` as an 8192x1536 seamless WebP runtime strip.
+- Added a manifest/runtime `panorama360` mode: maps can now use one inward-facing image cylinder while non-converted
+  maps keep the legacy `far_n/e/s/w` + `mid_n/e/s/w` quadrant support.
+- Converted only Zabulistan to `panorama360` for the pilot. The shader keeps the same opacity, tint, fog wash, top/bottom
+  fade, no-shadow, depth-test, and depth-write-off behavior as the existing backdrop layers.
+- Made Zabulistan read as a circular playfield without rewriting gameplay: terrain now supports a circular render
+  geometry, the apron/ground veil can use radial distance, and decorative prop placement respects the visual circle.
+  Paths, pads, gates, palace, enemies, tower placement rules, and internal square coordinates remain unchanged.
+- Tuned the circular edge around radius 86 with the existing `horizonBlend`, `ground-horizon-veil`, and ridge ring so the
+  edge fades into the backdrop instead of showing square green corners.
+- Verification: `npm run build` passed. In-app browser smoke reached Zabulistan with no warning/error console output.
+  A zoomed-out visual pass confirmed a circular land edge and no square terrain corners. The browser's restricted
+  page-scope sandbox did not expose `window.__dbg`, so the scripted `visualQa.state('backdropSweep')` report could not be
+  read through that route in this session.
+
+## 2026-06-20 — Zabulistan closer foothills panorama layer
+
+- Added a second Zabulistan 360 image layer for deeper scenery:
+  `public/assets/backdrops/zabulistan/foothills_360.webp` (8192x1024, ~191 KB). It was generated as a closer Sistani
+  foothill band, then softened/desaturated and mirror-wrapped for a seamless runtime strip.
+- Generalized `panorama360` config/runtime support from one image cylinder to an ordered list of named cylinders.
+  Zabulistan now reports `mountains360` at the far radius and `foothills360` as the closer/lower band; other maps still
+  use legacy quadrant layers.
+- Layer intent: the far `mountains360` image carries sky and distant highland scale; the closer `foothills360` layer adds
+  shorter low ridges and atmospheric parallax behind the circular board edge and procedural ridge ring.
+- Verification: `npm run build` passed. Dev-server HEAD checks returned 200 for both Zabulistan WebP files, and
+  `backdropManifestReport()` reports mode `panorama360` with layers `mountains360` and `foothills360`. In-app browser
+  automation was unavailable during this pass because the browser control endpoint returned a sandbox metadata error
+  before executing page actions, so final visual judgment should be done from the open browser.
+
+## 2026-06-20 — Zabulistan image-only ridge pilot
+
+- Added a third, nearest raster 360 backdrop layer:
+  `public/assets/backdrops/zabulistan/ridges_360.webp` (8192x768, ~67 KB). It is a very low, soft ridge skirt intended
+  to replace the remaining procedural 3D range silhouettes for Zabulistan.
+- Zabulistan now has three ordered panorama cylinders: `mountains360` (far/high), `foothills360` (middle/low), and
+  `ridges360` (near/very low). The shader/reporting path already handles named layered cylinders.
+- Disabled the procedural `buildMountainRing` only for Zabulistan via the visual-board config. Other maps still keep
+  their procedural ring while they remain on legacy quadrant images.
+- Verification: `npm run build` passed; the dev server returns 200 for `ridges_360.webp`; `backdropManifestReport()`
+  reports the three Zabulistan layers. Browser automation remained unavailable due to the same sandbox metadata error,
+  so the open browser is the acceptance path for visual tuning.
+
+## 2026-06-20 — Zabulistan transparent landmark panorama layer
+
+- Added a fourth Zabulistan 360 layer as a transparent PNG overlay:
+  `public/assets/backdrops/zabulistan/landmark_360.png` (8192x1024, palette-compressed alpha PNG).
+- Generated the landmark source on a flat magenta chroma key, removed the key locally, padded transparent seam margins,
+  and scaled the Persian/Sistani citadel complex down so it reads as a far-away Shahnameh landmark rather than a second
+  foreground palace.
+- Wired the layer as `landmark360` between the far mountains and closer ridge/foothill layers. It uses low opacity,
+  desaturation, and fog wash in the existing panorama shader.
+- Verification: `npm run build` passed; the dev server returns 200 for `landmark_360.png`; `backdropManifestReport()`
+  now reports Zabulistan layers `mountains360`, `foothills360`, `landmark360`, and `ridges360`.
+
+## 2026-06-20 — Landmark visibility fix
+
+- User could not see the distant landmark in normal play. Likely causes: the original layer was too subtle
+  (`opacity: 0.2`, heavy wash/desaturation) and the transparent PNG only occupied one part of the 360 strip.
+- Rebuilt `landmark_360.png` from the keyed source with a broad primary citadel and a dim wrapped seam copy so a normal
+  camera angle is not pointed at an empty transparent segment. Current file is ~1.1 MB with transparent corners.
+- Retuned `landmark360`: radius 302, height 126, y 46, opacity 0.46, lighter wash/desaturation, and later render order
+  so the foothill/ridge bands do not bury it.
+- Verification: `npm run build` passed; dev-server HEAD check for `landmark_360.png` returned 200; manifest still reports
+  all four Zabulistan layers.
+
+## 2026-06-20 — Landmark scale correction
+
+- User screenshot showed the visibility fix made `landmark360` read as a giant pale wall across the sky.
+- Rebuilt `public/assets/backdrops/zabulistan/landmark_360.png` as a lower, smaller transparent horizon accent
+  (8192x1024, ~370 KB, alpha mainly in the lower strip instead of nearly the full image height).
+- Retuned `landmark360` as distant scenery: radius 338, height 74, y 28, opacity 0.16, more desaturation/fog wash,
+  and render order before the nearer foothill/ridge layers.
+- Verification: `npm run build` passed; dev-server HEAD check for `landmark_360.png` returned 200; manifest still reports
+  `mountains360`, `foothills360`, `landmark360`, and `ridges360`.
+
+## 2026-06-20 — Retired Zabulistan landmark overlay
+
+- User still could not read the corrected landmark in normal play and asked to follow the prior no-rig direction first.
+- Removed `landmark360` from the active Zabulistan panorama manifest and deleted the unused public
+  `landmark_360.png` runtime asset.
+- Strengthened the landscape-only raster stack instead: `foothills360` is closer/taller/more opaque with less wash, and
+  `ridges360` is closer/taller/more opaque so long horizon detail carries the scene without a 3D mountain rig.
+- Verification: `npm run build` passed; dev-server HEAD checks returned 200 for `panorama_360.webp`,
+  `foothills_360.webp`, and `ridges_360.webp`; `backdropManifestReport()` now reports Zabulistan layers
+  `mountains360`, `foothills360`, and `ridges360`.
+
+## 2026-06-20 — Zabulistan near scrub panorama + browser QA fallback
+
+- Established a working browser QA route after the in-app browser connector failed before page actions: use
+  the browser automation CLI to open the local app, force debug states, inspect console output, and capture screenshots.
+  This successfully drove `window.__dbg.visualQa.state('backdropSweep', { mapId: 'zabulistan' })`.
+- Added `public/assets/backdrops/zabulistan/scrub_360.webp` (8192x512, ~169 KB), a low transparent panorama band derived
+  from the existing Zabulistan landscape images with subtle scrub/foothill texture for the terrain-to-horizon transition.
+- Wired `scrub360` as the nearest raster panorama cylinder and retuned Zabulistan haze/horizon blend down so the new
+  image detail is visible without reintroducing the procedural 3D mountain ring.
+- Verification: `npm run build` passed. Dev-server HEAD checks returned 200 for all four Zabulistan panorama images.
+  Browser QA reported 4 loaded image layers, 0 failed, 0 missing, no overflow, and no visual artifact findings.
+  Evidence screenshots:
+  `artifacts/visual-qa/zabulistan-transition-before.png`,
+  `artifacts/visual-qa/zabulistan-transition-after-scrub.png`, and
+  `artifacts/visual-qa/zabulistan-transition-after-scrub-tuned.png`.
+
+## 2026-06-20 — Zabulistan near-board apron panorama
+
+- User asked for one more panorama "stuck" to the game board to remove the blue surface around the circular playfield.
+- Added `public/assets/backdrops/zabulistan/apron_360.webp` (8192x384, ~200 KB), a low green/dry scrub strip with
+  transparent top fade and no landmarks/buildings.
+- Wired it as `apron360` at radius 104, just outside the radius-86 circular visual board, so the nearest board edge has
+  image detail before the farther `scrub360`/`ridges360` bands.
+- Delayed the Zabulistan `ground-horizon-veil` inward edge to radius 132 and lowered its opacity to 0.12 so the blue fog
+  wash no longer starts immediately at the playable circle.
+- Verification: `npm run build` passed. Dev-server HEAD checks returned 200 for all five Zabulistan panorama images.
+  Browser QA with a named `borj` session reported 5 loaded image layers, 0 failed, 0 missing, no overflow, and no
+  visual artifact findings. Evidence screenshot:
+  `artifacts/visual-qa/zabulistan-transition-after-apron-loaded.png`.
+
+## 2026-06-20 — Zabulistan circular border smoothing
+
+- User liked the near-board panorama but still saw the circular playfield border.
+- Added a procedural `board-edge-blend` ring in `src/world/ambient.js`. It samples the same `heightAt` terrain function,
+  fades across both sides of the radius-86 visual board edge, and uses depth testing/no depth write so roads, pads, palace
+  elements, and units remain in front.
+- Retuned Zabulistan's `visualBoard`: edge tint starts earlier, the ground veil starts farther out, and the edge blend is
+  broad/low-opacity (`edgeBlendInner: 58`, `edgeBlendOuter: 156`, `edgeBlendOpacity: 0.3`, `edgeBlendFogMix: 0.28`).
+- Verification: `npm run build` passed. Browser QA reported `board-edge-blend` present, 5 loaded panorama layers,
+  0 failed, 0 missing, no overflow, and no visual artifact findings. Evidence screenshots:
+  `artifacts/visual-qa/zabulistan-edge-before-soft-ring.png`,
+  `artifacts/visual-qa/zabulistan-edge-after-soft-ring.png`, and
+  `artifacts/visual-qa/zabulistan-edge-after-soft-ring-tuned.png`.
+
+## 2026-06-20 — Zabulistan apron color match
+
+- User wanted the closest panorama color to read nearer to the playable board grass instead of the cooler distant haze.
+- Recolored `public/assets/backdrops/zabulistan/apron_360.webp` toward the board sample (`#b4ce71`) while preserving dry scrub variation and the transparent upper fade.
+- Added per-layer `lowFog` control to the panorama shader reporting path, then tuned `apron360` to low fog/wash (`lowFog: 0.045`, `wash: 0`) with slightly brighter, fully saturated color.
+- Verification: `npm run build` passed. Browser QA in the named `borj` session reported 5 loaded Zabulistan panorama layers, 0 failed, 0 missing, no overflow, and no visual artifact findings. Evidence screenshot:
+  `artifacts/visual-qa/zabulistan-apron-boardcolor-tuned.png`.
+
+## 2026-06-20 — Zabulistan near-panorama overhead fade
+
+- User wanted another smoothing pass so the first panorama color stayed close to the playable board while hiding the
+  circular border. A/B screenshots showed `ground-horizon-veil` was not the main issue; the pale wash came from the
+  edge blend, and the overhead ring came from the close `scrub360`/`apron360` panorama cylinders.
+- Added optional per-layer `topViewFade` support in `src/world/backdrop.js`, updated once per frame from the RTS camera
+  pitch via `GameMap.updateCameraVisuals()`. Low and edge camera angles keep the close layers at full opacity, while
+  overhead views fade only the near raster layers.
+- Retuned Zabulistan's edge/apron values: `board-edge-blend` is greener, lower opacity, and limited closer to the
+  radius-86 board edge; `apron360` is wider, shorter, softer, and less opaque so it supports low-angle terrain
+  continuity without reading like a wall from above.
+- Verification: `npm run build` passed. Browser QA reported 5 loaded Zabulistan backdrop layers, 0 failed, no
+  overflow, and no visual artifact findings. Effective opacity check: low/edge keep `scrub360: 0.68` and
+  `apron360: 0.52`; top-down fades them to about `0.12` and `0.04`. Evidence screenshots:
+  `artifacts/visual-qa/zabulistan-transition-after-pitchfade-low.png`,
+  `artifacts/visual-qa/zabulistan-transition-after-pitchfade-top.png`, and
+  `artifacts/visual-qa/zabulistan-transition-after-pitchfade-edge.png`.
+
+## 2026-06-20 — Direct palace command medallion arc
+
+- User found palace commands too buried: select palace, scroll the card, then execute. Added a projected DOM
+  `palace-action-rail` near the palace, separate from hero markers, with direct click actions for Farr/oath, muster,
+  palace boon, rally, and gate command.
+- User rejected the first rectangular button rail as ugly, so the visible UI is now an arc of tower-style medallions:
+  circular command coins with cooldown rings and small state pills. The invisible rail only anchors/clamps the arc away
+  from the top HUD and open side panels.
+- Follow-up tuning: the arc is now contextual and only appears while the palace itself is selected. Ready commands no
+  longer show repeated `Ready` pills; readiness is communicated by a green ring, while cooldown/cost/blocked states still
+  show text when that information matters.
+- Follow-up visual pass: replaced the text glyphs inside the five medallions with small SVG emblem images under
+  `public/assets/ui/palace-actions/`: Farr oath star, crossed muster lances, royal boon banner, rally horn/standard, and
+  gate command arch/seal.
+- Gate-marker cleanup: removed the tiny upright pole flags spawned by `_showGateMarker()` after palace/gate commands.
+  The effect now uses a low gold gate line with three pulsing ground seal points (`gateSeals`) and keeps the shield
+  glints, so it reads as a tactical defended-line marker instead of random pennant clutter near the palace wall.
+- Follow-up cleanup: the remaining visible clutter was `_showPalaceShieldLine()`, which still spawned a row of tiny
+  shield-and-pole props. That effect is now flattened into a subtle ground line with pulsing `shieldSeals`; it no longer
+  creates shield cylinders, bosses, or poles.
+- The medallions call the same existing command methods as the palace card, so cooldowns, cost checks, command banners,
+  toasts, and effects stay consistent.
+- Verification: `npm run build` passed. Browser QA confirmed desktop and mobile medallion placement, no overflow
+  or visual artifact hits, and direct muster click sets cooldown and shows the existing command banner. Evidence
+  screenshots: `artifacts/visual-qa/palace-action-medallion-arc.png`,
+  `artifacts/visual-qa/palace-action-medallion-click.png`, and
+  `artifacts/visual-qa/palace-action-medallion-mobile.png`.
+- Follow-up evidence: `artifacts/visual-qa/palace-action-green-ready-selected.png` and
+  `artifacts/visual-qa/palace-action-green-ready-click.png` confirm selected-only display, no ready text, green ready
+  rings, and cooldown text after click.
+- Emblem evidence: `artifacts/visual-qa/palace-action-emblem-images.png` confirms all five SVG images load and fit the
+  medallions; `artifacts/visual-qa/palace-action-emblem-click.png` confirms image medallions remain clickable.
+- Gate-marker evidence: `artifacts/visual-qa/palace-gate-marker-clean-seals.png` confirms the command effect now reports
+  `gateSeals: 3`, `standards: 0`, keeps command click/cooldown behavior, and has no overflow/artifact hits.
+- Shield-line evidence: `artifacts/visual-qa/palace-shieldline-clean-seals.png` confirms the remaining shield-line
+  marker now reports `shieldSeals: 7`, no old `baseY` bounce state, keeps command click/cooldown behavior, and has no
+  overflow/artifact hits.
+
+## 2026-06-20 — Palace gate clutter removal follow-up
+
+- User still saw stray pole/oval shapes beside the Zabulistan palace after the first marker cleanup.
+- Browser object inspection showed three overlapping sources: idle palace muster `cavalry-lancers`, `PalaceGateStage`
+  permanent spear/shield/banners/threshold lines, and `_showGateMarker()` line-based hold rings.
+- Added palace-stand visibility gating in `src/entities/soldier.js`: palace stand soldiers hide their full miniatures
+  while idle at the palace gate, but reappear when actively engaging or bracing against enemies. Gameplay soldiers,
+  targeting, damage, rally logic, and normal non-palace tower soldiers are unchanged.
+- Flattened the palace gate stage in `src/fx/palacestage.js`: removed permanent stage banners, braziers, straight
+  threshold lines, and miniature shield/spear props; the stage now uses ground-only ring/seal treatment.
+- Simplified `src/game/game.js` gate markers again: removed straight gate marker strokes/glints and converted hold rings
+  from `THREE.Line` to flat mesh bands, so camera angles no longer turn circular rings into black stick-like marks.
+- Verification: `npm run build` passed. Browser QA confirmed idle Zabulistan palace lancers report
+  `visibleSoldiers: 0`, `hiddenSoldiers: 3`; command markers report `standards: 0`, `shieldGlints: 0`,
+  `hasLine: false`, and `ringIsLine: false`; visual artifact audit is empty. Assault QA confirmed hidden defenders
+  reappear when under threat (`visibleAfter: 2`, `targetedAfter: 2`).
+- Evidence screenshots:
+  `artifacts/visual-qa/zabulistan-palace-no-action-sticks.png` and
+  `artifacts/visual-qa/zabulistan-palace-engaged-defenders.png`.
+
+## 2026-06-20 — Actor asset quality gate
+
+- User set a new standard: visible models and animations should move toward production tower-defense quality; no static
+  actor GLB should be used as a fake-animated primary model.
+- Added `npm run audit:assets`, a dependency-free glTF/GLB audit that reads `src/core/assets.js`, parses runtime model
+  files, and flags production actor assets with no animation clips. Current result: 98 assets audited, 49 ready actors,
+  0 blockers. `Azhdaha.glb` and `Worm.glb` are now reported as source-only because GLB inspection confirmed they
+  have skins/armatures but 0 animation actions.
+- Runtime cleanup: dragon and worm enemies now reject those unanimated crawler GLBs and fall back to the segmented
+  animated creature builders unless the GLBs are later re-exported with real clips. Removed the old `animType: 'crawl'`
+  shim that rotated/bobbed static GLBs to fake motion.
+- The generated `WarHorse.glb` later failed visual review: although it had clips, the mesh read as joined primitive
+  shapes rather than a real horse. It is no longer an acceptable pattern or lancer runtime path.
+- Verification: `npm run audit:assets` passed, `npm run build` passed, and browser smoke reported
+  `enemyTest('dragon').animType === 'serpent'`, `enemyTest('worm').animType === 'serpent'`, and
+  `soldierTest('lancer')` still mounted on a GLB. Evidence screenshot:
+  `artifacts/visual-qa/asset-quality-crawler-gate-smoke.png`.
+
+## 2026-06-20 — Zabulistan cavalry correction after rejected horse prototype
+
+- Source pass on the Zabulistan article established the next art targets: eastern Shahnameh frontier identity, Sistan /
+  Zabulistan overlap around Hamun water and pasturage, old Ghazni / southern Hindu Kush highland scale, and the
+  Garshasp-Sam-Zal-Rostam champion lineage. Zabulistan should therefore read less like generic green fantasy land and
+  more like a Sistani highland frontier with dry ridges, scrub, water-fed pasture cues, champion banners, and cavalry.
+- Rejected and removed the generated primitive/object-rig war-horse prototype. It animated, but it did not read as a
+  horse in 3D review or user screenshot, so it must not be reused as a production mount.
+- Removed the `a_warhorse` runtime registration and switched black lancers back to the existing real horse-shaped
+  animated `a_horse` GLB path with dark tint plus external tack. The next custom war-horse must start from a proper
+  horse mesh, even if the source has no animations yet.
+- Runtime fix: asset actions can now be clip groups. This matters for generated object-rig GLBs where a single logical
+  walk/gallop is exported as separate body, leg, neck, head, cloth, and tail clips. `spawnAsset()` now plays all matching
+  clips together while preserving existing single-clip fallback behavior.
+- Follow-up asset rule: if the user supplies an unanimated horse GLB, import it through the asset pipeline, clean scale /
+  pivot / orientation, then rig/animate it before using it as the lancer mount. Do not ship static or primitive-composite
+  horses as visible palace cavalry.
+- Verification after correction: `npm run audit:assets` passed with 97 audited assets and 0 blockers, `npm run build`
+  passed, and browser QA reported `soldierTest('lancer', 'walk')` as mounted GLB with `children: 3`, `currentClip:
+  "Walk"`, `hasWarHorseRoot: false`, no failed requests, no console warnings/errors, no overflow, and no visual artifact
+  findings. Evidence screenshot: `output/playwright/zabul-lancer-stock-horse-fix.png`.
+
+## 2026-06-20 — Zabulistan source-mesh war-horse rig
+
+- User supplied `C:\Users\meisa\Downloads\horse.glb`, an unanimated but recognizably horse-shaped source mesh
+  (single mesh, 5,416 vertices / 6,580 faces, one material, embedded 2048 textures, no armature/actions).
+- Added `scripts/asset-tools/rig-zabul-warhorse.py`: imports the supplied source GLB, normalizes it to head-forward
+  convention, creates a real armature (`ZabulWarHorseRig`) with spine/chest/neck/head/tail and four articulated legs,
+  assigns spatial vertex groups to the single mesh, and exports runtime `public/assets/animals/ZabulWarHorse.glb`.
+- Registered the exported GLB as `a_zabul_warhorse`; black lancers prefer it and fall back to stock `a_horse` if it is
+  missing/not preloaded. Scout riders still use the stock horse path for comparison.
+- Current file is about 10.4 MB because it preserves the supplied 2048 textures. Defer texture downscaling until the
+  user accepts the look/animation; optimization should not change the rigging contract.
+- Verification: GLB re-import reports `Idle`, `Walk`, and `Gallop`, one armature, and the expected bones. Browser QA
+  reported `ZabulWarHorseRig`, `ZabulWarHorseMesh`, `currentClip: "Walk"`, `hasOldWarHorseRoot: false`, no failed
+  requests, no console warnings/errors, no overflow, and no visual artifact findings. Evidence screenshot:
+  `output/playwright/zabul-source-warhorse-lancer.png`.
+
+## 2026-06-20 — Zabulistan combined horse+rider cavalry source
+
+- User supplied two combined horse+rider GLBs, `C:\Users\meisa\Downloads\horse2.glb` and
+  `C:\Users\meisa\Downloads\horse3.glb`. GLB inspection showed both are static, high-poly sources with no
+  armature/actions; `horse3.glb` was selected because its lamellar rider, red patterned horse cloth, and lower source
+  weight fit Zabulistan better than the more western/plate-styled `horse2.glb`.
+- Updated `scripts/asset-tools/rig-zabul-warhorse.py` to default to `horse3.glb`, keep only the largest real model mesh,
+  purge the helper sphere, decimate from 601,834 faces to 110,000 faces, normalize orientation/grounding, add a 23-bone
+  armature with horse body/legs/tail plus saddle/rider/lance bones, and export `Idle`, `Walk`, and `Gallop` clips to
+  `public/assets/animals/ZabulWarHorse.glb`.
+- Runtime change: black lancers still prefer `a_zabul_warhorse`, but that key is now treated as a self-contained
+  cavalry model. The builder no longer adds the old procedural rider or external tack overlay on top of this GLB.
+  Fallback stock horses still use the old rider/tack path, and scout riders remain on `a_horse`.
+- Current runtime file is ~15.5 MB and preserves source textures. Defer texture downscaling until the user accepts the
+  in-game read; the rig/export contract is now one skinned mesh, one skin, and three clips.
+- Verification: local export report removed `Icosphere`, produced one mesh/one armature, and JSON disk parse confirmed
+  nodes `ZabulWarHorseRig` / `ZabulWarHorseMesh`, one skin, and clips `Gallop`, `Idle`, `Walk`. `npm run audit:assets`
+  passed with 98 audited assets, 49 ready actors, and 0 blockers. `npm run build` passed. Browser smoke reported
+  `soldierTest('lancer', 'walk')` as `{ mounted: true, animType: 'gltf', glb: true, children: 1 }`, with one skinned
+  `ZabulWarHorseMesh`, active `Walk`, and clip map `{ idle: ["Idle"], walk: ["Walk"], run: ["Gallop"] }`.
+- Evidence screenshots:
+  `output/asset-qa/zabul-warhorse-final-full.png`,
+  `output/playwright/zabul-cavalry-horse3-lancer.png`, and
+  `output/playwright/zabul-cavalry-horse3-close.png`.
+
+## 2026-06-20 — Zabulistan cavalry skinning fan fix
+
+- User spotted a bad 3D deformation under the combined horse+rider model: round joint markers were normal armature
+  helpers, but the large triangular sheet under the horse was not acceptable. Deformation audit at walk frame
+  124 showed the worst vertices were part of small disconnected cloth/decorative islands with mixed `spine` and
+  `front_R_hoof` weights, causing panels to stretch when the hoof moved.
+- Updated `scripts/asset-tools/rig-zabul-warhorse.py` with a connected-island cleanup pass after spatial weighting.
+  Small disconnected islands are now pinned rigidly to their dominant bone instead of leaving mixed body/hoof weights
+  across one panel. This preserves the GLB contract while preventing cloth/armor islands from tearing into fans.
+- Regenerated `public/assets/animals/ZabulWarHorse.glb`. The export still has one mesh, one skin, and clips `Gallop`,
+  `Idle`, `Walk`. Deformation audit now reports no stretched edges over the checked threshold; the largest movement is a
+  rigid lower-leg displacement rather than cloth stretch.
+- Verification: `npm run audit:assets` passed with 0 blockers, `npm run build` passed, and GLB JSON parse confirmed
+  `ZabulWarHorseMeshData`, one skin, and the expected clips/nodes. Grey 3D QA render:
+  `output/asset-qa/zabul-warhorse-skinning-fix.png`.
+
+## 2026-06-20 — Zabulistan cavalry front-leg walk fix
+
+- User reported the combined cavalry walk still looked wrong and the two front legs appeared unanimated in the 3D editor.
+  Inspection showed two separate issues: GLB import does not automatically assign the `Walk` action to the armature
+  for viewport preview, and the rig had weak front lower/hoof coverage after the anti-fan cleanup.
+- Updated `scripts/asset-tools/rig-zabul-warhorse.py`: moved the front leg bone pivots from y `-0.43` to y `-0.27`,
+  closer to the source model's front feet, widened low-front-leg detection for hoof/lower islands, and added a
+  `leg_like_island_pin()` override so slender foot/lower-leg islands animate while broad cloth panels remain body-pinned.
+  Walk leg amplitudes were reduced slightly to avoid bringing back the cloth fan.
+- Regenerated `public/assets/animals/ZabulWarHorse.glb`. GLB audit with `Walk` explicitly assigned now reports front
+  `hoof`, `lower`, and `upper` groups for both sides, with visible movement across frames 100/124/148 and stretched-edge
+  count remaining 0 for checked walk frames.
+- Verification: `npm run audit:assets` passed, `npm run build` passed, and GLB JSON parse confirms one mesh, one skin,
+  clips `Gallop` / `Idle` / `Walk`, and all six front leg bones. Evidence frames:
+  `output/asset-qa/zabul-walk-frames-v2/walk_100.png`,
+  `output/asset-qa/zabul-walk-frames-v2/walk_124.png`, and
+  `output/asset-qa/zabul-walk-frames-v2/walk_148.png`.
+
+## 2026-06-20 — Zabulistan cavalry attack clip fix
+
+- User reported no visible lancer attack animation. Root cause: `ZabulWarHorse.glb` had no `Attack` clip, so the runtime
+  `model.anim.strike()` call had nothing to play. A first pass added `Attack`, but the action was keyed on global source
+  frames 300-334; browser smoke showed runtime `Attack` duration as 13.917 seconds, meaning the visible strike was delayed
+  by about 12.5 seconds after `strike()`.
+- Updated `scripts/asset-tools/rig-zabul-warhorse.py` so `make_action()` remaps each source action to local frame 1 while
+  preserving the source pose sampling. Current durations from GLB animation accessors: `Attack` 1.417s, `Gallop` 2.0s,
+  `Idle` 3.75s, `Walk` 2.5s.
+- Added a mounted lance `Attack` action with horse brace, rider lean, head/neck dip, and a more readable lance movement.
+  Expanded lance island weighting so lower shaft pieces are pinned to `rider_lance`, while broad cloth/armor panels stay
+  body-pinned to avoid fan deformation.
+- Regenerated `public/assets/animals/ZabulWarHorse.glb`. It now exports one mesh, one skin, and clips `Attack`, `Gallop`,
+  `Idle`, and `Walk`. Attack-frame stretch audit stayed at 0 across checked local frames 1/9/17/25/35.
+- Verification: `npm run audit:assets` passed with 0 blockers, `npm run build` passed. Evidence frames:
+  `output/asset-qa/zabul-attack-frames-v3/attack_1.png`,
+  `output/asset-qa/zabul-attack-frames-v3/attack_17.png`, and
+  `output/asset-qa/zabul-attack-frames-v3/attack_35.png`.
+
+## 2026-06-20 — Zabulistan cavalry forward lance retune
+
+- User reported the mounted attack lance still felt too vertical. A first angle pass flattened the lance but the side
+  preview exposed the real problem: the rotation sign made the couched weapon point backward behind the rider.
+- Updated `scripts/asset-tools/rig-zabul-warhorse.py` so the `Attack` hit pose pitches `rider_lance` forward toward the
+  horse head/enemy direction, pushes it farther forward, and offsets it to the rider side so the cue reads at game scale.
+  The final checked hit frame keeps the weighted lance range forward (`Y -0.879` to `-0.116`) with vertical/forward range
+  ratio `0.579`; stretched-edge count stayed 0 across local frames 1/9/17/25/35.
+- Regenerated `public/assets/animals/ZabulWarHorse.glb`. It still exports one mesh, one skin, and clips `Attack`,
+  `Gallop`, `Idle`, and `Walk`; current durations remain `Attack` 1.417s, `Gallop` 2.0s, `Idle` 3.75s, `Walk` 2.5s.
+- Verification: `npm run audit:assets` passed with 0 blockers, and `npm run build` passed with only the existing
+  splash-background/chunk-size warnings. Evidence frames:
+  `output/asset-qa/zabul-attack-frames-v7/attack_17_game.png`,
+  `output/asset-qa/zabul-attack-frames-v7/attack_17_side.png`, and
+  `output/asset-qa/zabul-attack-frames-v7/attack_17_front.png`.
+
+## 2026-06-21 — Sistan panorama360 conversion
+
+- Continued the backdrop art-direction plan after Zabulistan by converting the next campaign map, Sistan, from legacy
+  quadrant-only backdrops to a layered `panorama360` set.
+- Added `scripts/build_sistan_panorama360.py`, a deterministic local image builder that derives
+  `panorama_360.webp`, `reedline_360.webp`, `water_360.webp`, and `apron_360.webp` from the existing curated Sistan
+  quadrant art plus a procedural low marsh/reed band. The source quadrants remain in place for fallback/reference.
+- Updated `src/data/backdrops.js`: Sistan now uses four ordered panorama layers (`marshSky360`, `reedline360`,
+  `waterChannels360`, `apron360`) with tuned opacity, reduced wash/haze, and top-view fade on the closest water/apron
+  bands. Zabulistan remains the only circular visual-board pilot; Sistan keeps the normal square tactical board.
+- Verification: `npm run build` passed with only the existing splash-background/chunk-size warnings. Browser QA against
+  `window.__dbg.visualQa.state('backdropSweep', { mapId: 'sistan' })` reported 4 loaded image layers, 0 failed, 0
+  missing, no overflow, no visual artifact findings, and no console warnings/errors. Evidence screenshots:
+  `artifacts/visual-qa/sistan-panorama360-low-final.png` and
+  `artifacts/visual-qa/sistan-panorama360-top-final.png`.
+
+## 2026-06-21 — Zabulistan cavalry staging prop pass
+
+- Added a Zabulistan-only authored cavalry staging family, registered as `zv_cavalry_staging_set`, with a neutral runtime
+  file at `public/assets/scenery/zabulistan/cavalry-staging-set.glb`.
+- Updated `scripts/asset-tools/build-zabulistan-stage-assets.py` so the staging set has a darker trampled-earth base,
+  hitching rail, tack and saddle props, shields, rope, feed details, upright lances, and small pennants. Export was run in
+  a separate background 3D process, leaving the open scene unchanged at 473 objects.
+- Updated `src/world/zabulistanVisualKit.js` to place the staging set from the isolated Zabulistan visual-kit pass after
+  forecourt props, with animated standards and existing tether/procedural fallback preserved if the GLB is unavailable.
+- Verification: `npm run build` passed, `npm run audit:assets` passed with 0 blockers, the live Zabulistan scene reported
+  two staging groups with 74 children each, no visual artifact findings, no desktop/mobile overflow, and five loaded
+  panorama layers. Evidence screenshots:
+  `artifacts/visual-qa/zabulistan-cavalry-staging-final-wide.png`,
+  `artifacts/visual-qa/zabulistan-cavalry-staging-final-close.png`, and
+  `artifacts/visual-qa/zabulistan-cavalry-staging-final-mobile-rtl.png`.
+
+## 2026-06-21 — Zabulistan palace forecourt dressing pass
+
+- Added a Zabulistan-only authored forecourt approach family, registered as `zv_forecourt_approach_edges`, with a neutral
+  runtime file at `public/assets/scenery/zabulistan/forecourt-approach-edges.glb`.
+- Rebuilt `public/assets/scenery/zabulistan/palace-base-transition.glb` with a warmer ground bed, compacted earth plate,
+  gate tread, curbs, threshold stones, scree rocks, and worn step slabs so the palace base reads as embedded terrain
+  rather than stacked block clutter.
+- Updated `src/world/zabulistanVisualKit.js` so the refreshed palace base transition has stable QA scene names, the new
+  approach-edge asset dresses the visible gate threshold, and the intentional low-opacity forecourt wash is marked as
+  visual-QA ignored instead of being flagged as a placeholder artifact.
+- Export was run in a separate background 3D process, leaving the open scene unchanged at 473 objects.
+- Verification: `npm run build` passed, `npm run audit:assets` passed with 0 blockers, the live Zabulistan scene reported
+  the base transition and approach-edge groups loaded, no visual artifact findings, no desktop/mobile overflow, and five
+  loaded panorama layers. Evidence screenshots:
+  `artifacts/visual-qa/zabulistan-forecourt-dressing-final-wide.png`,
+  `artifacts/visual-qa/zabulistan-forecourt-dressing-final-close.png`, and
+  `artifacts/visual-qa/zabulistan-forecourt-dressing-final-mobile-rtl.png`.
+
+## 2026-06-21 — Zabulistan lower approach and pad refinement pass
+
+- Added a repeatable lower-approach QA state, `window.__dbg.visualQa.state('zabulistanForecourt', { mapId:
+  'zabulistan' })`, with desktop and mobile-aware camera defaults that frame the road, approach pads, gate, and palace
+  context without opening the palace command medallions by default.
+- Updated `src/world/zabulistanVisualKit.js` to place a second authored `zv_forecourt_approach_edges` instance farther
+  down the gate road as `zabulistan-forecourt-lower-approach-edges`, plus left/right `zv_road_scree_bank` shoulders as
+  `zabulistan-forecourt-lower-scree-left` and `zabulistan-forecourt-lower-scree-right`.
+- Refined `scripts/asset-tools/build-zabulistan-stage-assets.py` so `embedded-pad-set.glb` uses irregular polygon
+  flagstones and broken wedges instead of rectangular cube tiles. Rebuilt the Zabulistan stage GLBs through the background
+  asset export path.
+- Verification: `npm run build` passed, `npm run audit:assets` passed with 0 blockers, browser QA reported the lower
+  approach groups, pad blend, and palace base transition loaded; artifacts 0, overflow 0, five backdrop layers loaded, and
+  no browser errors in the final capture. Evidence screenshots:
+  `artifacts/visual-qa/zabulistan-forecourt-approach-final-desktop.png` and
+  `artifacts/visual-qa/zabulistan-forecourt-approach-final-mobile-rtl.png`.
+
+## 2026-06-21 — Zabulistan packed-road material pass
+
+- Updated `src/world/road.js` for the Zabulistan road style only: the canvas road texture now uses muted packed-earth
+  color, deterministic gravel noise, broken wheel-rut patches, short cross-wear strokes, and softer center dust instead
+  of the previous smooth dark strip.
+- Added small deterministic edge wobble to the Zabulistan render ribbon so road borders read less mechanically straight.
+  Gameplay pathing, `ROAD_WIDTH`, path samples, flattening, pad placement, and enemy movement were left unchanged.
+- Verification: `npm run build` passed, `npm run audit:assets` passed with 0 blockers, browser QA reported artifacts 0,
+  overflow 0, five Zabulistan backdrop layers loaded, and no browser errors in the final capture. Evidence screenshots:
+  `artifacts/visual-qa/zabulistan-road-material-final-desktop.png` and
+  `artifacts/visual-qa/zabulistan-road-material-final-mobile-rtl.png`.
+
+## 2026-06-21 — Zabulistan road-edge blend and terrain scuff pass
+
+- Added a Zabulistan-only road shoulder mesh in `src/world/road.js`, named `zabulistan-road-shoulder-blend`, using
+  opaque vertex-colored strips that follow the existing sampled road edge. Gameplay pathing, `ROAD_WIDTH`, road samples,
+  pad placement, and enemy movement were left unchanged.
+- Tightened the shoulder width and darkened the palette after visual comparison so it reads as a terrain feather rather
+  than a pale border along the lane.
+- Reduced the old random terrain stain layer in `src/world/zabulistanVisualKit.js`: fewer instances, smaller irregular
+  scuffs, lower opacity, and lower placement so the playfield no longer shows large translucent oval blobs.
+- Verification: `npm run build` passed, `npm run audit:assets` passed with 0 blockers, browser QA in
+  `zabulistanForecourt` reported `zabulistan-road-shoulder-blend`, `zabulistan-forecourt-approach-edges`, and
+  `zabulistan-forecourt-lower-approach-edges` loaded; artifacts 0, overflow 0, 20 backdrop manifest layers, and no browser
+  errors. Evidence screenshots:
+  `artifacts/visual-qa/zabulistan-road-blend-final-desktop.png` and
+  `artifacts/visual-qa/zabulistan-road-blend-final-mobile-rtl.png`.
+
+## 2026-06-21 — Zabulistan palace material tone pass
+
+- Added a Zabulistan-only material profile in `src/core/assets.js` for cloned palace scenes. The raw palace asset remains
+  unchanged, but runtime clones now remove the source material's full-white emissive factor, cap metalness, raise
+  roughness, and multiply the texture by a muted sandstone tone.
+- This addresses the prior bright/gold-heavy palace read while preserving carved detail, red banners, gate contrast, and
+  the existing fallback path if the GLB is unavailable. No gameplay, pathing, palace command, or HUD behavior changed.
+- Verification: `npm run build` passed, `npm run audit:assets` passed with 0 blockers, browser QA reported the Zabulistan
+  custom palace material as `color: 9a8664`, `emissive: 000000`, `emissiveIntensity: 0`, artifacts 0, overflow 0, road
+  shoulder still loaded, and no browser errors. Evidence screenshots:
+  `artifacts/visual-qa/zabulistan-palace-tone-desktop.png`,
+  `artifacts/visual-qa/zabulistan-palace-tone-mobile-rtl.png`, and
+  `artifacts/visual-qa/zabulistan-palace-tone-selected.png`.
+
+## 2026-06-21 — Zabulistan gate contact grit pass
+
+- Added a Zabulistan-only `zabulistan-gate-contact-grit` group in `src/world/zabulistanVisualKit.js` around the palace
+  gate threshold. It uses opaque vertex-colored broken ground polygons plus small instanced stone crumbs so the gate
+  sits into the forecourt without transparent stain artifacts.
+- The pass is scoped to visual grounding only. Gameplay pathing, tower pads, palace commands, HUD behavior, and fallback
+  assets were left unchanged.
+- Verification: `npm run build` passed, `npm run audit:assets` passed with 0 blockers, browser QA reported the gate
+  contact group visible with 2 children, 46 instanced crumbs, artifacts 0, overflow 0, mobile RTL clean, and no browser
+  errors. Evidence screenshots:
+  `artifacts/visual-qa/zabulistan-gate-contact-desktop.png`,
+  `artifacts/visual-qa/zabulistan-gate-contact-mobile-rtl.png`, and
+  `artifacts/visual-qa/zabulistan-gate-contact-selected.png`.
+
+## 2026-06-21 - Zabulistan gate combat readability pass
+
+- Added repeatable Zabulistan combat QA via `window.__dbg.visualQa.state('zabulistanGateCombat', { mode: 'royal' })`.
+  The state frames the palace forecourt, opens the compact palace command rail, spawns a royal gate assault, and keeps
+  the map scoped to Zabulistan.
+- Tightened `src/fx/palaceboons.js` with visual-only controls for `visualRadius`, `visualIntensity`,
+  `targetVisualLimit`, `anchorVisualLimit`, and `groundWaveIntensity`. Gameplay radius and target selection remain
+  unchanged.
+- Tuned the royal gate combat callers in `src/game/game.js` so broad filled ground waves are suppressed for the
+  low-chrome gate state, repeated danger pulses are compact/throttled, and the command effect no longer washes over the
+  center/lower playfield.
+- Browser QA note: in cold browser contexts, warm `loadZabulistanProps()` and `loadPalace('zabulistan')` before creating
+  the Zabulistan QA state; otherwise the never-break fallback can appear in screenshots before authored GLBs finish.
+- Verification: `npm run build` passed, `npm run audit:assets` passed with 0 blockers, browser QA reported no page
+  errors, artifacts 0, overflow 0, 14 attackers, 3 defenders, custom Zabulistan palace loaded, gate-contact/road
+  shoulder/approach-edge groups loaded, five backdrop layers loaded, and palace-boon ground waves at 0. Evidence
+  screenshots:
+  `artifacts/visual-qa/zabulistan-gate-combat-final-desktop.png`,
+  `artifacts/visual-qa/zabulistan-gate-combat-final-mobile-rtl.png`, and
+  `artifacts/visual-qa/zabulistan-gate-combat-final-reduced-motion.png`.
+
+## 2026-06-21 - Zabulistan cavalry close-combat readability pass
+
+- Added a repeatable `window.__dbg.visualQa.state('zabulistanCavalryCloseCombat', { mode: 'royal' })` state for
+  mounted defender close-ups at the palace gate. The state warms into Zabulistan, starts a royal sandbox assault, then
+  frames the mounted contact zone without opening the palace drawer.
+- Added visual-only cavalry contact markers in `src/game/game.js`: lane glints, hoof/readiness rings, enemy pressure
+  marks, and short lance contact flashes from mounted palace defenders. The effect uses existing gate marker cleanup and
+  does not change damage, range, target choice, or balance.
+- Hooked mounted melee attacks in `src/entities/soldier.js` into the lance-contact beat when cavalry are fighting on the
+  palace stand/gate line.
+- Tightened low-chrome HUD behavior for active-wave captures: the wave call button becomes a compact active status chip,
+  and automated visual-QA states hide sandbox helper chrome/toasts without changing normal sandbox tooling.
+- Verification: `npm run build` passed, `npm run audit:assets` passed with 0 blockers, browser QA reported no page
+  errors, artifacts 0, overflow 0, Zabulistan props ready, Zabulistan horse ready, 3 mounted GLB defenders, and 1
+  cavalry close-combat FX group in desktop, mobile RTL, and reduced-motion captures. Evidence screenshots:
+  `artifacts/visual-qa/zabulistan-cavalry-close-combat-final-desktop.png`,
+  `artifacts/visual-qa/zabulistan-cavalry-close-combat-final-mobile-rtl.png`, and
+  `artifacts/visual-qa/zabulistan-cavalry-close-combat-final-reduced-motion.png`.
+
+## 2026-06-21 - Zabulistan mobile low-chrome HUD pass
+
+- Added explicit HUD chip classes and a `wave-active` body state so Zabulistan mobile combat can prioritize gold, lives,
+  wave, speed, Farr, and gate pressure while hiding secondary Codex/settings/language buttons behind the remaining menu
+  path.
+- Collapsed the mobile quick-build rail during active combat to a single edge build-catalog button. Build phase still
+  keeps the role buttons available at the edge, but combat no longer carries a full vertical button strip over the
+  playfield.
+- Tightened the mobile low-chrome wave control: active combat uses the compact status chip, and build phase uses a
+  smaller centered call button instead of a full-width footer.
+- Verification: `npm run build` passed, `npm run audit:assets` passed with 0 blockers, browser QA reported no page
+  errors, artifacts 0, overflow 0, mobile combat topbar 64px high, combat quick-build count 1, build-phase call control
+  214px wide, and reduced-motion combat matching the same HUD footprint. Evidence screenshots:
+  `artifacts/visual-qa/zabulistan-mobile-hud-combat-rtl.png`,
+  `artifacts/visual-qa/zabulistan-mobile-hud-forecourt-rtl.png`,
+  `artifacts/visual-qa/zabulistan-mobile-hud-combat-reduced-motion.png`, and
+  `artifacts/visual-qa/zabulistan-desktop-hud-combat.png`.
+
+## 2026-06-22 - Zabulistan gate approach depth pass
+
+- Added an authored Zabulistan-only `zv_gate_cliff_siege_set` prop family exported to
+  `public/assets/scenery/zabulistan/gate-cliff-siege-set.glb` from
+  `scripts/asset-tools/build-zabulistan-stage-assets.py`.
+- Registered the new neutral prop in `src/core/props3d.js` and placed four scoped gate-approach clusters in
+  `src/world/zabulistanVisualKit.js`: left/right upper shoulders plus left/right lower shoulders. The pass preserves
+  authored material colors, adds four animated beacon towers around the approach, and keeps a procedural rock/siege
+  fallback if the GLB is unavailable.
+- No gameplay pathing, pad placement, palace commands, balance, or enemy behavior changed.
+- Verification: GLB export passed for `gate-cliff-siege-set.glb` (about 348 KB), `npm run build` passed,
+  `npm run audit:assets` passed with 0 blockers, browser QA reported four authored
+  `zabulistan-gate-cliff-siege-*` scene objects, four `zabulistan-gate-depth-beacon-*` objects, fallback false,
+  artifacts 0, overflow 0, five backdrop layers loaded, no runtime errors, and nonblank final screenshots. Evidence:
+  `artifacts/visual-qa/zabulistan-gate-depth-final-desktop.png`,
+  `artifacts/visual-qa/zabulistan-gate-depth-final-combat.png`, and
+  `artifacts/visual-qa/zabulistan-gate-depth-final-mobile-rtl.png`.

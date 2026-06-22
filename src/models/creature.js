@@ -870,13 +870,13 @@ export function buildEnemyModel(modelKey) {
       const d = assetCharacter('a_dragon', { height: 1.5, walkStride: 1.0 });
       if (!d) return buildDragon(1.7);
       const hasClips = d.anim?.actions && Object.keys(d.anim.actions).length > 0;
-      return hasClips ? d : { group: d.group, rig: {}, animType: 'crawl', headH: d.headH }; // static GLB → procedural sway
+      return hasClips ? d : buildDragon(1.7);
     }
     case 'worm': {
       const w = assetCharacter('a_worm', { height: 1.5, walkStride: 0.9 });
       if (!w) return buildWorm(2.0);
       const hasClips = w.anim?.actions && Object.keys(w.anim.actions).length > 0;
-      return hasClips ? w : { group: w.group, rig: {}, animType: 'crawl', headH: w.headH };
+      return hasClips ? w : buildWorm(2.0);
     }
     // White War Elephant (پیل سپید). walkStride 2.6 calibrated by min planted-paw
     // drift at speed 1.0 (slow ponderous plod ~0.38 cycles/s); faces +Z, no rotFix.
@@ -970,15 +970,23 @@ export function buildSoldierModel(modelKey) {
     h.group.position.y = 1.15;
     h.rig.legL.rotation.x = -0.9; h.rig.legR.rotation.x = -0.9;
     const tackKind = spec.coat === 'horseBlack' ? 'rakhsh' : 'scout';
-    // Prefer the real animated horse GLB (a_horse) — a proper equine silhouette + gallop. The
-    // rider rides on top and the existing 'gltf' soldier path drives the horse's clip & mixer.
-    // Fall back to the (coat-fixed) procedural horse if the GLB hasn't loaded yet — never-break.
-    const glb = spawnAsset('a_horse', { height: 1.9, tint: spec.coat === 'horseBlack' ? 0x201b17 : null });
+    const preferredHorseKey = tackKind === 'rakhsh' ? 'a_zabul_warhorse' : 'a_horse';
+    let glbKey = preferredHorseKey;
+    let glb = spawnAsset(glbKey, { height: glbKey === 'a_zabul_warhorse' ? 2.35 : 1.9, tint: glbKey === 'a_zabul_warhorse' ? null : (spec.coat === 'horseBlack' ? 0x201b17 : null) });
+    if (!glb && glbKey !== 'a_horse') {
+      glbKey = 'a_horse';
+      glb = spawnAsset(glbKey, { height: 1.9, tint: spec.coat === 'horseBlack' ? 0x201b17 : null });
+    }
     if (glb) {
-      glb.group.rotation.y = rotFix('a_horse'); // a_horse faces +Z natively (rotFix 0)
-      glb.play('walk');                          // single-clip gallop; the soldier drives its speed
+      glb.group.rotation.y = rotFix(glbKey);
+      glb.play('walk');
       const combined = new THREE.Group();
-      combined.add(glb.group, mountedTackGroup(tackKind), h.group);
+      combined.add(glb.group);
+      if (glbKey === 'a_zabul_warhorse') {
+        return { group: combined, rig: {}, anim: glb, animType: 'gltf', headH: 2.55, mounted: true };
+      }
+      combined.add(mountedTackGroup(tackKind));
+      combined.add(h.group);
       return { group: combined, rig: h.rig, anim: glb, animType: 'gltf', headH: 2.5, mounted: true };
     }
     const horse = buildHorse({ coat: spec.coat || 'horseBrown', scale: 0.95 });

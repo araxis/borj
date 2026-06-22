@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Farr oath emblem">
+  <defs>
+    <radialGradient id="g" cx="50%" cy="42%" r="55%">
+      <stop offset="0" stop-color="#fff8d6"/>
+      <stop offset="0.42" stop-color="#f4cf65"/>
+      <stop offset="1" stop-color="#9b641b"/>
+    </radialGradient>
+    <linearGradient id="r" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fff5bf"/>
+      <stop offset="1" stop-color="#d49b2b"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="34" r="20" fill="#160f08" opacity="0.55"/>
+  <path fill="url(#g)" d="M32 5l5.1 17.2L53 14.7 45.5 30.6 62 36l-17.2 5.1L52.3 57 36.4 49.5 32 62l-5.1-17.2L11 52.3l7.5-15.9L2 32l17.2-5.1L11.7 11 27.6 18.5z"/>
+  <path fill="#fffbea" d="M32 18l2.5 8.2 7.5-3.7-3.7 7.5 8.2 2.5-8.2 2.5 3.7 7.5-7.5-3.7L32 47l-2.5-8.2-7.5 3.7 3.7-7.5-8.2-2.5 8.2-2.5-3.7-7.5 7.5 3.7z" opacity="0.92"/>
+  <path fill="url(#r)" d="M23 51c2-7 5-11 9-15 4 4 7 8 9 15-4 3-14 3-18 0z"/>
+</svg>
