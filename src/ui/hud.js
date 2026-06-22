@@ -36,11 +36,11 @@ const HERO_ICONS = {
 const TOWER_ROLE_ORDER = ['archer', 'siege', 'fire', 'magic', 'support', 'aura', 'economy', 'barracks', 'trap'];
 
 const PALACE_ACTION_ICONS = {
-  oath: '/assets/ui/palace-actions/oath.svg',
-  muster: '/assets/ui/palace-actions/muster.svg',
-  boon: '/assets/ui/palace-actions/boon.svg',
-  rally: '/assets/ui/palace-actions/rally.svg',
-  gate: '/assets/ui/palace-actions/gate.svg',
+  oath: 'assets/ui/palace-actions/oath.svg',
+  muster: 'assets/ui/palace-actions/muster.svg',
+  boon: 'assets/ui/palace-actions/boon.svg',
+  rally: 'assets/ui/palace-actions/rally.svg',
+  gate: 'assets/ui/palace-actions/gate.svg',
 };
 
 const HERO_TONES = {
