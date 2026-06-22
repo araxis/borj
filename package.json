@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "audit:assets": "node scripts/asset-quality-audit.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -14,5 +15,17 @@
   },
   "devDependencies": {
     "vite": "^5.4.0"
-  }
+  },
+  "main": "vite.config.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/araxis/borj.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/araxis/borj/issues"
+  },
+  "homepage": "https://github.com/araxis/borj#readme"
 }

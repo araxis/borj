@@ -38,6 +38,7 @@ const MODEL_FILES = {
   a_fox: 'assets/animals/Fox.gltf',
   a_horse: 'assets/animals/Horse.gltf',
   a_horse_white: 'assets/animals/Horse_White.gltf',
+  a_zabul_warhorse: 'assets/animals/ZabulWarHorse.glb',
   a_husky: 'assets/animals/Husky.gltf',
   a_shiba: 'assets/animals/ShibaInu.gltf',
   a_stag: 'assets/animals/Stag.gltf',
@@ -63,7 +64,8 @@ const MODEL_FILES = {
   a_kharvazan: 'assets/animals/KharvazanDiv.glb', // road-brute → divBrute
   a_olad: 'assets/animals/OladDiv.glb',           // captive scout → divScout
   a_sorceress: 'assets/models/Sorceress.glb',     // Māzandarān witch → sorceress
-  // Batch C crawlers — STATIC (no rig available yet); procedural crawl-sway, auto-upgrade if clips appear
+  // Batch C crawlers — source/reference GLBs until rigged. Runtime refuses to use them as
+  // primary enemies unless real animation clips are present; no static-asset fake crawling.
   a_dragon: 'assets/animals/Azhdaha.glb',         // Azhdahā dragon → dragon
   a_worm: 'assets/animals/Worm.glb',              // Kerm-e Haftvād → worm
   // Heroes — rigged commanders that stand on the tower they lead (key Hero_<id>, hyphens → underscores)
@@ -156,12 +158,25 @@ const loader = new GLTFLoader();
 const cache = new Map();   // key -> { scene, animations, normScale } | 'failed'
 let preloadStarted = false;
 
-function findClip(animations, prefs) {
+function findClips(animations, prefs) {
   for (const re of prefs) {
-    const c = animations.find((a) => re.test(a.name));
-    if (c) return c;
+    const clips = animations.filter((a) => re.test(a.name));
+    if (clips.length) return clips;
   }
-  return null;
+  return [];
+}
+
+function actionGroup(entry) {
+  if (!entry) return [];
+  return Array.isArray(entry) ? entry : [entry];
+}
+
+function firstAction(entry) {
+  return actionGroup(entry)[0] || null;
+}
+
+function forEachAction(entry, fn) {
+  for (const action of actionGroup(entry)) fn(action);
 }
 
 export function preloadAssets() {
@@ -215,7 +230,7 @@ export function cloneAssetScene(key) {
 // ---- per-stage main palaces: large (~12 MB) GLBs, lazy-loaded on map entry (NOT boot-preloaded) ----
 const PALACE_FILES = {
   alborz: 'assets/palaces/AlborzSimurghEyrie.glb',
-  zabulistan: 'assets/palaces/ZabulistanKeep.glb',
+  zabulistan: 'assets/palaces/ZabulistanKeepPolished.glb',
   sistan: 'assets/palaces/SistanReedland.glb',
   samangan: 'assets/palaces/SamanganPalace.glb',
   'dez-sepid': 'assets/palaces/DezSepid.glb',
@@ -261,6 +276,34 @@ export function sanitizePalaceShadows(root) {
   return root;
 }
 
+function palaceMaterialProfile(root, placeId) {
+  if (placeId !== 'zabulistan' || !root?.traverse) return root;
+  const toned = new Map();
+  const colorMul = new THREE.Color(0x9a8664);
+  const toneMaterial = (mat) => {
+    if (!mat?.isMaterial) return mat;
+    if (toned.has(mat)) return toned.get(mat);
+    const m = mat.clone();
+    if (m.color?.isColor) m.color.multiply(colorMul);
+    if (m.emissive?.isColor) m.emissive.setHex(0x000000);
+    if ('emissiveIntensity' in m) m.emissiveIntensity = 0;
+    if ('metalness' in m) m.metalness = Math.min(Number.isFinite(m.metalness) ? m.metalness : 0, 0.06);
+    if ('roughness' in m) m.roughness = Math.max(Number.isFinite(m.roughness) ? m.roughness : 0.78, 0.84);
+    if ('envMapIntensity' in m) m.envMapIntensity = Math.min(Number.isFinite(m.envMapIntensity) ? m.envMapIntensity : 1, 0.35);
+    m.needsUpdate = true;
+    toned.set(mat, m);
+    return m;
+  };
+  root.traverse((o) => {
+    if (o.isMesh || o.isSkinnedMesh || o.isInstancedMesh) {
+      o.material = Array.isArray(o.material)
+        ? o.material.map(toneMaterial)
+        : toneMaterial(o.material);
+    }
+  });
+  return root;
+}
+
 // kick a lazy load (idempotent); onReady fires once the GLB is parsed (or immediately if already ready).
 export function loadPalace(placeId, onReady) {
   if (!PALACE_FILES[placeId]) return;
@@ -284,6 +327,7 @@ export function clonePalaceScene(placeId) {
   const c = palaceCache.get(placeId);
   if (!c || c === 'loading' || c === 'failed') return null;
   const s = c.scene.clone(true);
+  palaceMaterialProfile(s, placeId);
   return sanitizePalaceShadows(s);
 }
 
@@ -311,43 +355,50 @@ export function spawnAsset(key, { height = 1.7, tint = null, walkStride = null }
   const mixer = new THREE.AnimationMixer(group);
   const actions = {};
   for (const [name, prefs] of Object.entries(CLIP_PREFS)) {
-    const clip = findClip(c.animations, prefs);
-    if (clip) actions[name] = mixer.clipAction(clip);
+    const clips = findClips(c.animations, prefs);
+    if (clips.length) actions[name] = clips.map((clip) => mixer.clipAction(clip));
   }
   // single-clip models (the three.js horse): use it for everything locomotive
   if (!actions.walk && c.animations.length) {
-    actions.walk = mixer.clipAction(c.animations[0]);
+    actions.walk = [mixer.clipAction(c.animations[0])];
     actions.run = actions.walk;
     actions.idle = actions.idle || actions.walk;
   }
-  if (actions.death) {
-    actions.death.setLoop(THREE.LoopOnce);
-    actions.death.clampWhenFinished = true;
-  }
-  if (actions.attack) actions.attack.setLoop(THREE.LoopOnce);
+  forEachAction(actions.death, (action) => {
+    action.setLoop(THREE.LoopOnce);
+    action.clampWhenFinished = true;
+  });
+  forEachAction(actions.attack, (action) => action.setLoop(THREE.LoopOnce));
+  const walkAction = firstAction(actions.walk);
   return {
     group, mixer, actions,
     current: null,
+    currentGroup: null,
     headH: height,
     isAsset: true,
     // optional foot-plant calibration for IN-PLACE GLB walks (e.g. the lion):
     // enemy.js sets the walk timeScale so stride*timeScale/duration == world speed,
     // killing the foot-skate that a fixed timeScale causes. null => use legacy formula.
     walkStride,
-    walkDuration: actions.walk ? actions.walk.getClip().duration : 1,
+    walkDuration: walkAction ? walkAction.getClip().duration : 1,
     play(name, { fade = 0.18, timeScale = 1 } = {}) {
-      const a = this.actions[name];
-      if (!a) return;
-      a.timeScale = timeScale;
-      if (this.current === a) return;
-      a.reset().fadeIn(fade).play();
-      if (this.current) this.current.fadeOut(fade);
-      this.current = a;
+      const next = actionGroup(this.actions[name]);
+      if (!next.length) return;
+      next.forEach((action) => { action.timeScale = timeScale; });
+      if (this.currentGroup === next) return;
+      next.forEach((action) => action.reset().fadeIn(fade).play());
+      if (this.currentGroup) {
+        this.currentGroup.forEach((action) => {
+          if (!next.includes(action)) action.fadeOut(fade);
+        });
+      }
+      this.currentGroup = next;
+      this.current = next[0];
     },
     strike() { // one-shot attack over whatever is playing
-      const a = this.actions.attack;
-      if (!a) return;
-      a.reset().setEffectiveWeight(1).play();
+      const attack = actionGroup(this.actions.attack);
+      if (!attack.length) return;
+      attack.forEach((action) => action.reset().setEffectiveWeight(1).play());
     },
   };
 }

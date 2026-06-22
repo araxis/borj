@@ -588,6 +588,38 @@ const __qaBackdropView = (opts = {}) => {
   rts.dist = rts.distGoal = dist;
   rts.update(0.016);
 };
+const __qaZabulistanForecourtView = (opts = {}) => {
+  const map = game?.map;
+  if (!map) return null;
+  rts.followEntity(null);
+  rts._fly = null;
+  const samples = map.paths?.[0]?.samples || [];
+  const exit = map.exitPos;
+  const s = samples[Math.max(0, samples.length - 8)] || samples[0];
+  const fwd = new THREE.Vector3((s?.pos.x || 0) - exit.x, 0, (s?.pos.z || 0) - exit.z);
+  if (fwd.lengthSq() < 0.0001) fwd.set(0, 0, 1);
+  fwd.normalize();
+  const side = new THREE.Vector3(-fwd.z, 0, fwd.x);
+  const mobile = window.innerWidth < 700;
+  const target = exit.clone()
+    .addScaledVector(fwd, Number.isFinite(opts.forward) ? opts.forward : mobile ? 28 : 26)
+    .addScaledVector(side, Number.isFinite(opts.side) ? opts.side : 0);
+  const yaw = Math.atan2(fwd.x, fwd.z) + (Number.isFinite(opts.yawOffset) ? opts.yawOffset : 0.02);
+  const pitch = Number.isFinite(opts.pitch) ? opts.pitch : mobile ? 0.66 : 0.64;
+  const dist = Number.isFinite(opts.dist) ? opts.dist : mobile ? 66 : 62;
+  rts.target.set(target.x, 0, target.z);
+  rts.targetGoal.copy(rts.target);
+  rts.yaw = rts.yawGoal = yaw;
+  rts.pitch = rts.pitchGoal = pitch;
+  rts.dist = rts.distGoal = dist;
+  rts.update(0.016);
+  return {
+    target: { x: Number(target.x.toFixed(2)), z: Number(target.z.toFixed(2)) },
+    yaw: Number(yaw.toFixed(3)),
+    pitch: Number(pitch.toFixed(3)),
+    dist: Number(dist.toFixed(1)),
+  };
+};
 window.__dbg = {
   engine, rts, get game() { return game; }, get hud() { return hud; }, startMap: startBattle,
   fxPreview: (options) => game?.previewCommandFx(options),
@@ -612,9 +644,11 @@ window.__dbg = {
     }),
     state: (name = 'normal', opts = {}) => {
       const state = String(name || 'normal');
+      document.body.classList.toggle('visual-qa-capture', state !== 'normal');
       const mapByState = state.includes('fog') ? 'mazandaran'
         : state.includes('twin') ? 'arash-watch'
         : state.includes('final') ? 'gang-dez'
+        : state.toLowerCase().includes('zabulistan') ? 'zabulistan'
         : state.toLowerCase().includes('backdrop') ? (opts.mapId || 'zabulistan')
         : opts.mapId;
       const g = __ensureQaBattle(mapByState, true);
@@ -624,6 +658,38 @@ window.__dbg = {
       if (state === 'backdrop' || state === 'backdropSweep') {
         __qaBackdropView(opts);
         return { ok: true, state, game: g.mapDef.id, backdrops: backdropSceneReport(engine.scene), metrics: window.__dbg.visualQa.metrics() };
+      }
+      if (state === 'zabulistanForecourt' || state === 'forecourtApproach') {
+        const view = __qaZabulistanForecourtView(opts);
+        if (opts.selectPalace === true) hud?.showPalace?.(g.map.citadel);
+        else hud?.closePanel?.();
+        return { ok: true, state, game: g.mapDef.id, view, metrics: window.__dbg.visualQa.metrics() };
+      }
+      if (state === 'zabulistanGateCombat') {
+        const view = __qaZabulistanForecourtView({
+          ...opts,
+          forward: Number.isFinite(opts.forward) ? opts.forward : window.innerWidth < 700 ? 27 : 25,
+          dist: Number.isFinite(opts.dist) ? opts.dist : window.innerWidth < 700 ? 64 : 60,
+          pitch: Number.isFinite(opts.pitch) ? opts.pitch : window.innerWidth < 700 ? 0.64 : 0.62,
+        });
+        hud?.showPalace?.(g.map.citadel);
+        const result = g.sandboxPalaceAssault?.({ mode: opts.mode || 'royal', fullFx: true });
+        return { ok: true, state, game: g.mapDef.id, view, result, metrics: window.__dbg.visualQa.metrics() };
+      }
+      if (state === 'zabulistanCavalryCloseCombat') {
+        const result = g.sandboxPalaceAssault?.({ mode: opts.mode || 'royal', fullFx: opts.fullFx === true });
+        hud?.refreshAll?.();
+        const view = __qaZabulistanForecourtView({
+          ...opts,
+          forward: Number.isFinite(opts.forward) ? opts.forward : window.innerWidth < 700 ? 32 : 31,
+          side: Number.isFinite(opts.side) ? opts.side : window.innerWidth < 700 ? -1.2 : -2.2,
+          dist: Number.isFinite(opts.dist) ? opts.dist : window.innerWidth < 700 ? 46 : 42,
+          pitch: Number.isFinite(opts.pitch) ? opts.pitch : window.innerWidth < 700 ? 0.56 : 0.54,
+          yawOffset: Number.isFinite(opts.yawOffset) ? opts.yawOffset : -0.04,
+        });
+        if (opts.showCommands === true) hud?.showPalace?.(g.map.citadel);
+        else hud?.closePanel?.();
+        return { ok: true, state, game: g.mapDef.id, view, result, metrics: window.__dbg.visualQa.metrics() };
       }
       if (state === 'palaceCommand') return { ok: true, state, result: g.palaceBoon?.(g.map.citadel) };
       if (state === 'heroCommand') return { ok: true, state, result: g.previewCommandFx?.(opts) };

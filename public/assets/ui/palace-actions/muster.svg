@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Muster lancers emblem">
+  <defs>
+    <linearGradient id="steel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fff2bd"/>
+      <stop offset="0.52" stop-color="#d9b158"/>
+      <stop offset="1" stop-color="#8b5b21"/>
+    </linearGradient>
+    <linearGradient id="cloth" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#e9bd55"/>
+      <stop offset="1" stop-color="#8f2520"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="23" fill="#160f08" opacity="0.55"/>
+  <path d="M15 53L49 12" stroke="#6b3f16" stroke-width="7" stroke-linecap="round"/>
+  <path d="M49 53L15 12" stroke="#6b3f16" stroke-width="7" stroke-linecap="round"/>
+  <path d="M15 53L49 12" stroke="#f4d276" stroke-width="3.8" stroke-linecap="round"/>
+  <path d="M49 53L15 12" stroke="#f4d276" stroke-width="3.8" stroke-linecap="round"/>
+  <path fill="url(#steel)" d="M50 6l7 2-3 7-8 4-3-3zM14 6l-7 2 3 7 8 4 3-3z"/>
+  <path fill="url(#cloth)" d="M35 30c6 0 10 3 13 8-5 1-9 0-13-3zM29 30c-6 0-10 3-13 8 5 1 9 0 13-3z"/>
+  <path fill="#fff1b8" d="M25 45h14l4 8H21z"/>
+</svg>

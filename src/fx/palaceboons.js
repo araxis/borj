@@ -396,41 +396,49 @@ export class PalaceBoonField {
     const keep = targets.keep || citadel?.group?.position || this.map.exitPos;
     const front = targets.front || keep;
     const radius = cfg?.radius || 30;
+    const visualRadius = Math.max(8, Math.min(radius, cfg?.visualRadius ?? radius));
+    const visualIntensity = Math.max(0.18, Math.min(1, cfg?.visualIntensity ?? 1));
+    const groundWaveIntensity = Math.max(0, Math.min(1, cfg?.groundWaveIntensity ?? visualIntensity));
+    const targetVisualLimit = Math.max(0, Math.min(12, cfg?.targetVisualLimit ?? 12));
+    const anchorVisualLimit = Math.max(0, Math.min(12, cfg?.anchorVisualLimit ?? targetVisualLimit));
     const keepY = this.map.heightAt(keep.x, keep.z) + 0.24;
     const frontY = this.map.heightAt(front.x, front.z) + 0.2;
-    this._addShockwave(front.x, frontY + 0.04, front.z, { max: radius * 1.08, life: 1.5, color, delay: 0 });
-    this._addShockwave(keep.x, keepY + 0.09, keep.z, { max: Math.min(34, radius * 0.72), life: 1.24, color: COLORS.rallyDamage, delay: 0.1 });
-    this._addRing(front.x, frontY, front.z, { max: radius, life: 1.2, color, delay: 0 });
-    this._addRing(keep.x, keepY + 0.05, keep.z, { max: Math.min(28, radius * 0.62), life: 1.05, color: COLORS.rallyDamage, delay: 0.08 });
-    this._addSigil(keep.x, keep.y + (citadel?.height || 18) * 0.72, keep.z, { type, color, life: 1.45, scale: 1.15, delay: 0.02 });
-    this._addStandard(keep.x, keep.y + (citadel?.height || 18) * 0.86, keep.z, { type, color, life: 1.9, scale: 1.12, delay: 0.04 });
-    this._addStandard(front.x, frontY + 6.6, front.z, { type, color, life: 1.35, scale: 0.72, delay: 0.12 });
+    if (groundWaveIntensity > 0.02) {
+      this._addShockwave(front.x, frontY + 0.04, front.z, { max: visualRadius * 1.08, life: 1.5, color, delay: 0, intensity: groundWaveIntensity });
+      this._addShockwave(keep.x, keepY + 0.09, keep.z, { max: Math.min(26, visualRadius * 0.72), life: 1.24, color: COLORS.rallyDamage, delay: 0.1, intensity: groundWaveIntensity * 0.82 });
+    }
+    this._addRing(front.x, frontY, front.z, { max: visualRadius, life: 1.2, color, delay: 0, intensity: visualIntensity });
+    this._addRing(keep.x, keepY + 0.05, keep.z, { max: Math.min(22, visualRadius * 0.62), life: 1.05, color: COLORS.rallyDamage, delay: 0.08, intensity: visualIntensity * 0.82 });
+    const commandIntensity = Math.max(0.52, visualIntensity);
+    this._addSigil(keep.x, keep.y + (citadel?.height || 18) * 0.72, keep.z, { type, color, life: 1.45, scale: 1.15, delay: 0.02, intensity: commandIntensity });
+    this._addStandard(keep.x, keep.y + (citadel?.height || 18) * 0.86, keep.z, { type, color, life: 1.9, scale: 1.12, delay: 0.04, intensity: commandIntensity });
+    this._addStandard(front.x, frontY + 6.6, front.z, { type, color, life: 1.35, scale: 0.72, delay: 0.12, intensity: commandIntensity });
     if (type === 'rangeVision') {
-      this._addVisionSweep(keep, front, radius, color, { life: 2.65, delay: 0.02 });
-      this._addImpactHalo(front.x, frontY + 0.14, front.z, { color, max: Math.min(7.8, radius * 0.24), life: 1.35, delay: 0.04 });
-      this._addImpactPillar(front.x, frontY + 5.4, front.z, { type, color, life: 1.32, scale: 1.18, delay: 0.08 });
-      this._addImpact(front.x, frontY + 3.4, front.z, { type, color, life: 1.28, scale: 1.12, delay: 0.12 });
+      this._addVisionSweep(keep, front, visualRadius, color, { life: 2.65, delay: 0.02 });
+      this._addImpactHalo(front.x, frontY + 0.14, front.z, { color, max: Math.min(7.8, visualRadius * 0.24), life: 1.35, delay: 0.04, intensity: visualIntensity });
+      this._addImpactPillar(front.x, frontY + 5.4, front.z, { type, color, life: 1.32, scale: 1.18, delay: 0.08, intensity: visualIntensity });
+      this._addImpact(front.x, frontY + 3.4, front.z, { type, color, life: 1.28, scale: 1.12, delay: 0.12, intensity: visualIntensity });
     }
 
-    const anchors = this._anchorsFor(type, targets).slice(0, 12);
+    const anchors = this._anchorsFor(type, targets).slice(0, anchorVisualLimit);
     anchors.forEach((p, i) => {
       const y = p.y || this.map.heightAt(p.x, p.z);
       this._addSigil(p.x, y + 4.4, p.z, {
-        type, color, life: 1.0, scale: 0.38, delay: 0.08 + i * 0.025,
+        type, color, life: 1.0, scale: 0.38, delay: 0.08 + i * 0.025, intensity: visualIntensity,
       });
-      if (i < 8) this._addStandard(p.x, y + 5.0, p.z, { type, color, life: 1.04, scale: 0.3, delay: 0.12 + i * 0.03 });
+      if (i < 8) this._addStandard(p.x, y + 5.0, p.z, { type, color, life: 1.04, scale: 0.3, delay: 0.12 + i * 0.03, intensity: visualIntensity });
     });
 
-    const enemyTargets = this._enemyTargetsFor(type, targets).slice(0, 12);
+    const enemyTargets = this._enemyTargetsFor(type, targets).slice(0, targetVisualLimit);
     const enemyAnchors = enemyTargets.map((target) => targetPos(target)).filter(Boolean);
     enemyAnchors.forEach((p, i) => {
       const y = p.y || this.map.heightAt(p.x, p.z);
-      this._addImpactHalo(p.x, y + 0.09, p.z, { color, max: 2.8, life: 0.82, delay: 0.04 + i * 0.025 });
-      this._addImpactBurst(p.x, y + 0.14, p.z, { color, max: 3.15, life: 0.72, delay: 0.04 + i * 0.025 });
-      this._addImpactPillar(p.x, y + 4.35, p.z, { type, color, life: 0.78, scale: 0.84, delay: 0.045 + i * 0.026 });
-      this._addImpact(p.x, y + 3.0, p.z, { type, color, life: 0.96, scale: 0.82, delay: 0.07 + i * 0.03 });
-      this._addTargetLock(enemyTargets[i], color, { life: 1.18, delay: 0.02 + i * 0.024, scale: 1.18 });
-      this._addStatusRead(enemyTargets[i], { type, color, life: 2.35, delay: 0.08 + i * 0.035 });
+      this._addImpactHalo(p.x, y + 0.09, p.z, { color, max: 2.8, life: 0.82, delay: 0.04 + i * 0.025, intensity: visualIntensity });
+      this._addImpactBurst(p.x, y + 0.14, p.z, { color, max: 3.15, life: 0.72, delay: 0.04 + i * 0.025, intensity: visualIntensity });
+      this._addImpactPillar(p.x, y + 4.35, p.z, { type, color, life: 0.78, scale: 0.84, delay: 0.045 + i * 0.026, intensity: visualIntensity });
+      this._addImpact(p.x, y + 3.0, p.z, { type, color, life: 0.96, scale: 0.82, delay: 0.07 + i * 0.03, intensity: visualIntensity });
+      this._addTargetLock(enemyTargets[i], color, { life: 1.18, delay: 0.02 + i * 0.024, scale: 1.18, intensity: visualIntensity });
+      this._addStatusRead(enemyTargets[i], { type, color, life: 2.35, delay: 0.08 + i * 0.035, intensity: visualIntensity });
     });
     const threadAnchors = (enemyAnchors.length ? enemyAnchors : anchors).slice(0, 12);
     if (threadAnchors.length) {
@@ -458,12 +466,12 @@ export class PalaceBoonField {
     };
     const n = rayCounts[type] || 6;
     const rayLen = type === 'stunPulse'
-      ? Math.min(radius * 0.72, 32)
-      : Math.min(radius * 0.95, type === 'rangeVision' ? 48 : 42);
+      ? Math.min(visualRadius * 0.72, 22)
+      : Math.min(visualRadius * 0.95, type === 'rangeVision' ? 48 : 42);
     const spin = type === 'rangeVision' ? 0.14 : type === 'goldProvision' ? 0.24 : type === 'repairFortifications' ? -0.12 : 0;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + spin;
-      this._addRay(front, a, rayLen, color, 0.85 + i * 0.03, type === 'rangeVision' ? 1.65 : 1);
+      this._addRay(front, a, rayLen, color, 0.85 + i * 0.03, (type === 'rangeVision' ? 1.65 : 1) * visualIntensity);
     }
   }
 
@@ -499,7 +507,7 @@ export class PalaceBoonField {
     return this.pillarTextures.get(type);
   }
 
-  _addShockwave(x, y, z, { max, life, color, delay }) {
+  _addShockwave(x, y, z, { max, life, color, delay, intensity = 1 }) {
     const mat = glowMaterial(color, 0);
     const mesh = new THREE.Mesh(this.waveGeo, mat);
     mesh.rotation.x = -Math.PI / 2;
@@ -508,10 +516,10 @@ export class PalaceBoonField {
     mesh.frustumCulled = false;
     mesh.renderOrder = 38;
     this.group.add(mesh);
-    this.waves.push({ mesh, mat, max, life, t: -delay });
+    this.waves.push({ mesh, mat, max, life, t: -delay, intensity });
   }
 
-  _addRing(x, y, z, { max, life, color, delay }) {
+  _addRing(x, y, z, { max, life, color, delay, intensity = 1 }) {
     const mat = glowLineMaterial(color, 0.86);
     const mesh = new THREE.LineLoop(max > 24 ? this.ringGeo : this.haloGeo, mat);
     mesh.position.set(x, y, z);
@@ -519,10 +527,10 @@ export class PalaceBoonField {
     mesh.frustumCulled = false;
     mesh.renderOrder = 40;
     this.group.add(mesh);
-    this.rings.push({ mesh, mat, max, life, t: -delay });
+    this.rings.push({ mesh, mat, max, life, t: -delay, intensity });
   }
 
-  _addSigil(x, y, z, { type, color, life, scale, delay }) {
+  _addSigil(x, y, z, { type, color, life, scale, delay, intensity = 1 }) {
     const mat = glowMaterial(color, 0, this._texture(type));
     const mesh = new THREE.Mesh(this.sigilGeo, mat);
     mesh.position.set(x, y, z);
@@ -530,10 +538,10 @@ export class PalaceBoonField {
     mesh.frustumCulled = false;
     mesh.renderOrder = 41;
     this.group.add(mesh);
-    this.sigils.push({ mesh, mat, life, t: -delay, phase: Math.random() * Math.PI * 2 });
+    this.sigils.push({ mesh, mat, life, t: -delay, phase: Math.random() * Math.PI * 2, intensity });
   }
 
-  _addStandard(x, y, z, { type, color, life, scale, delay }) {
+  _addStandard(x, y, z, { type, color, life, scale, delay, intensity = 1 }) {
     const mat = glowMaterial(color, 0, this._standardTexture(type));
     const mesh = new THREE.Mesh(this.standardGeo, mat);
     mesh.position.set(x, y, z);
@@ -541,10 +549,10 @@ export class PalaceBoonField {
     mesh.frustumCulled = false;
     mesh.renderOrder = 42;
     this.group.add(mesh);
-    this.standards.push({ mesh, mat, life, scale, t: -delay, phase: Math.random() * Math.PI * 2 });
+    this.standards.push({ mesh, mat, life, scale, t: -delay, phase: Math.random() * Math.PI * 2, intensity });
   }
 
-  _addImpact(x, y, z, { type, color, life, scale, delay }) {
+  _addImpact(x, y, z, { type, color, life, scale, delay, intensity = 1 }) {
     const mat = glowMaterial(color, 0, this._impactTexture(type));
     const mesh = new THREE.Mesh(this.impactGeo, mat);
     mesh.position.set(x, y, z);
@@ -552,10 +560,10 @@ export class PalaceBoonField {
     mesh.frustumCulled = false;
     mesh.renderOrder = 44;
     this.group.add(mesh);
-    this.impacts.push({ mesh, mat, life, scale, t: -delay, phase: Math.random() * Math.PI * 2 });
+    this.impacts.push({ mesh, mat, life, scale, t: -delay, phase: Math.random() * Math.PI * 2, intensity });
   }
 
-  _addImpactHalo(x, y, z, { color, max, life, delay }) {
+  _addImpactHalo(x, y, z, { color, max, life, delay, intensity = 1 }) {
     const mat = glowMaterial(color, 0);
     const mesh = new THREE.Mesh(this.impactHaloGeo, mat);
     mesh.rotation.x = -Math.PI / 2;
@@ -564,10 +572,10 @@ export class PalaceBoonField {
     mesh.frustumCulled = false;
     mesh.renderOrder = 43;
     this.group.add(mesh);
-    this.impactHalos.push({ mesh, mat, max, life, t: -delay });
+    this.impactHalos.push({ mesh, mat, max, life, t: -delay, intensity });
   }
 
-  _addImpactPillar(x, y, z, { type, color, life, scale, delay }) {
+  _addImpactPillar(x, y, z, { type, color, life, scale, delay, intensity = 1 }) {
     const mat = glowMaterial(color, 0, this._pillarTexture(type));
     const mesh = new THREE.Mesh(this.impactPillarGeo, mat);
     mesh.position.set(x, y, z);
@@ -575,10 +583,10 @@ export class PalaceBoonField {
     mesh.frustumCulled = false;
     mesh.renderOrder = 45;
     this.group.add(mesh);
-    this.impactPillars.push({ mesh, mat, life, scale, t: -delay, phase: Math.random() * Math.PI * 2 });
+    this.impactPillars.push({ mesh, mat, life, scale, t: -delay, phase: Math.random() * Math.PI * 2, intensity });
   }
 
-  _addImpactBurst(x, y, z, { color, max, life, delay }) {
+  _addImpactBurst(x, y, z, { color, max, life, delay, intensity = 1 }) {
     const mat = glowLineMaterial(color, 0);
     const mesh = new THREE.LineSegments(this.impactBurstGeo, mat);
     mesh.position.set(x, y, z);
@@ -586,10 +594,10 @@ export class PalaceBoonField {
     mesh.frustumCulled = false;
     mesh.renderOrder = 45;
     this.group.add(mesh);
-    this.impactBursts.push({ mesh, mat, max, life, t: -delay, spin: Math.random() > 0.5 ? 1 : -1 });
+    this.impactBursts.push({ mesh, mat, max, life, t: -delay, spin: Math.random() > 0.5 ? 1 : -1, intensity });
   }
 
-  _addTargetLock(target, color, { life, delay, scale }) {
+  _addTargetLock(target, color, { life, delay, scale, intensity = 1 }) {
     const p = targetPos(target);
     if (!p) return;
     const mat = glowMaterial(color, 0);
@@ -599,10 +607,10 @@ export class PalaceBoonField {
     mesh.frustumCulled = false;
     mesh.renderOrder = 47;
     this.group.add(mesh);
-    this.targetLocks.push({ target, mesh, mat, life, scale, t: -delay, spin: Math.random() > 0.5 ? 1 : -1 });
+    this.targetLocks.push({ target, mesh, mat, life, scale, t: -delay, spin: Math.random() > 0.5 ? 1 : -1, intensity });
   }
 
-  _addStatusRead(target, { type, color, life, delay }) {
+  _addStatusRead(target, { type, color, life, delay, intensity = 1 }) {
     const p = targetPos(target);
     if (!p) return;
     const mat = glowMaterial(color, 0, this._impactTexture(type));
@@ -622,6 +630,7 @@ export class PalaceBoonField {
       target, badge, mat, pulse, pulseMat, type, life, t: -delay,
       phase: Math.random() * Math.PI * 2,
       spin: Math.random() > 0.5 ? 1 : -1,
+      intensity,
     });
   }
 
@@ -741,7 +750,7 @@ export class PalaceBoonField {
       if (k >= 1) { this._removeShockwave(i); continue; }
       const eased = 1 - Math.pow(1 - k, 2.25);
       w.mesh.scale.setScalar(0.75 + eased * w.max);
-      w.mat.opacity = Math.sin(Math.PI * k) * (1 - k * 0.32) * 0.36;
+      w.mat.opacity = Math.sin(Math.PI * k) * (1 - k * 0.32) * 0.36 * (w.intensity ?? 1);
     }
     for (let i = this.rings.length - 1; i >= 0; i--) {
       const r = this.rings[i];
@@ -751,7 +760,7 @@ export class PalaceBoonField {
       if (k >= 1) { this._removeRing(i); continue; }
       const eased = 1 - Math.pow(1 - k, 2.1);
       r.mesh.scale.setScalar(0.65 + eased * r.max);
-      r.mat.opacity = (1 - k) * 0.76;
+      r.mat.opacity = (1 - k) * 0.76 * (r.intensity ?? 1);
     }
     for (let i = this.sigils.length - 1; i >= 0; i--) {
       const s = this.sigils[i];
@@ -761,7 +770,7 @@ export class PalaceBoonField {
       if (k >= 1) { this._removeSigil(i); continue; }
       if (cam) s.mesh.lookAt(cam.x, s.mesh.position.y, cam.z);
       s.mesh.position.y += Math.sin(time * 4.6 + s.phase) * dt * 0.12;
-      s.mat.opacity = Math.sin(Math.PI * k) * 0.78;
+      s.mat.opacity = Math.sin(Math.PI * k) * 0.78 * (s.intensity ?? 1);
     }
     for (let i = this.standards.length - 1; i >= 0; i--) {
       const s = this.standards[i];
@@ -773,7 +782,7 @@ export class PalaceBoonField {
       if (cam) s.mesh.lookAt(cam.x, s.mesh.position.y, cam.z);
       s.mesh.position.y += Math.sin(time * 4.0 + s.phase) * dt * 0.14;
       s.mesh.scale.setScalar(s.scale * (0.78 + swell * 0.32));
-      s.mat.opacity = swell * 0.76;
+      s.mat.opacity = swell * 0.76 * (s.intensity ?? 1);
     }
     for (let i = this.impactHalos.length - 1; i >= 0; i--) {
       const h = this.impactHalos[i];
@@ -783,7 +792,7 @@ export class PalaceBoonField {
       if (k >= 1) { this._removeImpactHalo(i); continue; }
       const eased = 1 - Math.pow(1 - k, 2.08);
       h.mesh.scale.setScalar(0.45 + eased * h.max);
-      h.mat.opacity = Math.sin(Math.PI * k) * 0.46;
+      h.mat.opacity = Math.sin(Math.PI * k) * 0.46 * (h.intensity ?? 1);
     }
     for (let i = this.impactBursts.length - 1; i >= 0; i--) {
       const b = this.impactBursts[i];
@@ -794,7 +803,7 @@ export class PalaceBoonField {
       const eased = 1 - Math.pow(1 - k, 2.18);
       b.mesh.scale.setScalar(0.42 + eased * b.max);
       b.mesh.rotation.y += dt * b.spin * 1.7;
-      b.mat.opacity = Math.sin(Math.PI * k) * 0.8;
+      b.mat.opacity = Math.sin(Math.PI * k) * 0.8 * (b.intensity ?? 1);
     }
     for (let i = this.impactPillars.length - 1; i >= 0; i--) {
       const p = this.impactPillars[i];
@@ -806,7 +815,7 @@ export class PalaceBoonField {
       if (cam) p.mesh.lookAt(cam.x, p.mesh.position.y, cam.z);
       p.mesh.position.y += Math.sin(time * 7.4 + p.phase) * dt * 0.12 + dt * 0.3;
       p.mesh.scale.set(p.scale * (0.58 + swell * 0.58), p.scale * (0.8 + swell * 0.36), p.scale);
-      p.mat.opacity = swell * 0.84;
+      p.mat.opacity = swell * 0.84 * (p.intensity ?? 1);
     }
     for (let i = this.targetLocks.length - 1; i >= 0; i--) {
       const lock = this.targetLocks[i];
@@ -820,7 +829,7 @@ export class PalaceBoonField {
       lock.mesh.position.set(p.x, this.map.heightAt(p.x, p.z) + 0.3 + swell * 0.1, p.z);
       lock.mesh.rotation.z += dt * lock.spin * 1.55;
       lock.mesh.scale.setScalar(lock.scale * (0.74 + swell * 0.62));
-      lock.mat.opacity = swell * 0.6;
+      lock.mat.opacity = swell * 0.6 * (lock.intensity ?? 1);
     }
     for (let i = this.statusReads.length - 1; i >= 0; i--) {
       const read = this.statusReads[i];
@@ -840,12 +849,12 @@ export class PalaceBoonField {
       );
       if (cam) read.badge.lookAt(cam.x, read.badge.position.y, cam.z);
       read.badge.scale.setScalar(0.82 + fade * 0.5 + Math.sin(time * 4.6 + read.phase) * 0.03);
-      read.mat.opacity = fade * 0.94;
+      read.mat.opacity = fade * 0.94 * (read.intensity ?? 1);
 
       read.pulse.position.set(p.x, groundY + 0.25, p.z);
       read.pulse.rotation.z += dt * read.spin * 1.35;
       read.pulse.scale.setScalar(1.12 + Math.sin(Math.PI * k) * 0.86 + k * 0.36);
-      read.pulseMat.opacity = fade * (0.3 + Math.sin(time * 6.4 + read.phase) * 0.08);
+      read.pulseMat.opacity = fade * (0.3 + Math.sin(time * 6.4 + read.phase) * 0.08) * (read.intensity ?? 1);
     }
     for (let i = this.impacts.length - 1; i >= 0; i--) {
       const mark = this.impacts[i];
@@ -857,7 +866,7 @@ export class PalaceBoonField {
       if (cam) mark.mesh.lookAt(cam.x, mark.mesh.position.y, cam.z);
       mark.mesh.position.y += Math.sin(time * 7.0 + mark.phase) * dt * 0.11 + dt * 0.2;
       mark.mesh.scale.setScalar(mark.scale * (0.72 + swell * 0.48));
-      mark.mat.opacity = swell * 0.92;
+      mark.mat.opacity = swell * 0.92 * (mark.intensity ?? 1);
     }
     for (let i = this.rays.length - 1; i >= 0; i--) {
       const r = this.rays[i];

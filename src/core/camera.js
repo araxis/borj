@@ -25,8 +25,9 @@ export class RTSCamera {
     this.update(0);
   }
 
-  setHome(x, z, dist = 70, yaw = -Math.PI / 4) {
+  setHome(x, z, dist = 70, yaw = -Math.PI / 4, pitch = 0.92) {
     this.home.target.set(x, 0, z); this.home.dist = dist; this.home.yaw = yaw;
+    this.home.pitch = pitch;
     this.reset();
   }
 

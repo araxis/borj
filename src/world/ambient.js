@@ -211,12 +211,22 @@ export function buildDistantPeaks(group, biome, rng) {
 // a square ground apron that sinks out of sight UNDER the board, then beyond the board edge rises
 // into distant hills/mountains and recedes toward the fog horizon, hazed toward the fog colour so
 // it melts seamlessly into the skydome. One static mesh per map, biome-coloured.
-export function buildWorldApron(group, biome, heightAt) {
+export function buildWorldApron(group, biome, heightAt, opts = {}) {
   const fog = new THREE.Color(biome.mood?.fogColor ?? 0xb3c4d8);
-  const ground = new THREE.Color(biome.ground?.[1] ?? biome.ground?.[0] ?? 0x6f8050).lerp(fog, 0.12);
-  const near = new THREE.Color(biome.rock ?? 0x6e7480).lerp(fog, 0.32);
-  const far = new THREE.Color(biome.high ?? 0x9aa3ad).lerp(fog, 0.5);
-  const SIZE = 680, BOARD = 75, FARV = 300;
+  const ground = new THREE.Color(opts.apronGroundColor ?? biome.ground?.[1] ?? biome.ground?.[0] ?? 0x6f8050)
+    .lerp(fog, opts.apronGroundFogMix ?? 0.12);
+  const near = new THREE.Color(opts.apronNearColor ?? biome.rock ?? 0x6e7480)
+    .lerp(fog, opts.apronNearFogMix ?? 0.32);
+  const far = new THREE.Color(opts.apronFarColor ?? biome.high ?? 0x9aa3ad)
+    .lerp(fog, opts.apronFarFogMix ?? 0.5);
+  const circular = opts.shape === 'circle';
+  const SIZE = 680;
+  const BOARD = opts.boardRadius ?? 75;
+  const FARV = opts.farRadius ?? 300;
+  const fogStart = opts.apronFogStart ?? 0.08;
+  const fogEnd = opts.apronFogEnd ?? 0.88;
+  const fogMax = opts.apronFogMax ?? 0.92;
+  const fogLinear = opts.apronFogLinear ?? 0.18;
   const geo = new THREE.PlaneGeometry(SIZE, SIZE, 100, 100);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
@@ -224,14 +234,15 @@ export function buildWorldApron(group, biome, heightAt) {
   const c = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
-    const edge = Math.max(Math.abs(x), Math.abs(z));            // square distance, matches the board
+    const edge = circular ? Math.hypot(x, z) : Math.max(Math.abs(x), Math.abs(z));
     const t = Math.max(0, Math.min(1, (edge - BOARD) / (FARV - BOARD))); // 0 at board edge → 1 at horizon
     const noise = Math.sin(x * 0.07 + z * 0.041) + Math.sin(x * 0.026 - z * 0.083) * 0.7 + Math.cos(x * 0.12 + z * 0.017) * 0.5;
     let h;
     if (edge < BOARD) h = (heightAt ? heightAt(x, z) : 0) - 1.0; // mirror the board surface just below it — no moat, no drop
     else h = (noise + 0.2) * 1.6;                                // flat ground level with the board edge — no hills
     pos.setY(i, h);
-    c.copy(ground).lerp(near, Math.min(1, t * 2.4)).lerp(far, Math.max(0, t - 0.5) * 1.2).lerp(fog, Math.min(1, t * 1.15));
+    const fogLift = Math.min(1, smoothstepLike(t, fogStart, fogEnd) * fogMax + t * fogLinear);
+    c.copy(ground).lerp(near, Math.min(1, t * 2.1)).lerp(far, Math.max(0, t - 0.42) * 1.15).lerp(fog, fogLift);
     colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -245,6 +256,190 @@ export function buildWorldApron(group, biome, heightAt) {
   mesh.receiveShadow = false;
   mesh.renderOrder = -4;
   group.add(mesh);
+  if (circular && opts.edgeBlend !== false) buildBoardEdgeBlend(group, biome, heightAt, opts);
+  buildGroundHorizonVeil(group, biome, opts);
+}
+
+function smoothstepLike(value, edge0, edge1) {
+  const t = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+const EDGE_BLEND_VERT = `
+  attribute vec3 color;
+  attribute float edgeAlpha;
+  varying vec3 vColor;
+  varying float vAlpha;
+  varying vec2 vUv;
+  void main() {
+    vColor = color;
+    vAlpha = edgeAlpha;
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }`;
+
+const EDGE_BLEND_FRAG = `
+  uniform float opacity;
+  varying vec3 vColor;
+  varying float vAlpha;
+  varying vec2 vUv;
+  void main() {
+    float ripple = 0.92 + 0.08 * sin(vUv.x * 64.0 + sin(vUv.y * 18.0) * 1.4);
+    gl_FragColor = vec4(vColor, vAlpha * ripple * opacity);
+  }`;
+
+function apronHeight(x, z) {
+  const noise = Math.sin(x * 0.07 + z * 0.041)
+    + Math.sin(x * 0.026 - z * 0.083) * 0.7
+    + Math.cos(x * 0.12 + z * 0.017) * 0.5;
+  return (noise + 0.2) * 1.6 - 1;
+}
+
+function buildBoardEdgeBlend(group, biome, heightAt, opts = {}) {
+  const board = opts.boardRadius ?? 86;
+  const inner = opts.edgeBlendInnerRadius ?? board - 12;
+  const outer = opts.edgeBlendOuterRadius ?? board + 34;
+  const segments = opts.edgeBlendSegments ?? 256;
+  const rings = opts.edgeBlendRings ?? 12;
+  const positions = [];
+  const uvs = [];
+  const colors = [];
+  const alphas = [];
+  const indices = [];
+  const groundA = new THREE.Color(opts.edgeBlendGroundColor ?? biome.ground?.[0] ?? 0x7cab4c);
+  const groundB = new THREE.Color(opts.edgeBlendMidColor ?? biome.ground?.[1] ?? biome.ground?.[0] ?? 0x93b95a);
+  const outerBase = new THREE.Color(opts.edgeBlendOuterColor ?? opts.edgeBlendMidColor ?? biome.ground?.[1] ?? biome.ground?.[0] ?? 0x93b95a);
+  const fog = new THREE.Color(biome.mood?.fogColor ?? 0xb3c4d8);
+  const outerTint = outerBase.clone().lerp(fog, opts.edgeBlendFogMix ?? 0.18);
+  const fogStart = opts.edgeBlendFogStart ?? 0.42;
+  const fogEnd = opts.edgeBlendFogEnd ?? 1.0;
+  const groundMix = opts.edgeBlendGroundMix ?? 0.62;
+  const groundMixRange = opts.edgeBlendGroundMixRange ?? 0.18;
+  const c = new THREE.Color();
+  for (let r = 0; r <= rings; r++) {
+    const t = r / rings;
+    const radius = inner + (outer - inner) * t;
+    const fade = smoothstepLike(t, 0.0, 0.18) * (1 - smoothstepLike(t, 0.82, 1.0));
+    for (let s = 0; s < segments; s++) {
+      const u = s / segments;
+      const a = u * Math.PI * 2;
+      const x = Math.cos(a) * radius;
+      const z = Math.sin(a) * radius;
+      const apronT = smoothstepLike((radius - board) / Math.max(1, outer - board), 0, 1);
+      const terrainY = (heightAt ? heightAt(x, z) : 0) + 0.035;
+      const lowY = apronHeight(x, z) + 0.12;
+      const y = terrainY * (1 - apronT) + lowY * apronT;
+      positions.push(x, y, z);
+      uvs.push(u, t);
+      const mottled = 0.97 + 0.04 * Math.sin(u * Math.PI * 18 + t * 7.0) + 0.02 * Math.sin(u * Math.PI * 43);
+      c.copy(groundA)
+        .lerp(groundB, Math.min(1, groundMix + t * groundMixRange))
+        .lerp(outerTint, smoothstepLike(t, fogStart, fogEnd));
+      c.multiplyScalar(mottled);
+      colors.push(c.r, c.g, c.b);
+      alphas.push(fade);
+    }
+  }
+  for (let r = 0; r < rings; r++) {
+    const row = r * segments;
+    const nextRow = (r + 1) * segments;
+    for (let s = 0; s < segments; s++) {
+      const n = (s + 1) % segments;
+      const a = row + s;
+      const b = row + n;
+      const cidx = nextRow + s;
+      const d = nextRow + n;
+      indices.push(a, cidx, b, b, cidx, d);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setAttribute('edgeAlpha', new THREE.Float32BufferAttribute(alphas, 1));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const mat = new THREE.ShaderMaterial({
+    name: 'board-edge-blend',
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide,
+    fog: false,
+    uniforms: {
+      opacity: { value: opts.edgeBlendOpacity ?? 0.42 },
+    },
+    vertexShader: EDGE_BLEND_VERT,
+    fragmentShader: EDGE_BLEND_FRAG,
+  });
+  const ring = new THREE.Mesh(geo, mat);
+  ring.name = 'board-edge-blend';
+  ring.castShadow = false;
+  ring.receiveShadow = false;
+  ring.renderOrder = opts.edgeBlendRenderOrder ?? -3.82;
+  ring.userData.visualLayer = 'backdrop';
+  group.add(ring);
+}
+
+const GROUND_VEIL_VERT = `
+  varying float vR;
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    vR = length(position.xz);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }`;
+
+const GROUND_VEIL_FRAG = `
+  uniform vec3 fogTint;
+  uniform vec3 groundTint;
+  uniform float opacity;
+  uniform float innerRadius;
+  uniform float outerRadius;
+  varying float vR;
+  varying vec2 vUv;
+  void main() {
+    float t = clamp((vR - innerRadius) / max(1.0, outerRadius - innerRadius), 0.0, 1.0);
+    float fadeIn = smoothstep(0.0, 0.24, t);
+    float fadeOut = 1.0 - smoothstep(0.82, 1.0, t);
+    float ripple = 0.84 + 0.16 * sin(vUv.x * 58.0 + sin(vUv.y * 21.0) * 0.7);
+    vec3 rgb = mix(groundTint, fogTint, smoothstep(0.12, 0.9, t));
+    gl_FragColor = vec4(rgb, fadeIn * fadeOut * ripple * opacity);
+  }`;
+
+function buildGroundHorizonVeil(group, biome, opts = {}) {
+  const circular = opts.shape === 'circle';
+  const inner = opts.veilInnerRadius ?? (circular ? (opts.boardRadius ?? 86) : 78);
+  const outer = opts.veilOuterRadius ?? (circular ? 258 : 268);
+  const fog = new THREE.Color(biome.mood?.fogColor ?? 0xb3c4d8);
+  const ground = new THREE.Color(opts.veilGroundColor ?? biome.ground?.[1] ?? biome.ground?.[0] ?? 0x8aae52)
+    .lerp(fog, opts.veilGroundFogMix ?? 0.34);
+  const geo = new THREE.RingGeometry(inner, outer, 192, 1);
+  geo.rotateX(-Math.PI / 2);
+  const mat = new THREE.ShaderMaterial({
+    name: 'ground-horizon-veil',
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    fog: false,
+    uniforms: {
+      fogTint: { value: fog },
+      groundTint: { value: ground },
+      opacity: { value: opts.veilOpacity ?? (circular ? 0.22 : 0.2) },
+      innerRadius: { value: inner },
+      outerRadius: { value: outer },
+    },
+    vertexShader: GROUND_VEIL_VERT,
+    fragmentShader: GROUND_VEIL_FRAG,
+  });
+  const veil = new THREE.Mesh(geo, mat);
+  veil.name = 'ground-horizon-veil';
+  veil.position.y = 1.35;
+  veil.castShadow = false;
+  veil.receiveShadow = false;
+  veil.renderOrder = -3.85;
+  veil.userData.visualLayer = 'backdrop';
+  group.add(veil);
 }
 
 // ---------- ambient life system ----------

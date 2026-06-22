@@ -120,20 +120,82 @@ const REALISTIC_FILES = {
   dandelion_01: 'assets/trees/t5/dandelion_01_4k.gltf',
 };
 
-// Custom Meshy.ai forest trees (CC-BY) for Mazandaran's dense Hyrcanian forest. Raw Meshy
-// exports were 200–400 MB photogrammetry meshes (1–2M tris) that the seam-preserving simplifier
-// refused to reduce; sloppy-decimated to ~22k tris + webp-512 so they CAN be instanced (≤0.65 MB
+// Zabulistan-only stage dressing. These are small authored GLBs with gameplay-safe pivots;
+// placement remains gated so the procedural kit stays available if any file is missing.
+const ZABULISTAN_PROP_DIR = 'assets/scenery/zabulistan/';
+export const ZABULISTAN_PROP_NAMES = [
+  'zv_standard_frame',
+  'zv_sandstone_pad',
+  'zv_embedded_pad_set',
+  'zv_pad_ground_blend',
+  'zv_forecourt_threshold',
+  'zv_forecourt_causeway',
+  'zv_forecourt_retaining_edges',
+  'zv_forecourt_approach_edges',
+  'zv_cavalry_tether',
+  'zv_cavalry_staging_set',
+  'zv_mace_marker',
+  'zv_road_edge_stones',
+  'zv_cliff_shoulder_set',
+  'zv_outer_ridge_wall_set',
+  'zv_road_scree_bank',
+  'zv_road_apron_breakup',
+  'zv_palace_base_transition',
+  'zv_dry_scrub_cluster',
+  'zv_reed_pocket',
+  'zv_packed_road_edge',
+  'zv_palace_terrace_ring',
+  'zv_ridge_rubble_set',
+  'zv_dry_plant_set',
+  'zv_road_stone_fragments',
+  'zv_forecourt_scatter_set',
+  'zv_camp_ground_props',
+  'zv_gate_cliff_siege_set',
+];
+const ZABULISTAN_PROP_FILES = {
+  zv_standard_frame: ZABULISTAN_PROP_DIR + 'standard-frame.glb',
+  zv_sandstone_pad: ZABULISTAN_PROP_DIR + 'sandstone-pad.glb',
+  zv_embedded_pad_set: ZABULISTAN_PROP_DIR + 'embedded-pad-set.glb',
+  zv_pad_ground_blend: ZABULISTAN_PROP_DIR + 'pad-ground-blend.glb',
+  zv_forecourt_threshold: ZABULISTAN_PROP_DIR + 'forecourt-threshold.glb',
+  zv_forecourt_causeway: ZABULISTAN_PROP_DIR + 'forecourt-causeway.glb',
+  zv_forecourt_retaining_edges: ZABULISTAN_PROP_DIR + 'forecourt-retaining-edges.glb',
+  zv_forecourt_approach_edges: ZABULISTAN_PROP_DIR + 'forecourt-approach-edges.glb',
+  zv_cavalry_tether: ZABULISTAN_PROP_DIR + 'cavalry-tether.glb',
+  zv_cavalry_staging_set: ZABULISTAN_PROP_DIR + 'cavalry-staging-set.glb',
+  zv_mace_marker: ZABULISTAN_PROP_DIR + 'mace-marker.glb',
+  zv_road_edge_stones: ZABULISTAN_PROP_DIR + 'road-edge-stones.glb',
+  zv_cliff_shoulder_set: ZABULISTAN_PROP_DIR + 'cliff-shoulder-set.glb',
+  zv_outer_ridge_wall_set: ZABULISTAN_PROP_DIR + 'outer-ridge-wall-set.glb',
+  zv_road_scree_bank: ZABULISTAN_PROP_DIR + 'road-scree-bank.glb',
+  zv_road_apron_breakup: ZABULISTAN_PROP_DIR + 'road-apron-breakup.glb',
+  zv_palace_base_transition: ZABULISTAN_PROP_DIR + 'palace-base-transition.glb',
+  zv_dry_scrub_cluster: ZABULISTAN_PROP_DIR + 'dry-scrub-cluster.glb',
+  zv_reed_pocket: ZABULISTAN_PROP_DIR + 'reed-pocket.glb',
+  zv_packed_road_edge: ZABULISTAN_PROP_DIR + 'packed-road-edge.glb',
+  zv_palace_terrace_ring: ZABULISTAN_PROP_DIR + 'palace-terrace-ring.glb',
+  zv_ridge_rubble_set: ZABULISTAN_PROP_DIR + 'ridge-rubble-set.glb',
+  zv_dry_plant_set: ZABULISTAN_PROP_DIR + 'dry-plant-set.glb',
+  zv_road_stone_fragments: ZABULISTAN_PROP_DIR + 'road-stone-fragments.glb',
+  zv_forecourt_scatter_set: ZABULISTAN_PROP_DIR + 'forecourt-scatter-set.glb',
+  zv_camp_ground_props: ZABULISTAN_PROP_DIR + 'camp-ground-props.glb',
+  zv_gate_cliff_siege_set: ZABULISTAN_PROP_DIR + 'gate-cliff-siege-set.glb',
+};
+
+// Custom licensed forest trees for Mazandaran's dense Hyrcanian forest. Raw source
+// exports were 200-400 MB photogrammetry meshes (1-2M tris) that the seam-preserving simplifier
+// refused to reduce; decimated to about 22k tris + webp-512 so they can be instanced (under 0.65 MB
 // each, ~7 MB for the set). tint:null keeps their own baked bark/leaf textures; each tree's bbox
 // is normalized at placement (propBase) so it sits base-on-ground at a target height. Gated on
-// propReady → forest falls back to the Quaternius kit trees until these load (never-break).
+// propReady so forest maps fall back to the base kit trees until these load.
 const FOREST_TREE_DIR = 'assets/trees/n1/';
 export const FOREST_TREE_NAMES = ['n1_01', 'n1_02', 'n1_03', 'n1_04', 'n1_05', 'n1_06', 'n1_07', 'n1_08', 'n1_09', 'n1_10', 'n1_11'];
 const FOREST_TREE_FILES = Object.fromEntries(FOREST_TREE_NAMES.map((n) => [n, FOREST_TREE_DIR + n + '.glb']));
 
-// Custom Meshy.ai forest ENRICHMENT set (CC-BY) — realistic flowers (mf), mushrooms (mm), rocks
-// (mr) and a few extra canopy trees (mt) that dress the forest floor. Same sloppy-decimation
-// pipeline as the trees (200 MB photogrammetry → ~0.4 MB each, instanceable). Loaded on the same
-// dedicated forest path; gated on propReady so a slow load just means less ground cover (never-break).
+// Custom licensed forest enrichment set: flowers (mf), mushrooms (mm), rocks (mr), and a few extra
+// canopy trees (mt) that dress the forest floor. Same decimation pipeline as the trees: large source
+// meshes reduced to about 0.4 MB each, instanceable. Loaded on the same dedicated forest path; gated
+// on propReady so a slow load just means less ground cover.
 const FOREST_ENRICH_DIR = 'assets/trees/n2/';
 export const FOREST_ENRICH_NAMES = [
   'mf01', 'mf02', 'mf03', 'mf04', 'mf05', 'mf06', 'mf07', 'mf08', 'mf09', 'mf10', 'mf11', 'mf12', // flowers
@@ -147,7 +209,7 @@ export const FOREST_LANDMARK_NAMES = ['ms01', 'ms02', 'ms04', 'mt05', 'mt06', 'm
 const _enrichAll = FOREST_ENRICH_NAMES.concat(FOREST_LANDMARK_NAMES);
 const FOREST_ENRICH_FILES = Object.fromEntries(_enrichAll.map((n) => [n, FOREST_ENRICH_DIR + n + '.glb']));
 
-// Distant horizon ranges — flat Meshy relief tiles (heightfields with peaks, no base) ringed around
+// Distant horizon ranges: flat relief tiles (heightfields with peaks, no base) ringed around
 // the board and caught grazing by the camera so they read as a far mountain horizon with real parallax.
 // One tile per biome family (snow / forested), tiny after decimation. Loaded on demand per map.
 const RANGE_DIR = 'assets/horizon/';
@@ -175,7 +237,7 @@ export function loadAllProps() {
   // FOREST_TREE_FILES are deliberately NOT in this boot pool: they're only needed on forest maps,
   // and queuing 11 trees behind ~200 props would mean Mazandaran builds before they load (→ toy
   // fallback). They load on a dedicated priority path (loadForestTrees) when a forest map opens.
-  const entries = Object.entries({ ...PROP_FILES, ...PERSIAN_FILES, ...NATURE_FILES, ...NATURE2_FILES, ...THINGS_FILES, ...REALISTIC_FILES });
+  const entries = Object.entries({ ...PROP_FILES, ...PERSIAN_FILES, ...NATURE_FILES, ...NATURE2_FILES, ...THINGS_FILES, ...REALISTIC_FILES, ...ZABULISTAN_PROP_FILES });
   // Bound concurrent fetches with a small worker pool. Firing all ~120 gltf at once made
   // dozens simultaneously re-request the same shared trim textures (a 3 MB ORM), flooding
   // the server's connection pool and intermittently dropping a texture load. ≤8 in flight
@@ -245,6 +307,10 @@ export function loadForestEnrich(onReady) { loadGlbSet(_enrichAll, FOREST_ENRICH
 const _rangeStarted = [false];
 export function rangesReady() { return RANGE_NAMES.some((n) => propReady(n)); }
 export function loadRanges(onReady) { loadGlbSet(RANGE_NAMES, RANGE_FILES, _rangeStarted, onReady); }
+
+const _zabulistanStarted = [false];
+export function zabulistanPropsReady() { return ZABULISTAN_PROP_NAMES.every((n) => propReady(n)); }
+export function loadZabulistanProps(onReady) { loadGlbSet(ZABULISTAN_PROP_NAMES, ZABULISTAN_PROP_FILES, _zabulistanStarted, onReady); }
 
 function tintedMaterial(srcMat, tint, factor) {
   const key = `${srcMat.uuid}|${tint}|${factor}`;

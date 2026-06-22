@@ -73,3 +73,5 @@ All third-party assets are free-licensed and bundled locally (no runtime downloa
 ## Everything else
 All other models, textures, sound effects and UI art are generated procedurally in-code
 (this repository's license applies). Atlas paintings in `atlases/` are project-owned assets.
+The custom low-poly war-horse model at `public/assets/animals/WarHorse.glb` is project-owned
+geometry with bundled material colors and no external texture dependency.

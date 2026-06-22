@@ -3,17 +3,6 @@ import { MATS } from '../models/materials.js';
 import { animateBanner, makeBanner, makeFlame } from '../models/towerkit.js';
 import { settings } from '../core/settings.js';
 
-function lineMat(color, opacity) {
-  return new THREE.LineBasicMaterial({
-    color,
-    transparent: true,
-    opacity,
-    depthWrite: false,
-    depthTest: false,
-    blending: THREE.AdditiveBlending,
-  });
-}
-
 function glowMat(color, opacity) {
   return new THREE.MeshBasicMaterial({
     color,
@@ -55,7 +44,6 @@ export class PalaceGateStage {
   rebuild({ cit, front, keep, dir }) {
     this.clear();
     if (!cit || !front || !keep || !dir) return;
-    const mats = MATS();
     const side = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
     const inward = keep.clone().sub(front);
     if (inward.lengthSq() < 0.01) inward.copy(dir).multiplyScalar(-1); else inward.normalize();
@@ -64,30 +52,12 @@ export class PalaceGateStage {
     this.frontLine = { front: front.clone(), side: side.clone(), width };
 
     this._threshold(front, side, inward, width, y);
-    this._bannerLine(front, side, inward, width, y);
-    this._shieldLine(front, side, inward, width, y, mats);
-    this._braziers(front, side, inward, width, y, mats);
+    this._shieldLine(front, side, inward, width, y);
 
     this.ready = true;
   }
 
   _threshold(front, side, inward, width, y) {
-    const gold = lineMat(0xffd26a, 0.62);
-    const sacred = lineMat(0x7fe7ff, 0.24);
-    this.customMats.push(gold, sacred);
-    this.dynamicMats.push({ mat: gold, base: 0.46, amp: 0.4, speed: 3.2 });
-    this.dynamicMats.push({ mat: sacred, base: 0.14, amp: 0.32, speed: 2.0 });
-
-    const a = front.clone().addScaledVector(side, -width * 0.58).setY(y + 0.07);
-    const b = front.clone().addScaledVector(side, width * 0.58).setY(y + 0.07);
-    const c = a.clone().addScaledVector(inward, 1.4);
-    const d = b.clone().addScaledVector(inward, 1.4);
-    const threshold = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), gold);
-    const rear = new THREE.Line(new THREE.BufferGeometry().setFromPoints([c, d]), sacred);
-    threshold.renderOrder = 36;
-    rear.renderOrder = 35;
-    this.group.add(threshold, rear);
-
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.94, 1.0, 128), glowMat(0xffd26a, 0.22));
     ring.rotation.x = -Math.PI / 2;
     ring.position.copy(front).addScaledVector(inward, 0.7).setY(y + 0.05);
@@ -114,40 +84,38 @@ export class PalaceGateStage {
     });
   }
 
-  _shieldLine(front, side, inward, width, y, mats) {
-    const shieldGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.08, 14);
-    const spearGeo = new THREE.CylinderGeometry(0.025, 0.032, 1.85, 5);
-    const tipGeo = new THREE.ConeGeometry(0.075, 0.22, 6);
-    shieldGeo.userData.stageOwned = true;
-    spearGeo.userData.stageOwned = true;
-    tipGeo.userData.stageOwned = true;
-    const count = 9;
+  _shieldLine(front, side, inward, width, y) {
+    const sealGeo = new THREE.RingGeometry(0.2, 0.36, 28);
+    sealGeo.rotateX(-Math.PI / 2);
+    const coreGeo = new THREE.CircleGeometry(0.12, 20);
+    coreGeo.rotateX(-Math.PI / 2);
+    sealGeo.userData.stageOwned = true;
+    coreGeo.userData.stageOwned = true;
+    const sealMat = glowMat(0xffd26a, 0.2);
+    const coreMat = glowMat(0x7fe7ff, 0.08);
+    this.customMats.push(sealMat, coreMat);
+    this.dynamicMats.push({ mat: sealMat, base: 0.1, amp: 0.22, speed: 2.8 });
+    this.dynamicMats.push({ mat: coreMat, base: 0.04, amp: 0.12, speed: 2.1 });
+    const count = 7;
     for (let i = 0; i < count; i++) {
       const t = count === 1 ? 0 : i / (count - 1);
       const lane = (t - 0.5) * width * 0.95;
       const row = Math.abs(t - 0.5) * 1.1;
       const p = front.clone().addScaledVector(side, lane).addScaledVector(inward, 0.85 + row);
       p.y = this.map.heightAt(p.x, p.z);
-      const shield = new THREE.Mesh(shieldGeo.clone(), i % 3 === 0 ? mats.bronze : mats.iron);
-      shield.position.copy(p).setY(p.y + 0.62);
-      shield.rotation.x = Math.PI / 2;
-      orientToward(shield, inward);
-      shield.castShadow = true;
-      this.group.add(shield);
-
-      const spear = new THREE.Mesh(spearGeo.clone(), mats.woodDark);
-      spear.position.copy(p).addScaledVector(inward, 0.18).setY(p.y + 1.25);
-      spear.rotation.z = (i % 2 ? -0.18 : 0.18);
-      this.group.add(spear);
-
-      const tip = new THREE.Mesh(tipGeo.clone(), mats.iron);
-      tip.position.copy(spear.position).setY(p.y + 2.28);
-      tip.rotation.z = spear.rotation.z;
-      this.group.add(tip);
+      const seal = new THREE.Mesh(sealGeo.clone(), sealMat);
+      seal.position.copy(p).setY(p.y + 0.08);
+      seal.renderOrder = 37;
+      const core = new THREE.Mesh(coreGeo.clone(), coreMat);
+      core.position.copy(p).setY(p.y + 0.085);
+      core.renderOrder = 38;
+      const scale = 0.9 + (i === Math.floor(count / 2) ? 0.16 : 0) + Math.abs(t - 0.5) * 0.08;
+      seal.scale.setScalar(scale);
+      core.scale.setScalar(scale * 0.72);
+      this.group.add(seal, core);
     }
-    shieldGeo.dispose();
-    spearGeo.dispose();
-    tipGeo.dispose();
+    sealGeo.dispose();
+    coreGeo.dispose();
   }
 
   _braziers(front, side, inward, width, y, mats) {
