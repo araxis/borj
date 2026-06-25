@@ -12,18 +12,18 @@ function roadTexture(style = 'stone') {
   const g = c.getContext('2d');
   if (style === 'zabulistan') {
     const rng = makeRng('road-texture:zabulistan');
-    g.fillStyle = '#796b54'; g.fillRect(0, 0, 128, 256);
+    g.fillStyle = '#9a8660'; g.fillRect(0, 0, 128, 256);
     const shoulder = g.createLinearGradient(0, 0, 128, 0);
-    shoulder.addColorStop(0, 'rgba(54,47,38,0.38)');
-    shoulder.addColorStop(0.14, 'rgba(116,100,74,0.20)');
-    shoulder.addColorStop(0.5, 'rgba(178,157,115,0.09)');
-    shoulder.addColorStop(0.86, 'rgba(116,100,74,0.18)');
-    shoulder.addColorStop(1, 'rgba(54,47,38,0.36)');
+    shoulder.addColorStop(0, 'rgba(92,72,48,0.22)');
+    shoulder.addColorStop(0.14, 'rgba(146,120,82,0.14)');
+    shoulder.addColorStop(0.5, 'rgba(220,188,126,0.11)');
+    shoulder.addColorStop(0.86, 'rgba(146,120,82,0.13)');
+    shoulder.addColorStop(1, 'rgba(92,72,48,0.20)');
     g.fillStyle = shoulder;
     g.fillRect(0, 0, 128, 256);
     for (let i = 0; i < 980; i++) {
       const v = rng() * 44 - 22;
-      g.fillStyle = `rgba(${126 + v},${113 + v},${84 + v},${0.30 + rng() * 0.25})`;
+      g.fillStyle = `rgba(${150 + v},${130 + v},${90 + v},${0.22 + rng() * 0.18})`;
       g.fillRect(rng() * 128, rng() * 256, 1 + rng() * 4, 1 + rng() * 3);
     }
     for (let i = 0; i < 68; i++) {
@@ -35,13 +35,13 @@ function roadTexture(style = 'stone') {
       g.save();
       g.translate(x, y);
       g.rotate((rng() - 0.5) * 0.45);
-      g.fillStyle = `rgba(${144 + v},${130 + v},${98 + v},0.24)`;
+      g.fillStyle = `rgba(${168 + v},${145 + v},${102 + v},0.18)`;
       g.fillRect(-w * 0.5, -h * 0.5, w, h);
       g.restore();
     }
     for (let y = 4; y < 256; y += 13 + rng() * 13) {
       for (const x of [31 + (rng() - 0.5) * 5, 94 + (rng() - 0.5) * 5]) {
-        g.fillStyle = `rgba(72,59,40,${0.14 + rng() * 0.12})`;
+        g.fillStyle = `rgba(104,78,48,${0.08 + rng() * 0.08})`;
         g.fillRect(x, y, 5 + rng() * 5, 6 + rng() * 15);
       }
     }
@@ -56,9 +56,9 @@ function roadTexture(style = 'stone') {
       g.lineTo(Math.min(126, x + w), y + (rng() - 0.5) * 5);
       g.stroke();
     }
-    g.fillStyle = 'rgba(58,49,38,0.14)';
+    g.fillStyle = 'rgba(94,72,46,0.08)';
     g.fillRect(28, 0, 8, 256); g.fillRect(92, 0, 7, 256);
-    g.fillStyle = 'rgba(217,190,139,0.055)';
+    g.fillStyle = 'rgba(238,205,142,0.07)';
     g.fillRect(46, 0, 32, 256);
   } else if (style === 'earth') {
     g.fillStyle = '#8a7458'; g.fillRect(0, 0, 128, 256);
@@ -219,13 +219,18 @@ export function samplePath(points2D, heightAt, step = 0.8) {
 export function buildRoadMesh(sampled, style = 'stone', seed = 'road') {
   if (!stoneTex) { stoneTex = roadTexture('stone'); earthTex = roadTexture('earth'); zabulTex = roadTexture('zabulistan'); }
   const { samples } = sampled;
+  const endDist = sampled.length || samples[samples.length - 1]?.dist || 0;
+  const zabulistanForecourtTrim = 48;
+  const roadSamples = style === 'zabulistan'
+    ? samples.filter((s) => endDist - s.dist > zabulistanForecourtTrim - 2)
+    : samples;
   const half = ROAD_WIDTH / 2;
   const verts = [], uvs = [], idx = [];
   const edgeRng = makeRng(seed + ':edge');
   const edgePhaseA = edgeRng() * Math.PI * 2;
   const edgePhaseB = edgeRng() * Math.PI * 2;
-  for (let i = 0; i < samples.length; i++) {
-    const s = samples[i];
+  for (let i = 0; i < roadSamples.length; i++) {
+    const s = roadSamples[i];
     const side = new THREE.Vector3(-s.tangent.z, 0, s.tangent.x).normalize();
     const edge = roadEdgeOffsets(style, i, half, edgePhaseA, edgePhaseB);
     const lx = s.pos.x + side.x * (edge.leftHalf + edge.centerBias), lz = s.pos.z + side.z * (edge.leftHalf + edge.centerBias);
@@ -251,7 +256,7 @@ export function buildRoadMesh(sampled, style = 'stone', seed = 'road') {
     bumpScale: style === 'earth' ? 0.035 : style === 'zabulistan' ? 0.045 : 0.022,
     roughness: style === 'earth' || style === 'zabulistan' ? 0.98 : 0.92,
     metalness: 0,
-    color: style === 'earth' ? 0xf0dfbd : style === 'zabulistan' ? 0xb8aa8a : 0xe6dcc6,
+    color: style === 'earth' ? 0xf0dfbd : style === 'zabulistan' ? 0xd1bd8f : 0xe6dcc6,
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
@@ -261,7 +266,10 @@ export function buildRoadMesh(sampled, style = 'stone', seed = 'road') {
   mesh.renderOrder = 2;
 
   const group = new THREE.Group();
-  if (style === 'zabulistan') group.add(buildZabulistanRoadShoulder(samples, seed, half, edgePhaseA, edgePhaseB));
+  if (style === 'zabulistan') {
+    const shoulderSamples = samples.filter((s) => endDist - s.dist > zabulistanForecourtTrim);
+    if (shoulderSamples.length > 3) group.add(buildZabulistanRoadShoulder(shoulderSamples, seed, half, edgePhaseA, edgePhaseB));
+  }
   group.add(mesh);
 
   // curbstones + occasional waymark pillars
@@ -274,6 +282,7 @@ export function buildRoadMesh(sampled, style = 'stone', seed = 'road') {
   const stride = style === 'zabulistan' ? 4 : 3;
   for (let i = 2; i < samples.length - 2; i += stride) {
     const s = samples[i];
+    if (style === 'zabulistan' && endDist - s.dist < zabulistanForecourtTrim - 4) continue;
     const side = new THREE.Vector3(-s.tangent.z, 0, s.tangent.x).normalize();
     for (const dir of [-1, 1]) {
       if (rng() < (style === 'zabulistan' ? 0.48 : 0.25)) continue;

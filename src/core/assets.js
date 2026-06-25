@@ -252,11 +252,20 @@ const PALACE_FILES = {
 };
 const palaceCache = new Map();   // placeId -> 'loading' | 'failed' | { scene }
 const palaceWaiters = new Map(); // placeId -> [onReady...]
+const palaceErrors = new Map();
 
 export function hasPalace(placeId) { return !!PALACE_FILES[placeId]; }
 export function palaceReady(placeId) {
   const c = palaceCache.get(placeId);
   return !!c && c !== 'loading' && c !== 'failed';
+}
+export function palaceStatus(placeId) {
+  const c = palaceCache.get(placeId);
+  return {
+    available: !!PALACE_FILES[placeId],
+    status: !PALACE_FILES[placeId] ? 'missing' : !c ? 'idle' : c === 'loading' ? 'loading' : c === 'failed' ? 'failed' : 'ready',
+    error: palaceErrors.get(placeId) || null,
+  };
 }
 
 export function sanitizePalaceShadows(root) {
@@ -279,12 +288,12 @@ export function sanitizePalaceShadows(root) {
 function palaceMaterialProfile(root, placeId) {
   if (placeId !== 'zabulistan' || !root?.traverse) return root;
   const toned = new Map();
-  const colorMul = new THREE.Color(0x9a8664);
+  const colorMul = new THREE.Color(0xe2c28d);
   const toneMaterial = (mat) => {
     if (!mat?.isMaterial) return mat;
     if (toned.has(mat)) return toned.get(mat);
     const m = mat.clone();
-    if (m.color?.isColor) m.color.multiply(colorMul);
+    if (m.color?.isColor) m.color.multiply(colorMul).lerp(new THREE.Color(0xc2a36f), 0.08);
     if (m.emissive?.isColor) m.emissive.setHex(0x000000);
     if ('emissiveIntensity' in m) m.emissiveIntensity = 0;
     if ('metalness' in m) m.metalness = Math.min(Number.isFinite(m.metalness) ? m.metalness : 0, 0.06);
@@ -307,6 +316,10 @@ function palaceMaterialProfile(root, placeId) {
 // kick a lazy load (idempotent); onReady fires once the GLB is parsed (or immediately if already ready).
 export function loadPalace(placeId, onReady) {
   if (!PALACE_FILES[placeId]) return;
+  if (palaceCache.get(placeId) === 'failed') {
+    palaceCache.delete(placeId);
+    palaceErrors.delete(placeId);
+  }
   if (palaceReady(placeId)) { onReady && onReady(); return; }
   if (onReady) palaceWaiters.set(placeId, [...(palaceWaiters.get(placeId) || []), onReady]);
   if (palaceCache.has(placeId)) return; // already loading / failed
@@ -316,11 +329,18 @@ export function loadPalace(placeId, onReady) {
     (gltf) => {
       sanitizePalaceShadows(gltf.scene);
       palaceCache.set(placeId, { scene: gltf.scene });
+      palaceErrors.delete(placeId);
       (palaceWaiters.get(placeId) || []).forEach((fn) => fn());
       palaceWaiters.delete(placeId);
     },
     undefined,
-    () => { palaceCache.set(placeId, 'failed'); palaceWaiters.delete(placeId); }, // missing → procedural citadel
+    (err) => {
+      const message = err?.message || err?.target?.src || String(err || 'unknown palace asset load error');
+      palaceErrors.set(placeId, message);
+      console.warn('Palace asset failed to load', placeId, message);
+      palaceCache.set(placeId, 'failed');
+      palaceWaiters.delete(placeId);
+    }, // missing → procedural citadel
   );
 }
 export function clonePalaceScene(placeId) {

@@ -200,7 +200,7 @@ function genericTower(opts) {
   const {
     age = 0, wallMat = 'stone', baseMat = 'stoneDark', r = 1.5,
     floors: baseFloors = 2, crown = 'crenel', domeMat = 'turquoise', sides = 4,
-    bannerColor = 'clothRed', torches = 2, shields = false, glowRelief = false,
+    bannerColor = 'clothRed', torches = 2, shields = false, glowRelief = false, crownMat = 'stone',
   } = opts;
   // ages REBUILD the tower: Kayanian/Sasanian add whole floors, Mastery adds two —
   // an upgraded tower must read as a different building at a glance
@@ -241,7 +241,7 @@ function genericTower(opts) {
   const rc = Math.max(r * 0.36, r * (0.88 - (floors - 1) * 0.13));
   let topY = y2;
   if (crown === 'crenel') {
-    topY = crenellations(b, rc, y2, wallMat === 'stoneWhite' ? 'stoneWhite' : 'stone', sides === 4);
+    topY = crenellations(b, rc, y2, wallMat === 'stoneWhite' ? 'stoneWhite' : crownMat, sides === 4);
   } else if (crown === 'dome') {
     topY = crenellations(b, rc, y2, 'stone', sides === 4);
     topY = dome(b, rc * 0.95, topY, age >= 4 ? 'gold' : domeMat) + 0.2;
@@ -320,6 +320,52 @@ function genericTower(opts) {
 
 const RECIPES = {
   watchtower: (age) => genericTower({ age, wallMat: 'stone', floors: 2, crown: 'crenel', bannerColor: 'clothRed' }),
+  zabulWatchtower: (age) => {
+    const t = genericTower({
+      age,
+      wallMat: 'brickRed',
+      baseMat: 'mudbrick',
+      floors: 2,
+      crown: 'crenel',
+      crownMat: 'mudbrick',
+      bannerColor: 'clothRed',
+      torches: 2,
+      shields: true,
+      glowRelief: age >= 2,
+    });
+    let b = new MeshBuilder();
+    // Highland foundation: rough sandstone plinth and cedar braces, replacing the old white/black block read.
+    b.box(3.95, 0.24, 3.95, 'stoneDark', 0, 0.2, 0, Math.PI / 4);
+    b.box(3.35, 0.18, 3.35, 'stone', 0, 0.48, 0, Math.PI / 4);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      b.box(0.24, 2.7 + age * 0.2, 0.24, 'wood', Math.cos(a) * 1.85, 2.25, Math.sin(a) * 1.85, a);
+      b.box(0.18, 2.6, 0.18, 'wood', Math.cos(a) * 1.48, 2.7, Math.sin(a) * 1.48, a, 0, 0.38);
+    }
+    b.cyl(1.72, 1.82, 0.34, 12, 'relief', 0, 4.0 + age * 0.25, 0);
+    t.layers.base.add(b.build());
+
+    b = new MeshBuilder();
+    const deckY = t.height + 0.18;
+    b.box(3.25, 0.22, 0.24, 'wood', 0, deckY, 1.26);
+    b.box(3.25, 0.22, 0.24, 'wood', 0, deckY, -1.26);
+    b.box(0.24, 0.22, 3.25, 'wood', 1.26, deckY, 0);
+    b.box(0.24, 0.22, 3.25, 'wood', -1.26, deckY, 0);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      b.box(0.28, 0.42, 0.16, i % 2 ? 'mudbrick' : 'stone', Math.cos(a) * 1.34, deckY + 0.35, Math.sin(a) * 1.34, -a);
+    }
+    spearRack(b, 1.38, 0.58, deckY + 0.05, Math.PI / 2);
+    spearRack(b, -1.38, -0.58, deckY + 0.05, -Math.PI / 2);
+    t.layers.crown.add(b.build());
+
+    const standard = makeBanner(age >= 3 ? 'clothGold' : 'clothRed', 1.0, 1.65, 3.0 + age * 0.18);
+    standard.position.set(0, Math.max(1.2, t.height - 1.0), -1.42);
+    standard.rotation.y = Math.PI;
+    t.group.add(standard);
+    t.animated.banners.push(standard);
+    return t;
+  },
   reedOutpost: (age) => {
     const t = genericTower({ age, wallMat: 'mudbrick', baseMat: 'wood', floors: 1, crown: 'platform', torches: 1, bannerColor: 'clothTeal' });
     const b = new MeshBuilder();

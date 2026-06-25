@@ -188,6 +188,53 @@ body.rtl .gbtn, body.rtl .tabbtn { letter-spacing: 0; }
   background: linear-gradient(90deg, #b9892f, #7fe7dc, #fff3c8);
   transition: width 0.2s ease;
 }
+.statchip.combat-flow {
+  position: relative;
+  gap: 6px;
+  min-height: 32px;
+  padding: 3px 8px 7px;
+  border: 1px solid rgba(127,231,220,0.22);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(24,34,30,0.74), rgba(13,16,13,0.82));
+  color: #b9d6bf;
+  box-shadow: inset 0 0 12px rgba(127,231,220,0.06);
+}
+.statchip.combat-flow b {
+  min-width: 1.4em;
+  color: currentColor;
+}
+.combat-flow-kills {
+  color: rgba(238,221,174,0.78);
+  font-size: 0.78em;
+}
+.combat-flow.steady { border-color: rgba(127,231,220,0.28); }
+.combat-flow.pressure {
+  color: #f3c279;
+  border-color: rgba(232,154,86,0.42);
+  box-shadow: inset 0 0 14px rgba(232,154,86,0.12), 0 0 10px rgba(232,154,86,0.16);
+}
+.combat-flow.clear {
+  color: #9fe0dc;
+  border-color: rgba(127,231,220,0.36);
+}
+.combat-flow-bar {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.46);
+  overflow: hidden;
+}
+.combat-flow-bar i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8fb66d, #d6bb72, #9fe0dc);
+  transition: width 0.2s ease;
+}
 @keyframes farrReady {
   0%, 100% { box-shadow: inset 0 0 12px rgba(216,169,62,0.18), 0 0 0 rgba(244,205,110,0); }
   50% { box-shadow: inset 0 0 16px rgba(216,169,62,0.34), 0 0 16px rgba(244,205,110,0.55); }
@@ -483,13 +530,19 @@ body.hud-low-chrome .statchip.gate-omen {
   max-width: min(248px, 30vw);
   min-width: 0;
 }
+body.hud-low-chrome .statchip.combat-flow {
+  max-width: min(150px, 18vw);
+  min-width: 0;
+}
 body.hud-low-chrome .statchip.gate-omen b,
-body.hud-low-chrome .gate-omen-detail {
+body.hud-low-chrome .gate-omen-detail,
+body.hud-low-chrome .combat-flow-kills {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 body.hud-low-chrome .gate-omen-detail { max-width: 8.6em; }
+body.hud-low-chrome .combat-flow-kills { max-width: 4.4em; }
 body.hud-low-chrome .iconbtn {
   min-width: 30px;
   min-height: 28px;
@@ -675,14 +728,19 @@ body.hud-low-chrome .palace-context-mark {
   font-size: 1rem;
 }
 body.hud-low-chrome .palace-context-main {
+  flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   display: grid;
   gap: 1px;
   text-align: start;
 }
 body.hud-low-chrome .palace-context-name,
 body.hud-low-chrome .palace-context-state {
+  display: block;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2746,6 +2804,12 @@ body.rtl .gbtn.launch { letter-spacing: 0; }
   }
   body.hud-low-chrome .statchip { gap: 3px; font-size: 0.82rem; }
   body.hud-low-chrome .statchip .ico { font-size: 0.9rem; }
+  body.hud-low-chrome .statchip b {
+    min-width: 0;
+    max-width: 4.6em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   body.hud-low-chrome .iconbtn {
     min-width: 27px;
     min-height: 25px;
@@ -2776,10 +2840,15 @@ body.rtl .gbtn.launch { letter-spacing: 0; }
   body.hud-low-chrome #menuBtn { order: 6; }
   body.hud-low-chrome .farrchip { order: 7; }
   body.hud-low-chrome .gate-omen { order: 8; }
+  body.hud-low-chrome .combat-flow { order: 9; }
   body.hud-low-chrome .statchip.gate-omen {
     max-width: min(240px, calc(100vw - 20px));
   }
+  body.hud-low-chrome .statchip.combat-flow {
+    max-width: min(128px, calc(100vw - 20px));
+  }
   body.hud-low-chrome .gate-omen-detail { max-width: 8.8em; }
+  body.hud-low-chrome .combat-flow-kills { max-width: 4.4em; }
   body.hud-low-chrome.wave-active #topbar {
     padding: 3px 5px 5px;
     gap: 2px 4px;
@@ -2813,8 +2882,17 @@ body.rtl .gbtn.launch { letter-spacing: 0; }
     min-height: 24px;
     padding: 2px 6px 5px;
   }
+  body.hud-low-chrome.wave-active .statchip.combat-flow {
+    flex: 0 1 88px;
+    max-width: 88px;
+    min-height: 24px;
+    padding: 2px 6px 5px;
+  }
   body.hud-low-chrome.wave-active .gate-omen-detail {
     display: none;
+  }
+  body.hud-low-chrome.wave-active .combat-flow-kills {
+    font-size: 0.68em;
   }
   body.hud-low-chrome #leftPanel {
     top: 86px;
@@ -2895,8 +2973,8 @@ body.rtl .gbtn.launch { letter-spacing: 0; }
   body.hud-low-chrome .palace-context-chip {
     top: 82px;
     right: 6px;
-    width: min(226px, calc(100vw - 64px));
-    min-height: 42px;
+    width: min(174px, calc(100vw - 64px));
+    min-height: 38px;
     gap: 7px;
     padding: 5px 7px;
   }
@@ -2905,9 +2983,9 @@ body.rtl .gbtn.launch { letter-spacing: 0; }
     left: 6px;
   }
   body.hud-low-chrome .palace-context-mark {
-    flex-basis: 27px;
-    width: 27px;
-    height: 27px;
+    flex-basis: 25px;
+    width: 25px;
+    height: 25px;
     font-size: 0.92rem;
   }
   body.hud-low-chrome .palace-context-name { font-size: 0.76rem; }
@@ -2928,13 +3006,23 @@ body.rtl .gbtn.launch { letter-spacing: 0; }
     max-height: calc(min(50vh, 420px) - 16px);
   }
   body.hud-low-chrome .palace-action-rail {
-    width: 226px;
-    height: 96px;
+    width: 184px;
+    height: 82px;
     transform: translate(-50%, -104%);
   }
   body.hud-low-chrome .palace-action-btn {
-    width: 44px;
-    height: 52px;
+    width: 38px;
+    height: 46px;
+  }
+  body.hud-low-chrome .palace-action-icon {
+    inset: 7px 8px 14px;
+    font-size: 0.9rem;
+  }
+  body.hud-low-chrome .palace-action-state {
+    min-width: 26px;
+    max-width: 38px;
+    height: 14px;
+    font-size: 0.46rem;
   }
   body.hud-low-chrome #bottomBar {
     bottom: max(8px, env(safe-area-inset-bottom));
@@ -3283,9 +3371,10 @@ body.rtl .gbtn.launch { letter-spacing: 0; }
   #mapIntro.visible .mapintro > *,
   #endScreen.visible .endtitle, #endScreen.visible .endtitle.win, #endScreen.visible #endSub,
   #endScreen.visible .unlocks .ucard, #endScreen.visible .end-actions,
-  .statchip.farrchip.ready, .statchip.gate-omen.peak,
+  .statchip.farrchip.ready, .statchip.gate-omen.peak, .statchip.combat-flow.pressure,
   .palace-action-rail, .palace-action-btn.ready::before { animation: none !important; }
   .palace-action-btn, .hero-marker, .quick-build-tray, .quick-build-btn, .quick-build-more, .palace-context-chip { transition: none !important; }
+  .combat-flow-bar i { transition: none !important; }
   #bossBanner, #oathBanner, #commandBanner { transition: none; }
   #commandBanner.show { animation: none !important; opacity: 1; transform: translate(-50%, 0) scale(1); }
 }

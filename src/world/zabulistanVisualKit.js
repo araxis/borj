@@ -49,11 +49,17 @@ function kitMats() {
       polygonOffsetUnits: -2,
     }),
     sandstone: new THREE.MeshStandardMaterial({ color: 0x998a70, roughness: 0.98 }),
-    sandstoneDark: new THREE.MeshStandardMaterial({ color: 0x62584d, roughness: 1 }),
-    terraceTop: new THREE.MeshStandardMaterial({ color: 0x77684d, roughness: 1 }),
+    sandstoneDark: new THREE.MeshStandardMaterial({ color: 0x766752, roughness: 1 }),
+    facadeStone: new THREE.MeshStandardMaterial({ color: 0x9b8055, roughness: 0.98 }),
+    facadeLight: new THREE.MeshStandardMaterial({ color: 0xc1a36d, roughness: 0.95 }),
+    gateShadow: new THREE.MeshStandardMaterial({ color: 0x17100b, roughness: 1 }),
+    gateWood: new THREE.MeshStandardMaterial({ color: 0x2e1b10, roughness: 0.94 }),
+    gateBronze: new THREE.MeshStandardMaterial({ color: 0x7a4e22, roughness: 0.72, metalness: 0.16 }),
+    agedTurquoise: new THREE.MeshStandardMaterial({ color: 0x208a85, roughness: 0.82, metalness: 0.04 }),
+    terraceTop: new THREE.MeshStandardMaterial({ color: 0x89785b, roughness: 1 }),
     cliffFace: new THREE.MeshStandardMaterial({ color: 0x686a66, roughness: 1 }),
     cliffShadow: new THREE.MeshStandardMaterial({ color: 0x454845, roughness: 1 }),
-    cliffWarm: new THREE.MeshStandardMaterial({ color: 0x81705b, roughness: 1 }),
+    cliffWarm: new THREE.MeshStandardMaterial({ color: 0x927c5d, roughness: 1 }),
     darkSoil: new THREE.MeshStandardMaterial({
       color: 0x6d6949,
       roughness: 1,
@@ -138,7 +144,7 @@ function placeAuthoredGroundProp(map, group, name, x, z, ry, { targetW = null, t
   prop.position.set(x, map.heightAt(x, z) - (base.baseY || 0) * scale + yOffset, z);
   prop.rotation.y = ry;
   group.add(prop);
-  return true;
+  return prop;
 }
 
 function authoredChild(name, unit = 1) {
@@ -250,12 +256,15 @@ function buildPalaceBaseWrap() {
   const mats = kitMats();
   const g = new THREE.Group();
   g.userData.visualQaIgnore = true;
-  const wall = new THREE.Mesh(openRingGeometry(), mats.sandstoneDark);
-  wall.castShadow = true;
+  const wall = new THREE.Mesh(openRingGeometry(8.7, 15.1, 1.05, 64, 0.72), mats.sandstone);
+  wall.name = 'zabulistan-palace-base-low-terrace';
+  wall.position.y = -0.12;
+  wall.castShadow = false;
   wall.receiveShadow = true;
   g.add(wall);
-  const lip = new THREE.Mesh(openRingGeometry(7.9, 15.6, 0.24, 64, 0.7), mats.terraceTop);
-  lip.position.y = 3.04;
+  const lip = new THREE.Mesh(openRingGeometry(8.35, 15.45, 0.16, 64, 0.78), mats.cliffWarm);
+  lip.name = 'zabulistan-palace-base-warm-lip';
+  lip.position.y = 0.84;
   lip.castShadow = true;
   lip.receiveShadow = true;
   g.add(lip);
@@ -263,8 +272,9 @@ function buildPalaceBaseWrap() {
     const t = (i + 0.5) / 34;
     const a = 0.42 + (TAU - 0.84) * t;
     const r = 14.05 + (i % 3) * 0.18;
-    const stone = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.2, 0.44), i % 2 ? mats.terraceTop : mats.sandstoneDark);
-    stone.position.set(Math.sin(a) * r, 3.31, Math.cos(a) * r);
+    const stone = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.16, 0.38), i % 2 ? mats.terraceTop : mats.sandstone);
+    stone.name = `zabulistan-palace-base-cap-${i}`;
+    stone.position.set(Math.sin(a) * r, 1.07, Math.cos(a) * r);
     stone.rotation.y = a;
     stone.scale.set(1 + (i % 4) * 0.08, 1, 0.82 + (i % 5) * 0.04);
     stone.castShadow = true;
@@ -272,6 +282,78 @@ function buildPalaceBaseWrap() {
     g.add(stone);
   }
   return g;
+}
+
+function addPalaceFacadeDressing(map, group, fwd, side, yaw) {
+  const exit = map.exitPos;
+  const base = exit.clone().addScaledVector(fwd, 11.5);
+  const placed = placeAuthoredGroundProp(map, group, 'zv_palace_facade_dressing', base.x, base.z, yaw, {
+    targetW: 13.45,
+    yOffset: 0.12,
+    tint: null,
+    sceneName: 'zabulistan-palace-facade-dressing',
+  });
+  if (placed) {
+    placed.userData.visualQaIgnore = true;
+    placed.traverse((node) => {
+      if (node.isMesh) {
+        node.castShadow = false;
+        node.receiveShadow = true;
+      }
+    });
+    return true;
+  }
+
+  const mats = kitMats();
+  const fallback = new THREE.Group();
+  fallback.name = 'zabulistan-palace-facade-fallback';
+  fallback.position.set(base.x, map.heightAt(base.x, base.z) + 0.12, base.z);
+  fallback.rotation.y = yaw;
+  fallback.userData.visualQaIgnore = true;
+
+  const box = new THREE.BoxGeometry(1, 1, 1);
+  const addBox = (name, x, y, z, sx, sy, sz, mat, rz = 0) => {
+    const mesh = new THREE.Mesh(box, mat);
+    mesh.name = name;
+    mesh.position.set(x, y, z);
+    mesh.rotation.z = rz;
+    mesh.scale.set(sx, sy, sz);
+    mesh.castShadow = false;
+    mesh.receiveShadow = true;
+    fallback.add(mesh);
+    return mesh;
+  };
+
+  addBox('zabulistan-palace-facade-shadow-recess', 0, 2.55, -0.18, 2.2, 4.55, 0.18, mats.gateShadow);
+  addBox('zabulistan-palace-facade-left-jamb', -1.42, 2.58, 0.02, 0.54, 4.72, 0.36, mats.facadeStone, 0.015);
+  addBox('zabulistan-palace-facade-right-jamb', 1.42, 2.58, 0.02, 0.54, 4.72, 0.36, mats.facadeStone, -0.015);
+  addBox('zabulistan-palace-facade-left-buttress', -3.12, 2.32, 0.02, 0.7, 4.1, 0.42, mats.sandstone);
+  addBox('zabulistan-palace-facade-right-buttress', 3.12, 2.32, 0.02, 0.7, 4.1, 0.42, mats.sandstone);
+  addBox('zabulistan-palace-facade-left-door', -0.42, 1.7, -0.42, 0.72, 2.55, 0.08, mats.gateWood);
+  addBox('zabulistan-palace-facade-right-door', 0.42, 1.7, -0.42, 0.72, 2.55, 0.08, mats.gateWood);
+  addBox('zabulistan-palace-facade-door-seam', 0, 1.7, -0.48, 0.06, 2.7, 0.05, mats.gateBronze);
+  for (const z of [0.72, 1.6, 2.48]) {
+    addBox(`zabulistan-palace-facade-door-band-${z}`, 0, z, -0.52, 1.55, 0.06, 0.06, mats.gateBronze);
+  }
+  addBox('zabulistan-palace-facade-turquoise-sill', 0, 3.38, -0.52, 1.85, 0.12, 0.06, mats.agedTurquoise);
+  for (let i = 0; i < 11; i++) {
+    const a = Math.PI * (i / 10);
+    const x = Math.cos(a) * 1.38;
+    const y = 3.55 + Math.sin(a) * 1.38;
+    addBox(`zabulistan-palace-facade-arch-stone-${i}`, x, y, -0.48, 0.46, 0.34, 0.18, i % 3 === 1 ? mats.facadeLight : mats.facadeStone, Math.PI / 2 - a);
+  }
+  for (const [i, y] of [4.88, 5.68, 6.52].entries()) {
+    addBox(`zabulistan-palace-facade-weathered-course-${i}`, 0, y, -0.04, 6.2 - i * 0.34, 0.12, 0.24, i === 1 ? mats.facadeLight : mats.sandstone);
+  }
+  for (const [i, x] of [-3.0, -2.08, -1.16, 1.16, 2.08, 3.0].entries()) {
+    addBox(`zabulistan-palace-facade-parapet-chip-${i}`, x, 7.03 + (i % 2) * 0.05, -0.02, 0.54, 0.42, 0.28, i % 2 ? mats.facadeStone : mats.sandstone);
+  }
+  for (const lane of [-1, 1]) {
+    addBox(`zabulistan-palace-facade-standard-pole-${lane < 0 ? 'left' : 'right'}`, lane * 2.62, 3.75, -0.54, 0.07, 2.35, 0.06, mats.gateWood);
+    addBox(`zabulistan-palace-facade-standard-cloth-${lane < 0 ? 'left' : 'right'}`, lane * 2.92, 3.32, -0.58, 0.62, 1.46, 0.045, lane < 0 ? MATS().clothRed : MATS().clothGold, lane * 0.045);
+  }
+  group.add(fallback);
+  return false;
 }
 
 function trackFlame(map, kitGroup, flame, campPoint = null) {
@@ -701,8 +783,37 @@ function addCliffTerraces(map, group, rng) {
 
 function addPalaceCliffShelf(map, group, rng) {
   const { fwd, side, yaw } = pathApproach(map);
-  const mats = kitMats();
   const exit = map.exitPos;
+  const insideBoard = (p, margin = 6) => {
+    if (map.visualBoard?.shape !== 'circle') return true;
+    return Math.hypot(p.x, p.z) < map.visualBoard.radius - margin;
+  };
+  const point = (forward, lateral) => exit.clone().addScaledVector(fwd, forward).addScaledVector(side, lateral);
+  const placements = [
+    { key: 'left-upper', forward: 2.6, lateral: -12.6, targetW: 8.2, yawAdjust: -0.62, yOffset: -0.08, tint: 0x555048, margin: 7 },
+    { key: 'right-upper', forward: 3.0, lateral: 12.6, targetW: 8.0, yawAdjust: 0.58, yOffset: -0.08, tint: 0x565048, margin: 7 },
+    { key: 'left-lower', forward: 10.0, lateral: -14.2, targetW: 7.8, yawAdjust: -0.78, yOffset: -0.1, tint: 0x514b43, margin: 6 },
+    { key: 'right-lower', forward: 10.6, lateral: 14.0, targetW: 7.6, yawAdjust: 0.74, yOffset: -0.1, tint: 0x514b43, margin: 6 },
+  ];
+
+  let authored = 0;
+  for (const spec of placements) {
+    const p = point(spec.forward, spec.lateral);
+    if (!insideBoard(p, spec.margin)) continue;
+    if (placeAuthoredGroundProp(map, group, 'zv_palace_slope_terrace_set', p.x, p.z, yaw + spec.yawAdjust, {
+      targetW: spec.targetW,
+      yOffset: spec.yOffset,
+      tint: spec.tint,
+      sceneName: `zabulistan-palace-slope-terrace-${spec.key}`,
+    })) authored++;
+  }
+  if (authored) return;
+
+  const mats = kitMats();
+  const fallback = new THREE.Group();
+  fallback.name = 'zabulistan-palace-slope-terrace-fallback';
+  group.add(fallback);
+
   const geo = new THREE.DodecahedronGeometry(1, 0);
   const rocks = [];
   for (let i = 0; i < 16; i++) {
@@ -713,7 +824,229 @@ function addPalaceCliffShelf(map, group, rng) {
     const h = 1.8 + rng() * 2.4;
     rocks.push(matrix(p.x, map.heightAt(p.x, p.z) + h * 0.34 - 0.52, p.z, yaw + lane * (Math.PI / 2 + rng() * 0.28), 1.45 + rng() * 1.2, h, 1.35 + rng() * 1.45, rng() * 0.14, rng() * 0.14));
   }
-  addInstanced(group, geo, mats.cliffFace, rocks, { castShadow: true, receiveShadow: true });
+  addInstanced(fallback, geo, mats.cliffFace, rocks, { castShadow: true, receiveShadow: true });
+}
+
+function addPalaceForegroundTerraceWall(map, group, rng) {
+  const { fwd, side, yaw } = pathApproach(map);
+  const exit = map.exitPos;
+  const insideBoard = (p, margin = 6) => {
+    if (map.visualBoard?.shape !== 'circle') return true;
+    return Math.hypot(p.x, p.z) < map.visualBoard.radius - margin;
+  };
+  const point = (forward, lateral) => exit.clone().addScaledVector(fwd, forward).addScaledVector(side, lateral);
+  const addWarmApronCover = () => {
+    const lateralRows = [-10.6, -7.1, -3.7, -1.2, 1.4, 4.1, 7.2, 10.4];
+    const forwardRows = [5.45, 7.65, 10.25, 12.85];
+    const verts = [];
+    const colors = [];
+    const idx = [];
+    const edge = new THREE.Color(0x6e5b42);
+    const mid = new THREE.Color(0x9b7d55);
+    const sun = new THREE.Color(0xb69563);
+    const c = new THREE.Color();
+    for (let z = 0; z < forwardRows.length; z++) {
+      for (let x = 0; x < lateralRows.length; x++) {
+        const lat = lateralRows[x];
+        const edgeT = Math.min(1, Math.abs(lat) / 10.6);
+        const forward = forwardRows[z] + Math.sin(x * 1.37 + z * 0.72) * 0.28 + edgeT * 0.24;
+        const p = point(forward, lat + Math.sin(z * 1.9 + x * 0.81) * 0.22);
+        verts.push(p.x, map.heightAt(p.x, p.z) + 0.185 + z * 0.012, p.z);
+        c.copy(sun).lerp(mid, z * 0.18).lerp(edge, edgeT * 0.55);
+        c.offsetHSL(0, -0.04, (rng() - 0.5) * 0.035);
+        colors.push(c.r, c.g, c.b);
+      }
+    }
+    const row = lateralRows.length;
+    for (let z = 0; z < forwardRows.length - 1; z++) {
+      for (let x = 0; x < lateralRows.length - 1; x++) {
+        const a = z * row + x;
+        idx.push(a, a + row, a + 1, a + 1, a + row, a + row + 1);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    const mat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 1,
+      metalness: 0,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2.5,
+      polygonOffsetUnits: -2.5,
+    });
+    const apron = new THREE.Mesh(geo, mat);
+    apron.name = 'zabulistan-palace-foreground-warm-apron';
+    apron.castShadow = false;
+    apron.receiveShadow = false;
+    apron.renderOrder = 3;
+    apron.userData.visualQaIgnore = true;
+    group.add(apron);
+
+    const coverRows = [12.15, 13.05, 13.95];
+    const coverLanes = [-10.2, -7.3, -4.4, -1.5, 1.4, 4.2, 7.1, 10.0];
+    const coverVerts = [];
+    const coverColors = [];
+    const coverIdx = [];
+    const coverEdge = new THREE.Color(0x8b6f4e);
+    const coverMid = new THREE.Color(0xb89460);
+    const coverLight = new THREE.Color(0xcda76c);
+    for (let z = 0; z < coverRows.length; z++) {
+      for (let x = 0; x < coverLanes.length; x++) {
+        const lateral = coverLanes[x] + Math.sin(z * 1.41 + x * 0.72) * 0.18;
+        const forward = coverRows[z] + Math.sin(x * 0.93 + z * 1.22) * 0.14;
+        const p = point(forward, lateral);
+        const edgeT = Math.min(1, Math.abs(lateral) / 10.2);
+        c.copy(coverLight).lerp(coverMid, z * 0.24).lerp(coverEdge, edgeT * 0.4);
+        c.offsetHSL(0, -0.025, (rng() - 0.5) * 0.03);
+        coverVerts.push(p.x, map.heightAt(p.x, p.z) + 0.265 + z * 0.01, p.z);
+        coverColors.push(c.r, c.g, c.b);
+      }
+    }
+    const coverRow = coverLanes.length;
+    for (let z = 0; z < coverRows.length - 1; z++) {
+      for (let x = 0; x < coverLanes.length - 1; x++) {
+        const a = z * coverRow + x;
+        coverIdx.push(a, a + coverRow, a + 1, a + 1, a + coverRow, a + coverRow + 1);
+      }
+    }
+    const coverGeo = new THREE.BufferGeometry();
+    coverGeo.setAttribute('position', new THREE.Float32BufferAttribute(coverVerts, 3));
+    coverGeo.setAttribute('color', new THREE.Float32BufferAttribute(coverColors, 3));
+    coverGeo.setIndex(coverIdx);
+    coverGeo.computeVertexNormals();
+    const coverMat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 1,
+      metalness: 0,
+      transparent: true,
+      opacity: 0.88,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4,
+    });
+    const cover = new THREE.Mesh(coverGeo, coverMat);
+    cover.name = 'zabulistan-palace-threshold-warm-cover';
+    cover.castShadow = false;
+    cover.receiveShadow = false;
+    cover.renderOrder = 7;
+    cover.userData.visualQaIgnore = true;
+    group.add(cover);
+
+    const sillGeo = new THREE.BoxGeometry(1, 1, 1);
+    const sillMats = kitMats();
+    const sillBands = [
+      { forward: 7.15, lanes: [-7.6, -4.75, -1.9, 1.05, 4.2, 7.25], width: 2.05, height: 0.18, depth: 0.42, y: 0.41, mat: sillMats.sandstone },
+      { forward: 8.55, lanes: [-6.45, -3.35, -0.25, 2.85, 6.1], width: 2.25, height: 0.15, depth: 0.36, y: 0.46, mat: sillMats.terraceTop },
+      { forward: 10.05, lanes: [-5.55, -2.65, 0.45, 3.65, 6.75], width: 1.9, height: 0.14, depth: 0.32, y: 0.5, mat: sillMats.sandstone },
+      { forward: 11.85, lanes: [-8.25, -5.1, -1.95, 1.45, 4.85, 8.1], width: 2.3, height: 0.14, depth: 0.34, y: 0.42, mat: sillMats.sandstone },
+      { forward: 13.45, lanes: [-8.75, -5.55, -2.15, 1.25, 4.9, 8.35], width: 2.05, height: 0.12, depth: 0.28, y: 0.36, mat: sillMats.terraceTop },
+    ];
+    for (const [i, band] of sillBands.entries()) {
+      for (const [j, lateral] of band.lanes.entries()) {
+        if ((i + j) % 7 === 0) continue;
+        const offset = Math.sin(i * 1.4 + j * 0.77) * 0.18;
+        const p = point(band.forward + Math.cos(j * 0.9 + i) * 0.08, lateral + offset);
+        const sill = new THREE.Mesh(sillGeo, band.mat);
+        sill.name = `zabulistan-palace-foreground-warm-sill-${i}-${j}`;
+        sill.position.set(p.x, map.heightAt(p.x, p.z) + band.y + (j % 2) * 0.012, p.z);
+        sill.rotation.y = yaw + (i - 2) * 0.018 + (j - band.lanes.length / 2) * 0.01;
+        sill.scale.set(band.width * (0.82 + ((i + j) % 3) * 0.12), band.height, band.depth * (0.9 + (j % 2) * 0.16));
+        sill.castShadow = false;
+        sill.receiveShadow = true;
+        group.add(sill);
+      }
+    }
+
+    const chipGeo = new THREE.DodecahedronGeometry(1, 0);
+    const chips = [];
+    for (let i = 0; i < 34; i++) {
+      const lane = i % 2 ? -1 : 1;
+      const p = point(6.0 + rng() * 6.8, lane * (3.0 + rng() * 6.2));
+      const s = 0.18 + rng() * 0.36;
+      chips.push(matrix(p.x, map.heightAt(p.x, p.z) + 0.21, p.z, rng() * TAU, s * (1.1 + rng() * 1.2), s * 0.24, s * (0.62 + rng() * 0.82), rng() * 0.2, rng() * 0.18));
+    }
+    addInstanced(group, chipGeo, sillMats.sandstone, chips, { castShadow: false, receiveShadow: true });
+  };
+  const placements = [
+    { key: 'main', forward: 8.2, lateral: 0, targetW: 22.4, yawAdjust: 0, yOffset: 0.04, tint: 0x806d4f, margin: 9 },
+  ];
+
+  let authored = 0;
+  for (const spec of placements) {
+    const p = point(spec.forward, spec.lateral);
+    if (!insideBoard(p, spec.margin)) continue;
+    if (placeAuthoredGroundProp(map, group, 'zv_palace_foreground_terrace_wall', p.x, p.z, yaw + spec.yawAdjust, {
+      targetW: spec.targetW,
+      yOffset: spec.yOffset,
+      tint: spec.tint,
+      sceneName: `zabulistan-palace-foreground-terrace-wall-${spec.key}`,
+    })) authored++;
+  }
+  if (authored) {
+    addWarmApronCover();
+    return;
+  }
+
+  const mats = kitMats();
+  const fallback = new THREE.Group();
+  fallback.name = 'zabulistan-palace-foreground-terrace-wall-fallback';
+  group.add(fallback);
+
+  const center = point(8.2, 0);
+  const dustGeo = new THREE.CircleGeometry(1, 36);
+  dustGeo.rotateX(-Math.PI / 2);
+  const wash = addInstanced(fallback, dustGeo, mats.forecourtDust, [
+    matrix(center.x, map.heightAt(center.x, center.z) + 0.14, center.z, yaw, 12.2, 1, 6.4),
+  ], { castShadow: false, receiveShadow: false });
+  if (wash) {
+    wash.name = 'zabulistan-palace-foreground-terrace-wall-wash';
+    wash.userData.visualQaIgnore = true;
+  }
+
+  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  const step = [];
+  for (let i = 0; i < 4; i++) {
+    const p = point(4.9 + i * 0.62, 0.08 - i * 0.06);
+    step.push(matrix(p.x, map.heightAt(p.x, p.z) + 0.16 + i * 0.035, p.z, yaw - 0.015 + i * 0.018, 7.8 - i * 0.6, 0.12, 0.34));
+  }
+  addInstanced(fallback, boxGeo, mats.sandstone, step, { castShadow: true, receiveShadow: true });
+
+  const wall = [];
+  const caps = [];
+  const shoulder = [];
+  for (const lane of [-1, 1]) {
+    for (let i = 0; i < 9; i++) {
+      const p = point(4.6 + i * 0.72, lane * (5.55 + i * 0.34 + (i % 2) * 0.16));
+      wall.push(matrix(p.x, map.heightAt(p.x, p.z) + 0.42, p.z, yaw + lane * (0.18 + i * 0.032), 1.14 + (i % 3) * 0.16, 0.72 + (i % 2) * 0.08, 0.54));
+      caps.push(matrix(p.x + side.x * lane * 0.08, map.heightAt(p.x, p.z) + 0.82, p.z + side.z * lane * 0.08, yaw + lane * (0.18 + i * 0.032), 1.04 + (i % 2) * 0.12, 0.16, 0.36));
+    }
+    for (let i = 0; i < 9; i++) {
+      const p = point(4.2 + i * 0.94, lane * (8.1 + (i % 4) * 0.46));
+      const h = 1.0 + rng() * 1.4;
+      shoulder.push(matrix(p.x, map.heightAt(p.x, p.z) + h * 0.28 - 0.18, p.z, yaw + lane * (0.52 + rng() * 0.24), 0.8 + rng() * 0.72, h, 0.72 + rng() * 0.75, rng() * 0.12, rng() * 0.12));
+    }
+  }
+  addInstanced(fallback, boxGeo, mats.sandstoneDark, wall, { castShadow: true, receiveShadow: true });
+  addInstanced(fallback, boxGeo, mats.sandstone, caps, { castShadow: true, receiveShadow: true });
+  addInstanced(fallback, new THREE.DodecahedronGeometry(1, 0), mats.cliffFace, shoulder, { castShadow: true, receiveShadow: true });
+
+  const pebbles = [];
+  const pebbleGeo = new THREE.DodecahedronGeometry(1, 0);
+  for (let i = 0; i < 38; i++) {
+    const lane = i % 2 ? -1 : 1;
+    const p = point(5.0 + rng() * 6.6, lane * (2.2 + rng() * 5.2));
+    const s = 0.18 + rng() * 0.32;
+    pebbles.push(matrix(p.x, map.heightAt(p.x, p.z) + 0.12, p.z, rng() * TAU, s * (1.3 + rng() * 0.8), s * 0.34, s * (0.8 + rng() * 0.7), rng() * 0.22, rng() * 0.2));
+  }
+  addInstanced(fallback, pebbleGeo, mats.cliffWarm, pebbles, { castShadow: true, receiveShadow: true });
+  addWarmApronCover();
 }
 
 function addGateApproachDepth(map, group, rng) {
@@ -725,10 +1058,10 @@ function addGateApproachDepth(map, group, rng) {
   };
   const point = (forward, lateral) => exit.clone().addScaledVector(fwd, forward).addScaledVector(side, lateral);
   const placements = [
-    { key: 'left-upper', lane: -1, forward: 14.6, lateral: -11.0, targetW: 12.7, yawAdjust: -0.34 },
-    { key: 'right-upper', lane: 1, forward: 15.4, lateral: 11.2, targetW: 12.3, yawAdjust: 0.36 },
-    { key: 'left-lower', lane: -1, forward: 23.8, lateral: -13.8, targetW: 10.2, yawAdjust: -0.56 },
-    { key: 'right-lower', lane: 1, forward: 25.2, lateral: 13.5, targetW: 10.0, yawAdjust: 0.52 },
+    { key: 'left-upper', lane: -1, forward: 14.6, lateral: -11.0, targetW: 11.2, yawAdjust: -0.34 },
+    { key: 'right-upper', lane: 1, forward: 15.4, lateral: 11.2, targetW: 10.9, yawAdjust: 0.36 },
+    { key: 'left-lower', lane: -1, forward: 23.8, lateral: -13.8, targetW: 8.9, yawAdjust: -0.56 },
+    { key: 'right-lower', lane: 1, forward: 25.2, lateral: 13.5, targetW: 8.7, yawAdjust: 0.52 },
   ];
 
   let authored = 0;
@@ -738,6 +1071,7 @@ function addGateApproachDepth(map, group, rng) {
     if (placeAuthoredGroundProp(map, group, 'zv_gate_cliff_siege_set', p.x, p.z, yaw + spec.yawAdjust, {
       targetW: spec.targetW,
       yOffset: -0.035,
+      tint: 0x4f4638,
       sceneName: `zabulistan-gate-cliff-siege-${spec.key}`,
     })) authored++;
   }
@@ -997,9 +1331,9 @@ function buildGateContactGrit(map, center, fwd, side, rng) {
   const colors = [];
   const idx = [];
   const c = new THREE.Color();
-  const inner = new THREE.Color(0x534838);
-  const mid = new THREE.Color(0x665a44);
-  const outer = new THREE.Color(0x7b6b4f);
+  const inner = new THREE.Color(0x5a4d3b);
+  const mid = new THREE.Color(0x6d6049);
+  const outer = new THREE.Color(0x827257);
   const toWorld = (lx, lz) => center.clone().addScaledVector(side, lx).addScaledVector(fwd, lz);
   const addPoly = (lx, lz, w, d, rot, points = 8) => {
     const base = verts.length / 3;
@@ -1019,13 +1353,11 @@ function buildGateContactGrit(map, center, fwd, side, rng) {
     for (let i = 1; i <= points; i++) idx.push(base, base + i, base + (i % points) + 1);
   };
 
-  addPoly(0, -3.18, 3.1, 0.72, rng() * TAU, 9);
-  addPoly(-2.6, -2.25, 1.05, 0.55, rng() * TAU, 7);
-  addPoly(2.7, -2.18, 1.0, 0.58, rng() * TAU, 7);
-  addPoly(-3.5, 0.2, 0.85, 0.42, rng() * TAU, 7);
-  addPoly(3.35, 0.5, 0.8, 0.45, rng() * TAU, 7);
-  addPoly(-1.15, -0.85, 0.9, 0.34, rng() * TAU, 6);
-  addPoly(1.05, -0.72, 0.86, 0.36, rng() * TAU, 6);
+  addPoly(0, -3.02, 2.1, 0.42, rng() * TAU, 8);
+  addPoly(-2.18, -2.05, 0.78, 0.38, rng() * TAU, 6);
+  addPoly(2.16, -1.92, 0.74, 0.4, rng() * TAU, 6);
+  addPoly(-0.85, -0.72, 0.72, 0.26, rng() * TAU, 6);
+  addPoly(0.92, -0.62, 0.68, 0.28, rng() * TAU, 6);
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
@@ -1048,12 +1380,12 @@ function buildGateContactGrit(map, center, fwd, side, rng) {
 
   const pebbleGeo = new THREE.DodecahedronGeometry(0.16, 0);
   const pebbleMat = new THREE.MeshStandardMaterial({ color: 0x675c48, roughness: 1, metalness: 0 });
-  const pebbleCount = 46;
+  const pebbleCount = 30;
   const pebbles = new THREE.InstancedMesh(pebbleGeo, pebbleMat, pebbleCount);
   for (let i = 0; i < pebbleCount; i++) {
     const lane = rng() < 0.5 ? -1 : 1;
-    const lx = lane * (1.2 + rng() * 2.6) + (rng() - 0.5) * 0.42;
-    const lz = -3.2 + rng() * 4.5;
+    const lx = lane * (1.0 + rng() * 2.25) + (rng() - 0.5) * 0.34;
+    const lz = -3.25 + rng() * 3.45;
     const p = toWorld(lx, lz);
     const m = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(rng() * 0.55, rng() * TAU, rng() * 0.35));
     const s = 0.45 + rng() * 0.9;
@@ -1067,6 +1399,175 @@ function buildGateContactGrit(map, center, fwd, side, rng) {
   return group;
 }
 
+function addPalaceContactTerrain(map, group, center, fwd, side, yaw, rng) {
+  const contact = placeAuthoredGroundProp(map, group, 'zv_palace_contact_terrain_set', center.x, center.z, yaw, {
+    targetW: 19.8,
+    yOffset: 0.18,
+    tint: null,
+    sceneName: 'zabulistan-palace-contact-terrain',
+  });
+  if (contact) {
+    contact.traverse((node) => {
+      if (!node.isMesh) return;
+      node.castShadow = false;
+      node.receiveShadow = true;
+      node.renderOrder = 8;
+      const materials = Array.isArray(node.material) ? node.material : [node.material];
+      materials.filter(Boolean).forEach((mat) => {
+        mat.polygonOffset = true;
+        mat.polygonOffsetFactor = -4.5;
+        mat.polygonOffsetUnits = -4.5;
+      });
+    });
+    return;
+  }
+
+  const fallback = new THREE.Group();
+  fallback.name = 'zabulistan-palace-contact-terrain-fallback';
+  group.add(fallback);
+
+  const rows = [-4.2, -3.1, -1.9, -0.65, 0.72, 2.05, 3.28];
+  const lanes = [-8.2, -5.55, -2.85, -0.45, 2.05, 4.9, 7.8];
+  const verts = [];
+  const colors = [];
+  const idx = [];
+  const c = new THREE.Color();
+  const outer = new THREE.Color(0x76664c);
+  const mid = new THREE.Color(0x9a7a51);
+  const light = new THREE.Color(0xb18e5f);
+  const toWorld = (lx, lz) => center.clone().addScaledVector(side, lx).addScaledVector(fwd, lz);
+
+  for (let z = 0; z < rows.length; z++) {
+    for (let x = 0; x < lanes.length; x++) {
+      const lateral = lanes[x] + Math.sin(z * 1.72 + x * 0.84) * 0.28;
+      const forward = rows[z] + Math.sin(x * 1.31 + z * 0.66) * 0.18;
+      const edgeT = Math.min(1, Math.abs(lateral) / 8.2);
+      const depthT = z / Math.max(1, rows.length - 1);
+      const p = toWorld(lateral, forward);
+      verts.push(p.x, map.heightAt(p.x, p.z) + 0.155 + depthT * 0.018, p.z);
+      c.copy(light).lerp(mid, depthT * 0.52).lerp(outer, edgeT * 0.5);
+      c.offsetHSL(0, -0.04, (rng() - 0.5) * 0.035);
+      colors.push(c.r, c.g, c.b);
+    }
+  }
+
+  const row = lanes.length;
+  for (let z = 0; z < rows.length - 1; z++) {
+    for (let x = 0; x < lanes.length - 1; x++) {
+      if ((x + z) % 5 === 0) continue;
+      const a = z * row + x;
+      idx.push(a, a + row, a + 1, a + 1, a + row, a + row + 1);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 1,
+    metalness: 0,
+    transparent: true,
+    opacity: 0.86,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3.6,
+    polygonOffsetUnits: -3.6,
+  });
+  const blend = new THREE.Mesh(geo, mat);
+  blend.name = 'zabulistan-palace-contact-soft-blend';
+  blend.castShadow = false;
+  blend.receiveShadow = false;
+  blend.renderOrder = 6;
+  blend.userData.visualQaIgnore = true;
+  fallback.add(blend);
+
+  const mats = kitMats();
+  const chipGeo = new THREE.DodecahedronGeometry(1, 0);
+  const chips = [];
+  for (let i = 0; i < 28; i++) {
+    const lane = i % 2 ? -1 : 1;
+    const local = toWorld(lane * (2.6 + rng() * 5.8), -3.4 + rng() * 6.7);
+    const s = 0.16 + rng() * 0.28;
+    chips.push(matrix(local.x, map.heightAt(local.x, local.z) + 0.18, local.z, rng() * TAU, s * (1.1 + rng()), s * 0.22, s * (0.72 + rng() * 0.7), rng() * 0.22, rng() * 0.2));
+  }
+  addInstanced(fallback, chipGeo, mats.sandstone, chips, { castShadow: false, receiveShadow: true });
+}
+
+function addPalaceThresholdContactMask(map, group, center, fwd, side, rng) {
+  const rows = [-7.55, -6.82, -6.1, -5.35];
+  const lanes = [-11.2, -8.6, -6.0, -3.35, -0.72, 1.92, 4.58, 7.25, 9.82, 11.6];
+  const verts = [];
+  const colors = [];
+  const idx = [];
+  const warm = new THREE.Color(0xb58f5e);
+  const packed = new THREE.Color(0x96724a);
+  const edge = new THREE.Color(0x735b40);
+  const c = new THREE.Color();
+  const toWorld = (lx, lz) => center.clone().addScaledVector(side, lx).addScaledVector(fwd, lz);
+
+  for (let z = 0; z < rows.length; z++) {
+    for (let x = 0; x < lanes.length; x++) {
+      const lateral = lanes[x] + Math.sin(x * 0.94 + z * 1.28) * 0.22;
+      const forward = rows[z] + Math.sin(x * 1.17 + z * 0.71) * 0.16;
+      const p = toWorld(lateral, forward);
+      const edgeT = Math.min(1, Math.abs(lateral) / 11.6);
+      const depthT = z / Math.max(1, rows.length - 1);
+      verts.push(p.x, map.heightAt(p.x, p.z) + 0.38 + depthT * 0.018, p.z);
+      c.copy(warm).lerp(packed, depthT * 0.45).lerp(edge, edgeT * 0.28);
+      c.offsetHSL(0, -0.035, (rng() - 0.5) * 0.03);
+      colors.push(c.r, c.g, c.b);
+    }
+  }
+
+  const row = lanes.length;
+  for (let z = 0; z < rows.length - 1; z++) {
+    for (let x = 0; x < lanes.length - 1; x++) {
+      if ((x + z) % 6 === 0) continue;
+      const a = z * row + x;
+      idx.push(a, a + row, a + 1, a + 1, a + row, a + row + 1);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 1,
+    metalness: 0,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -5,
+    polygonOffsetUnits: -5,
+  });
+  const mask = new THREE.Mesh(geo, mat);
+  mask.name = 'zabulistan-palace-contact-threshold-mask';
+  mask.castShadow = false;
+  mask.receiveShadow = false;
+  mask.renderOrder = 9;
+  mask.userData.visualQaIgnore = true;
+  group.add(mask);
+
+  const mats = kitMats();
+  const chipGeo = new THREE.DodecahedronGeometry(1, 0);
+  const chips = [];
+  for (let i = 0; i < 30; i++) {
+    const lane = i % 2 ? -1 : 1;
+    const p = toWorld(lane * (2.4 + rng() * 8.2), -7.25 + rng() * 1.95);
+    const s = 0.14 + rng() * 0.22;
+    chips.push(matrix(p.x, map.heightAt(p.x, p.z) + 0.42, p.z, rng() * TAU, s * (1.2 + rng()), s * 0.2, s * (0.72 + rng() * 0.65), rng() * 0.18, rng() * 0.2));
+  }
+  const chipMesh = addInstanced(group, chipGeo, mats.sandstone, chips, { castShadow: false, receiveShadow: true });
+  if (chipMesh) chipMesh.name = 'zabulistan-palace-contact-threshold-stones';
+}
+
 function buildForecourt(map, group, rng) {
   const { fwd, side, yaw } = pathApproach(map);
   const mats = kitMats();
@@ -1077,6 +1578,7 @@ function buildForecourt(map, group, rng) {
   wrap.position.set(exit.x, map.heightAt(exit.x, exit.z) - 0.02, exit.z);
   wrap.rotation.y = yaw;
   group.add(wrap);
+  addPalaceFacadeDressing(map, group, fwd, side, yaw);
   const baseCenter = exit.clone().addScaledVector(fwd, 5.5);
   if (placeAuthoredGroundProp(map, group, 'zv_palace_base_transition', baseCenter.x, baseCenter.z, yaw, {
     targetW: 17.6,
@@ -1107,26 +1609,26 @@ function buildForecourt(map, group, rng) {
   placeAuthoredGroundProp(map, group, 'zv_forecourt_causeway', causewayCenter.x, causewayCenter.z, yaw, {
     targetW: 10.8,
     yOffset: 0.045,
-    tint: 0x453a2d,
+    tint: 0x66543d,
     sceneName: 'zabulistan-forecourt-causeway',
   });
   placeAuthoredGroundProp(map, group, 'zv_forecourt_retaining_edges', causewayCenter.x, causewayCenter.z, yaw, {
     targetW: 11.2,
     yOffset: 0.055,
-    tint: 0x453d31,
+    tint: 0x675844,
     sceneName: 'zabulistan-forecourt-retaining-edges',
   });
   placeAuthoredGroundProp(map, group, 'zv_forecourt_approach_edges', center.x, center.z, yaw, {
     targetW: 12.8,
     yOffset: 0.072,
-    tint: 0x4b4134,
+    tint: 0x66583f,
     sceneName: 'zabulistan-forecourt-approach-edges',
   });
   const lowerApproach = center.clone().addScaledVector(fwd, 7.3);
   placeAuthoredGroundProp(map, group, 'zv_forecourt_approach_edges', lowerApproach.x, lowerApproach.z, yaw, {
     targetW: 11.4,
     yOffset: 0.068,
-    tint: 0x463c31,
+    tint: 0x6a5a42,
     sceneName: 'zabulistan-forecourt-lower-approach-edges',
   });
   for (const lane of [-1, 1]) {
@@ -1136,24 +1638,37 @@ function buildForecourt(map, group, rng) {
     placeAuthoredGroundProp(map, group, 'zv_road_scree_bank', shoulder.x, shoulder.z, yaw + lane * 0.18, {
       targetW: 4.7,
       yOffset: 0.062,
-      tint: 0x4a4034,
+      tint: 0x6b5d48,
       sceneName: `zabulistan-forecourt-lower-scree-${lane < 0 ? 'left' : 'right'}`,
     });
   }
 
-  const threshold = new THREE.Group();
-  if (!placeAuthoredGroundProp(map, group, 'zv_forecourt_threshold', center.x, center.z, yaw, { targetW: 8.5, yOffset: 0.03 })) {
-    threshold.position.set(center.x, cy + 0.04, center.z);
-    threshold.rotation.y = yaw;
-    const b = new MeshBuilder();
-    b.box(8.0, 0.1, 0.3, 'relief', 0, 0.06, -2.2);
-    b.box(7.1, 0.08, 0.24, 'reliefGlow', 0, 0.14, -2.65);
-    b.box(1.3, 0.12, 0.42, 'stoneDark', -3.9, 0.13, -2.2);
-    b.box(1.3, 0.12, 0.42, 'stoneDark', 3.9, 0.13, -2.2);
-    threshold.add(b.build(false, true));
-    group.add(threshold);
+  const transitionPlaced = placeAuthoredGroundProp(map, group, 'zv_gate_threshold_transition', center.x, center.z, yaw, {
+    targetW: 8.85,
+    yOffset: 0.068,
+    sceneName: 'zabulistan-gate-threshold-transition',
+  });
+  addPalaceContactTerrain(map, group, center, fwd, side, yaw, rng);
+  addPalaceThresholdContactMask(map, group, center, fwd, side, rng);
+  if (!transitionPlaced) {
+    const threshold = new THREE.Group();
+    if (!placeAuthoredGroundProp(map, group, 'zv_forecourt_threshold', center.x, center.z, yaw, {
+      targetW: 8.5,
+      yOffset: 0.03,
+      sceneName: 'zabulistan-forecourt-threshold',
+    })) {
+      threshold.position.set(center.x, cy + 0.04, center.z);
+      threshold.rotation.y = yaw;
+      const b = new MeshBuilder();
+      b.box(8.0, 0.1, 0.3, 'relief', 0, 0.06, -2.2);
+      b.box(7.1, 0.08, 0.24, 'reliefGlow', 0, 0.14, -2.65);
+      b.box(1.3, 0.12, 0.42, 'stoneDark', -3.9, 0.13, -2.2);
+      b.box(1.3, 0.12, 0.42, 'stoneDark', 3.9, 0.13, -2.2);
+      threshold.add(b.build(false, true));
+      group.add(threshold);
+    }
+    group.add(buildGateContactGrit(map, center, fwd, side, rng));
   }
-  group.add(buildGateContactGrit(map, center, fwd, side, rng));
 
   const bannerColors = ['clothRed', 'clothGold', 'clothRed', 'clothTeal'];
   for (let i = 0; i < 4; i++) {
@@ -1190,8 +1705,9 @@ function buildForecourt(map, group, rng) {
     const p = center.clone().addScaledVector(side, lane * 7.4).addScaledVector(fwd, 11.9);
     const staging = center.clone().addScaledVector(side, lane * 10.2).addScaledVector(fwd, 13.2);
     const stagingPlaced = placeAuthoredGroundProp(map, group, 'zv_cavalry_staging_set', staging.x, staging.z, yaw + Math.PI / 2 + lane * 0.12, {
-      targetW: 7.2,
+      targetW: 5.9,
       yOffset: 0.025,
+      tint: 0x3b3329,
       sceneName: `zabulistan-cavalry-staging-${lane < 0 ? 'left' : 'right'}`,
     });
     if (stagingPlaced) {
@@ -1210,8 +1726,10 @@ function buildForecourt(map, group, rng) {
     }
     const camp = center.clone().addScaledVector(side, lane * 11.5).addScaledVector(fwd, 14.2);
     placeAuthoredGroundProp(map, group, 'zv_camp_ground_props', camp.x, camp.z, yaw + Math.PI / 2 + lane * 0.36, {
-      targetW: stagingPlaced ? 2.65 : 3.7,
+      targetW: stagingPlaced ? 2.05 : 3.0,
       yOffset: 0.03,
+      tint: 0x3b3329,
+      sceneName: `zabulistan-camp-ground-props-${lane < 0 ? 'left' : 'right'}`,
     });
   }
 
@@ -1240,6 +1758,7 @@ export function buildZabulistanVisualKit(map, rng) {
   scatterScrubAndReeds(map, group, rng);
   scatterWeatheredRocks(map, group, rng);
   buildForecourt(map, group, rng);
+  addPalaceForegroundTerraceWall(map, group, rng);
   addPalaceCliffShelf(map, group, rng);
   addGateApproachDepth(map, group, rng);
   addSiegeLandmarks(map, group, rng);

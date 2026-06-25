@@ -611,11 +611,14 @@ export class Game {
       this.palaceBoonField.trigger(cit, {
         type: preset.mode === 'royal' ? 'stunPulse' : 'rallyDamage',
         radius: fxRadius,
-        visualRadius: preset.mode === 'royal' ? Math.min(14, fxRadius * 0.36) : Math.min(22, fxRadius * 0.58),
-        visualIntensity: preset.mode === 'royal' ? 0.34 : 0.56,
+        visualRadius: preset.mode === 'royal' ? Math.min(9.5, fxRadius * 0.24) : Math.min(22, fxRadius * 0.58),
+        visualIntensity: preset.mode === 'royal' ? 0.16 : 0.56,
+        commandIntensity: preset.mode === 'royal' ? 0.18 : undefined,
+        threadIntensity: preset.mode === 'royal' ? 0.14 : undefined,
+        rayIntensity: preset.mode === 'royal' ? 0.055 : undefined,
         groundWaveIntensity: preset.mode === 'royal' ? 0 : 0.2,
-        targetVisualLimit: preset.mode === 'royal' ? 4 : 6,
-        anchorVisualLimit: preset.mode === 'royal' ? 4 : 6,
+        targetVisualLimit: preset.mode === 'royal' ? 2 : 6,
+        anchorVisualLimit: preset.mode === 'royal' ? 1 : 6,
         dur: 2.8 + pressure,
       }, {
         front,
@@ -657,6 +660,19 @@ export class Game {
       t: holdDur,
       dur: holdDur,
     };
+    if (options.commandFx !== false) {
+      this.emit('palaceCommandFx', {
+        kind: 'gate',
+        palace: cit,
+        type: 'gatePressure',
+        count: spawned.length,
+        targetCount: spawned.length,
+        pressure,
+        timing,
+        mode: preset.mode,
+        countercharge,
+      });
+    }
     return {
       count: spawned.length,
       ids: spawned.map((e) => e.def.id),
@@ -1244,9 +1260,9 @@ export class Game {
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xf0b64a,
       transparent: true,
-      opacity: 0.16,
+      opacity: 0.08,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
@@ -1261,7 +1277,7 @@ export class Game {
     const sealMat = new THREE.MeshBasicMaterial({
       color: 0xffdf83,
       transparent: true,
-      opacity: 0.58,
+      opacity: 0.34,
       depthWrite: false,
       depthTest: false,
       blending: THREE.AdditiveBlending,
@@ -1270,7 +1286,7 @@ export class Game {
     const sealCoreMat = new THREE.MeshBasicMaterial({
       color: 0x7adf8b,
       transparent: true,
-      opacity: 0.42,
+      opacity: 0.22,
       depthWrite: false,
       depthTest: false,
       blending: THREE.AdditiveBlending,
@@ -1332,18 +1348,18 @@ export class Game {
     const sealMat = new THREE.MeshBasicMaterial({
       color: 0xffd26a,
       transparent: true,
-      opacity: 0.46,
+      opacity: 0.26,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
     const coreMat = new THREE.MeshBasicMaterial({
       color: 0x7adf8b,
       transparent: true,
-      opacity: 0.3,
+      opacity: 0.16,
       depthWrite: false,
-      depthTest: false,
+      depthTest: true,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
@@ -1392,24 +1408,24 @@ export class Game {
     group.position.copy(gate).addScaledVector(dir, -0.55).setY(gate.y + 0.22);
     group.renderOrder = 56;
 
-    const innerGeo = new THREE.RingGeometry(1.08, 1.46, 72);
-    const outerGeo = new THREE.RingGeometry(2.25, 2.54, 96);
+    const innerGeo = new THREE.RingGeometry(0.92, 1.18, 56);
+    const outerGeo = new THREE.RingGeometry(1.86, 2.08, 72);
     const plateGeo = new THREE.CircleGeometry(0.82, 48);
     const rayGeo = new THREE.BufferGeometry();
     const rayPts = [];
-    const rayCount = 14;
+    const rayCount = 8;
     for (let i = 0; i < rayCount; i++) {
       const u = i / Math.max(1, rayCount - 1) - 0.5;
       const a = u * Math.PI * 0.86;
       const localDir = dir.clone().multiplyScalar(Math.cos(a)).addScaledVector(side, Math.sin(a)).normalize();
-      rayPts.push(localDir.clone().multiplyScalar(0.92), localDir.clone().multiplyScalar(4.1 + Math.abs(u) * 1.65));
+      rayPts.push(localDir.clone().multiplyScalar(0.82), localDir.clone().multiplyScalar(3.25 + Math.abs(u) * 1.05));
     }
     rayGeo.setFromPoints(rayPts);
 
     const innerMat = new THREE.MeshBasicMaterial({
       color: 0xffd26a,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.34,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending,
@@ -1418,7 +1434,7 @@ export class Game {
     const outerMat = new THREE.MeshBasicMaterial({
       color: 0x9fe0dc,
       transparent: true,
-      opacity: 0.26,
+      opacity: 0.14,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending,
@@ -1427,7 +1443,7 @@ export class Game {
     const plateMat = new THREE.MeshBasicMaterial({
       color: 0xfff0bd,
       transparent: true,
-      opacity: 0.14,
+      opacity: 0.08,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending,
@@ -1436,7 +1452,7 @@ export class Game {
     const rayMat = new THREE.LineBasicMaterial({
       color: 0xffe09a,
       transparent: true,
-      opacity: 0.42,
+      opacity: 0.24,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending,
@@ -1462,7 +1478,7 @@ export class Game {
       const lashMat = new THREE.LineBasicMaterial({
         color: 0xff715c,
         transparent: true,
-        opacity: 0.74,
+        opacity: 0.42,
         depthWrite: false,
         depthTest: true,
         blending: THREE.AdditiveBlending,
@@ -1472,25 +1488,25 @@ export class Game {
       extraGeos.push(lashGeo);
     }
 
-    this.particles.burst(gate.clone().setY(gate.y + 1.15), 26, {
-      speed: 3.2 + force * 0.5,
+    this.particles.burst(gate.clone().setY(gate.y + 1.15), 16, {
+      speed: 2.55 + force * 0.35,
       up: 1.55,
-      life: 0.72,
-      size: 0.42,
+      life: 0.58,
+      size: 0.34,
       color: FXC.gold,
       grav: 1.0,
-      spread: 3.0 + force * 0.85,
+      spread: 2.15 + force * 0.55,
       drag: 0.42,
     });
-    for (const enemy of enemies.slice(0, 6)) {
+    for (const enemy of enemies.slice(0, 4)) {
       if (!enemy?.alive || !enemy.group?.position) continue;
       const p = enemy.group.position.clone();
       p.y = this.map.heightAt(p.x, p.z) + 0.72;
       this.particles.burst(p, 5, {
-        speed: 2.6,
+        speed: 2.15,
         up: 0.85,
-        life: 0.38,
-        size: 0.34,
+        life: 0.32,
+        size: 0.28,
         color: FXC.sacred,
         grav: 1.5,
         spread: 0.9,
@@ -1521,7 +1537,7 @@ export class Game {
     if (dir.lengthSq() < 0.01) dir.set(0, 0, -1); else dir.normalize();
     const side = new THREE.Vector3(-dir.z, 0, dir.x);
     const group = new THREE.Group();
-    group.position.copy(gate).addScaledVector(dir, -1.3).setY(gate.y + 4.15);
+    group.position.copy(gate).addScaledVector(dir, -1.45).addScaledVector(side, -0.85).setY(gate.y + 4.55);
     group.rotation.y = Math.atan2(dir.x, dir.z);
     group.renderOrder = 58;
 
@@ -1529,13 +1545,13 @@ export class Game {
     const bannerMat = new THREE.SpriteMaterial({
       map: tex,
       transparent: true,
-      opacity: 0.94,
+      opacity: 0.78,
       depthWrite: false,
       depthTest: false,
       blending: THREE.NormalBlending,
     });
     const banner = new THREE.Sprite(bannerMat);
-    banner.scale.set(7.2, 2.25, 1);
+    banner.scale.set(5.55, 1.75, 1);
     group.add(banner);
 
     const poleGeo = new THREE.CylinderGeometry(0.035, 0.045, 2.65, 6);
@@ -1546,14 +1562,14 @@ export class Game {
     const mats = [bannerMat, poleMat, capMat];
     for (const sign of [-1, 1]) {
       const pole = new THREE.Mesh(poleGeo, poleMat);
-      pole.position.copy(side.clone().multiplyScalar(sign * 3.85)).setY(-0.1);
+      pole.position.copy(side.clone().multiplyScalar(sign * 3.05)).setY(-0.1);
       const cap = new THREE.Mesh(capGeo, capMat);
       cap.position.copy(pole.position).setY(1.28);
       group.add(pole, cap);
     }
     const railGeo = new THREE.BufferGeometry().setFromPoints([
-      side.clone().multiplyScalar(-4.05).setY(-1.0),
-      side.clone().multiplyScalar(4.05).setY(-1.0),
+      side.clone().multiplyScalar(-3.2).setY(-1.0),
+      side.clone().multiplyScalar(3.2).setY(-1.0),
     ]);
     const railMat = new THREE.LineBasicMaterial({
       color: 0xffd26a,
@@ -1598,9 +1614,10 @@ export class Game {
     const ringMat = new THREE.MeshBasicMaterial({
       color,
       transparent: true,
-      opacity: peak ? 0.62 : 0.42,
+      opacity: peak ? 0.28 : 0.2,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      depthTest: true,
+      blending: THREE.NormalBlending,
       side: THREE.DoubleSide,
     });
     const ring = new THREE.Mesh(ringGeo, ringMat);
@@ -1609,10 +1626,10 @@ export class Game {
     const rayMat = new THREE.LineBasicMaterial({
       color,
       transparent: true,
-      opacity: peak ? 0.64 : 0.42,
+      opacity: peak ? 0.2 : 0.14,
       depthWrite: false,
-      depthTest: false,
-      blending: THREE.AdditiveBlending,
+      depthTest: true,
+      blending: THREE.NormalBlending,
     });
     const geos = [ringGeo];
     const rays = [];
@@ -1631,9 +1648,10 @@ export class Game {
     const crownMat = new THREE.MeshBasicMaterial({
       color,
       transparent: true,
-      opacity: peak ? 0.82 : 0.58,
+      opacity: peak ? 0.5 : 0.34,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      depthTest: true,
+      blending: THREE.NormalBlending,
     });
     const crown = new THREE.Mesh(crownGeo, crownMat);
     crown.position.copy(dir.clone().multiplyScalar(-0.6)).setY(1.15 + force * 0.24);
@@ -1748,19 +1766,19 @@ export class Game {
     const footMat = new THREE.MeshBasicMaterial({
       color: 0xffd26a,
       transparent: true,
-      opacity: 0.52,
+      opacity: 0.3,
       depthWrite: false,
       depthTest: true,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
       side: THREE.DoubleSide,
     });
     const spearMat = new THREE.LineBasicMaterial({
-      color: 0xfff0bd,
+      color: 0xd8b66e,
       transparent: true,
-      opacity: 0.58,
+      opacity: 0.18,
       depthWrite: false,
       depthTest: true,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
     });
     const geos = [footGeo];
     const mats = [footMat, spearMat];
@@ -1843,23 +1861,23 @@ export class Game {
     const laneMat = new THREE.LineBasicMaterial({
       color: 0xffd26a,
       transparent: true,
-      opacity: 0.34,
+      opacity: 0.12,
       depthWrite: false,
       depthTest: true,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
     });
     const lanceMat = new THREE.LineBasicMaterial({
-      color: 0xfff0bd,
+      color: 0xd8b66e,
       transparent: true,
-      opacity: 0.74,
+      opacity: 0.18,
       depthWrite: false,
       depthTest: true,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
     });
     const hoofMat = new THREE.MeshBasicMaterial({
       color: 0xffd26a,
       transparent: true,
-      opacity: 0.42,
+      opacity: 0.26,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending,
@@ -1868,25 +1886,44 @@ export class Game {
     const enemyMat = new THREE.MeshBasicMaterial({
       color: 0xff715c,
       transparent: true,
-      opacity: 0.34,
+      opacity: 0.24,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
     });
-    const hoofGeo = new THREE.RingGeometry(0.46, 0.6, 36);
-    const enemyGeo = new THREE.RingGeometry(0.62, 0.78, 44);
-    const geos = [hoofGeo, enemyGeo];
-    const mats = [laneMat, lanceMat, hoofMat, enemyMat];
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x1b130c,
+      transparent: true,
+      opacity: 0.3,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide,
+    });
+    const crestMat = new THREE.LineBasicMaterial({
+      color: 0xffd26a,
+      transparent: true,
+      opacity: 0.14,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.NormalBlending,
+    });
+    const hoofGeo = new THREE.RingGeometry(0.34, 0.46, 32);
+    const enemyGeo = new THREE.RingGeometry(0.45, 0.6, 36);
+    const shadowGeo = new THREE.CircleGeometry(0.72, 28);
+    const geos = [hoofGeo, enemyGeo, shadowGeo];
+    const mats = [laneMat, lanceMat, hoofMat, enemyMat, shadowMat, crestMat];
     const hoofRings = [];
     const enemyMarks = [];
+    const defenderShadows = [];
+    const crestLines = [];
     const lanePts = [];
 
-    for (let i = -2; i <= 2; i++) {
-      const base = side.clone().multiplyScalar(i * 1.55);
+    for (let i = -1; i <= 1; i++) {
+      const base = side.clone().multiplyScalar(i * 2.25);
       lanePts.push(
-        base.clone().addScaledVector(forward, -5.4).setY(0.1),
-        base.clone().addScaledVector(forward, 6.2 + force).setY(0.1),
+        base.clone().addScaledVector(forward, -4.4).setY(0.08),
+        base.clone().addScaledVector(forward, 5.2 + force * 0.45).setY(0.08),
       );
     }
     const laneGeo = new THREE.BufferGeometry().setFromPoints(lanePts);
@@ -1895,24 +1932,42 @@ export class Game {
 
     mounted.forEach((m, i) => {
       const p = local(m.group.position, 0.13);
+      const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+      shadow.position.copy(p).setY(p.y - 0.035);
+      shadow.rotation.x = -Math.PI / 2;
+      shadow.rotation.z = Math.atan2(forward.x, forward.z) + i * 0.08;
+      shadow.scale.set(1.38, 0.58, 1);
+      group.add(shadow);
+      defenderShadows.push({ shadow, phase: i * 1.1, baseX: 1.38, baseY: 0.58 });
+
       const ring = new THREE.Mesh(hoofGeo, hoofMat);
-      ring.position.copy(p);
+      ring.position.copy(p).setY(p.y + 0.018);
       ring.rotation.x = -Math.PI / 2;
       ring.rotation.z = i * 0.48;
-      ring.scale.set(1.32, 0.86, 1);
+      ring.scale.set(1.08, 0.68, 1);
       group.add(ring);
       hoofRings.push({ ring, phase: i * 1.4 });
+
+      const crestBase = p.clone().addScaledVector(side, (i % 2 ? -1 : 1) * 0.16).setY(p.y + 0.35);
+      const crestTip = crestBase.clone().setY(p.y + 1.85);
+      const crestGeo = new THREE.BufferGeometry().setFromPoints([crestBase, crestTip]);
+      geos.push(crestGeo);
+      const crest = new THREE.Line(crestGeo, crestMat);
+      group.add(crest);
+      crestLines.push({ crest, phase: i * 0.8 });
 
       const target = targets[i % Math.max(1, targets.length)];
       const end = target?.group?.position
         ? local(target.group.position, target.boss ? 1.28 : 0.9)
         : p.clone().addScaledVector(forward, 4.1).setY(p.y + 0.65);
-      const start = p.clone().setY(p.y + 1.2);
-      const mid = start.clone().lerp(end, 0.55).addScaledVector(side, (i % 2 ? -1 : 1) * 0.22);
-      mid.y += 0.22;
-      const lanceGeo = new THREE.BufferGeometry().setFromPoints([start, mid, end]);
-      geos.push(lanceGeo);
-      group.add(new THREE.Line(lanceGeo, lanceMat));
+      if (i < 4) {
+        const start = p.clone().setY(p.y + 1.2);
+        const mid = start.clone().lerp(end, 0.55).addScaledVector(side, (i % 2 ? -1 : 1) * 0.18);
+        mid.y += 0.18;
+        const lanceGeo = new THREE.BufferGeometry().setFromPoints([start, mid, end]);
+        geos.push(lanceGeo);
+        group.add(new THREE.Line(lanceGeo, lanceMat));
+      }
     });
 
     targets.forEach((e, i) => {
@@ -1941,6 +1996,8 @@ export class Game {
       cavalryCloseCombat: true,
       hoofRings,
       enemyMarks,
+      defenderShadows,
+      crestLines,
       baseY: group.position.y,
       force,
     });
@@ -1949,7 +2006,7 @@ export class Game {
   cavalryLanceBeat(soldier, target, power = 1) {
     if (!soldier?.alive || !soldier.model?.mounted || !soldier.group?.position || !target?.group?.position) return;
     const now = this._time || 0;
-    if (now - (soldier._lastCavalryLanceBeat || -99) < 0.24) return;
+    if (now - (soldier._lastCavalryLanceBeat || -99) < 0.46) return;
     soldier._lastCavalryLanceBeat = now;
 
     const start = soldier.group.position.clone();
@@ -1965,11 +2022,11 @@ export class Game {
 
     const group = new THREE.Group();
     group.name = 'zabulistan-cavalry-lance-contact-fx';
-    group.renderOrder = 58;
+    group.renderOrder = 47;
     const lanceMat = new THREE.LineBasicMaterial({
       color: 0xfff0bd,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.36,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending,
@@ -1977,7 +2034,7 @@ export class Game {
     const sparkMat = new THREE.LineBasicMaterial({
       color: target.boss ? 0xff715c : 0xffd26a,
       transparent: true,
-      opacity: 0.72,
+      opacity: 0.28,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending,
@@ -1985,7 +2042,7 @@ export class Game {
     const mainGeo = new THREE.BufferGeometry().setFromPoints([start, mid, end]);
     group.add(new THREE.Line(mainGeo, lanceMat));
     const geos = [mainGeo];
-    for (const sign of [-1, 1]) {
+    for (const sign of [soldier.id % 2 ? -1 : 1]) {
       const a = end.clone().addScaledVector(side, sign * 0.42).addScaledVector(flat, -0.36);
       const b = end.clone().addScaledVector(side, -sign * 0.32).addScaledVector(flat, 0.42);
       a.y += 0.16;
@@ -1995,22 +2052,22 @@ export class Game {
       group.add(new THREE.Line(geo, sparkMat));
     }
     this.scene.add(group);
-    this.particles.burst(end, target.boss ? 8 : 5, {
-      speed: 1.9 + force * 0.45,
+    this.particles.burst(end, target.boss ? 5 : 3, {
+      speed: 1.45 + force * 0.32,
       up: 0.95,
-      life: 0.34,
-      size: 0.26,
+      life: 0.24,
+      size: 0.2,
       color: FXC.gold,
       grav: 1.8,
-      spread: 0.68,
+      spread: 0.48,
       drag: 0.9,
     });
     this.gateMarkers.push({
       group,
       mats: [lanceMat, sparkMat],
       geos,
-      t: 0.36,
-      dur: 0.36,
+      t: 0.22,
+      dur: 0.22,
       cavalryLanceBeat: true,
       force,
     });
@@ -2083,12 +2140,12 @@ export class Game {
     const mid = start.clone().lerp(end, 0.55).setY(Math.max(start.y, end.y) + 0.28);
     const force = Math.max(0.45, Math.min(1.8, power || 1));
     const group = new THREE.Group();
-    group.renderOrder = 50;
+    group.renderOrder = 46;
 
     const lineMat = new THREE.LineBasicMaterial({
       color: enemy.boss ? 0xff715c : 0xffe09a,
       transparent: true,
-      opacity: 0.82,
+      opacity: 0.34,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending,
@@ -2096,7 +2153,7 @@ export class Game {
     const spearMat = new THREE.LineBasicMaterial({
       color: 0x9fe0dc,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.18,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending,
@@ -2106,7 +2163,7 @@ export class Game {
     group.add(main);
 
     const spearGeos = [];
-    for (const sign of [-1, 1]) {
+    for (const sign of [enemy.id % 2 ? -1 : 1]) {
       const a = mid.clone().addScaledVector(side, sign * (0.65 + force * 0.16)).addScaledVector(dir, -0.55);
       const b = mid.clone().addScaledVector(side, -sign * (0.38 + force * 0.12)).addScaledVector(dir, 0.82);
       a.y += 0.18;
@@ -2121,8 +2178,8 @@ export class Game {
       group,
       mats: [lineMat, spearMat],
       geos: [mainGeo, ...spearGeos],
-      t: 0.42,
-      dur: 0.42,
+      t: 0.24,
+      dur: 0.24,
       defenderClashLine: true,
     });
   }
@@ -2140,12 +2197,12 @@ export class Game {
     const side = new THREE.Vector3(-flat.z, 0, flat.x);
     const force = Math.max(0.45, Math.min(1.8, power || 1));
     const group = new THREE.Group();
-    group.renderOrder = 53;
+    group.renderOrder = 47;
 
     const shockMat = new THREE.LineBasicMaterial({
       color: enemy.boss ? 0xff715c : 0xffd26a,
       transparent: true,
-      opacity: 0.94,
+      opacity: 0.32,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending,
@@ -2153,7 +2210,7 @@ export class Game {
     const sparkMat = new THREE.LineBasicMaterial({
       color: 0xfff0bd,
       transparent: true,
-      opacity: 0.72,
+      opacity: 0.24,
       depthWrite: false,
       depthTest: true,
       blending: THREE.AdditiveBlending,
@@ -2163,7 +2220,7 @@ export class Game {
     group.add(main);
 
     const sparkGeos = [];
-    for (const sign of [-1, 1]) {
+    for (const sign of [enemy.id % 2 ? -1 : 1]) {
       const a = mid.clone().addScaledVector(side, sign * (0.38 + force * 0.16)).addScaledVector(flat, -0.42);
       const b = mid.clone().addScaledVector(side, -sign * (0.42 + force * 0.18)).addScaledVector(flat, 0.46);
       a.y += 0.1 + force * 0.04;
@@ -2173,14 +2230,14 @@ export class Game {
       group.add(new THREE.Line(geo, sparkMat));
     }
 
-    this.particles.burst(mid.clone(), enemy.boss ? 14 : 9, {
-      speed: enemy.boss ? 3.2 : 2.4,
+    this.particles.burst(mid.clone(), enemy.boss ? 8 : 4, {
+      speed: enemy.boss ? 2.6 : 1.8,
       up: enemy.boss ? 1.35 : 1.05,
-      life: 0.38,
-      size: enemy.boss ? 0.42 : 0.31,
+      life: 0.26,
+      size: enemy.boss ? 0.32 : 0.22,
       color: FXC.gold,
       grav: 2.2,
-      spread: enemy.boss ? 1.5 : 0.95,
+      spread: enemy.boss ? 1.05 : 0.62,
       drag: 1.1,
     });
 
@@ -2189,8 +2246,8 @@ export class Game {
       group,
       mats: [shockMat, sparkMat],
       geos: [mainGeo, ...sparkGeos],
-      t: 0.28,
-      dur: 0.28,
+      t: 0.2,
+      dur: 0.2,
       gateShockLine: true,
     });
   }
@@ -2253,22 +2310,22 @@ export class Game {
 
   _showRallyRoute(from, to, dur = 4.2) {
     if (!from || !to) return;
-    const start = from.clone().setY(from.y + 0.8);
-    const end = to.clone().setY(to.y + 0.85);
-    const mid = start.clone().lerp(end, 0.5).setY(Math.max(start.y, end.y) + 2.0);
+    const start = from.clone().setY(from.y + 0.45);
+    const end = to.clone().setY(to.y + 0.5);
+    const mid = start.clone().lerp(end, 0.5).setY(Math.max(start.y, end.y) + 1.2);
     const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
     const pts = curve.getPoints(18);
     const geom = new THREE.BufferGeometry().setFromPoints(pts);
     const mat = new THREE.LineBasicMaterial({
       color: 0xffd26a,
       transparent: true,
-      opacity: 0.76,
+      opacity: 0.24,
       depthWrite: false,
-      depthTest: false,
-      blending: THREE.AdditiveBlending,
+      depthTest: true,
+      blending: THREE.NormalBlending,
     });
     const line = new THREE.Line(geom, mat);
-    line.renderOrder = 46;
+    line.renderOrder = 41;
     this.scene.add(line);
     const objects = [line];
     const geos = [geom];
@@ -2277,26 +2334,24 @@ export class Game {
     if (dir.lengthSq() > 0.01) {
       dir.normalize();
       const side = new THREE.Vector3(-dir.z, 0, dir.x);
-      for (let i = 1; i <= 2; i++) {
-        const p = curve.getPoint(i / 3);
-        const arrowPts = [
-          p.clone().addScaledVector(dir, 0.45),
-          p.clone().addScaledVector(dir, -0.4).addScaledVector(side, 0.28),
-          p.clone().addScaledVector(dir, -0.4).addScaledVector(side, -0.28),
-          p.clone().addScaledVector(dir, 0.45),
-        ];
-        const arrowGeom = new THREE.BufferGeometry().setFromPoints(arrowPts);
-        const arrowMat = mat.clone();
-        arrowMat.opacity = 0.58;
-        const arrow = new THREE.Line(arrowGeom, arrowMat);
-        arrow.renderOrder = 47;
-        this.scene.add(arrow);
-        objects.push(arrow);
-        geos.push(arrowGeom);
-        mats.push(arrowMat);
-      }
+      const p = curve.getPoint(0.58);
+      const arrowPts = [
+        p.clone().addScaledVector(dir, 0.34),
+        p.clone().addScaledVector(dir, -0.32).addScaledVector(side, 0.2),
+        p.clone().addScaledVector(dir, -0.32).addScaledVector(side, -0.2),
+        p.clone().addScaledVector(dir, 0.34),
+      ];
+      const arrowGeom = new THREE.BufferGeometry().setFromPoints(arrowPts);
+      const arrowMat = mat.clone();
+      arrowMat.opacity = 0.18;
+      const arrow = new THREE.Line(arrowGeom, arrowMat);
+      arrow.renderOrder = 42;
+      this.scene.add(arrow);
+      objects.push(arrow);
+      geos.push(arrowGeom);
+      mats.push(arrowMat);
     }
-    this.gateMarkers.push({ group: null, objects, mats, geos, t: dur, dur, line, route: true });
+    this.gateMarkers.push({ group: null, objects, mats, geos, t: dur, dur, line, route: true, routeAlpha: 0.24 });
   }
 
   _showAssaultColumn(path, baseDist, count = 4, dir = null, dur = 4.8) {
@@ -2307,25 +2362,25 @@ export class Game {
     const firstDist = Math.max(0, baseDist - Math.max(8, count * 2.7 + 3));
     const lastDist = Math.max(0, Math.min(path.length - 1, baseDist + 2.2));
     const group = new THREE.Group();
-    group.renderOrder = 45;
+    group.renderOrder = 40;
 
     const pts = [];
     const segments = 9;
     for (let i = 0; i <= segments; i++) {
       const d = firstDist + (lastDist - firstDist) * (i / segments);
       const p = pointAt(path, d);
-      pts.push(new THREE.Vector3(p.x, p.y + 0.2, p.z));
+      pts.push(new THREE.Vector3(p.x, p.y + 0.08, p.z));
     }
     const lineMat = new THREE.LineBasicMaterial({
       color: 0xa92f24,
       transparent: true,
-      opacity: 0.72,
+      opacity: 0.2,
       depthWrite: false,
-      depthTest: false,
-      blending: THREE.AdditiveBlending,
+      depthTest: true,
+      blending: THREE.NormalBlending,
     });
     const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat);
-    line.renderOrder = 45;
+    line.renderOrder = 40;
     group.add(line);
 
     const geos = [line.geometry];
@@ -2351,14 +2406,14 @@ export class Game {
       const clothMat = new THREE.MeshBasicMaterial({
         color: i % 3 === 1 ? 0xd4a037 : 0x8f241f,
         transparent: true,
-        opacity: 0.78,
+        opacity: 0.62,
         depthWrite: false,
-        depthTest: false,
+        depthTest: true,
         side: THREE.DoubleSide,
       });
       const cloth = new THREE.Mesh(clothGeo, clothMat);
       cloth.position.set(0.44, 1.9, 0.04);
-      cloth.renderOrder = 46;
+      cloth.renderOrder = 42;
       std.add(cloth);
 
       group.add(std);
@@ -2395,6 +2450,7 @@ export class Game {
       points: pts,
       side,
       fxT: 0,
+      routeAlpha: 0.2,
     });
   }
 
@@ -2404,7 +2460,12 @@ export class Game {
       m.t -= dt;
       const k = Math.max(0, Math.min(1, m.t / Math.max(0.001, m.dur)));
       const pulse = 0.75 + Math.sin(time * 7) * 0.25;
-      if (m.line?.material) m.line.material.opacity = (m.route ? 0.76 : 0.95) * k * pulse;
+      if (m.line?.material) {
+        const baseAlpha = Number.isFinite(m.lineAlpha) ? m.lineAlpha
+          : Number.isFinite(m.routeAlpha) ? m.routeAlpha
+          : m.route ? 0.76 : 0.95;
+        m.line.material.opacity = baseAlpha * k * pulse;
+      }
       if (m.shieldLine) {
         for (const s of m.shieldSeals || []) {
           const sealPulse = 0.9 + Math.sin(time * 5.2 + s.phase) * 0.1;
@@ -2428,20 +2489,20 @@ export class Game {
       if (m.royalGateImpact) {
         const rise = 1 - k;
         const flare = Math.sin(rise * Math.PI);
-        m.group.position.y = m.baseY + rise * 0.72;
-        m.group.scale.setScalar(0.92 + rise * (0.9 + m.force * 0.16));
+        m.group.position.y = m.baseY + rise * 0.48;
+        m.group.scale.setScalar(0.9 + rise * (0.58 + m.force * 0.1));
         if (m.inner) {
           m.inner.rotation.z += dt * (2.2 + m.force);
-          m.inner.material.opacity = 0.82 * k * (0.78 + flare * 0.38);
+          m.inner.material.opacity = 0.48 * k * (0.72 + flare * 0.32);
         }
         if (m.outer) {
           m.outer.rotation.z -= dt * (1.35 + m.force * 0.6);
-          m.outer.material.opacity = 0.48 * k * (0.65 + flare * 0.44);
+          m.outer.material.opacity = 0.22 * k * (0.58 + flare * 0.36);
         }
-        if (m.plate) m.plate.material.opacity = 0.24 * k * (0.5 + flare * 0.75);
+        if (m.plate) m.plate.material.opacity = 0.1 * k * (0.5 + flare * 0.62);
         if (m.rays) {
-          m.rays.scale.setScalar(0.86 + rise * 0.52);
-          m.rays.material.opacity = 0.76 * k * (0.55 + flare * 0.62);
+          m.rays.scale.setScalar(0.82 + rise * 0.34);
+          m.rays.material.opacity = 0.32 * k * (0.48 + flare * 0.42);
         }
       }
       if (m.cavalryCloseCombat) {
@@ -2449,15 +2510,23 @@ export class Game {
         const flare = Math.sin(rise * Math.PI);
         m.group.position.y = m.baseY + flare * 0.08;
         m.group.scale.setScalar(0.96 + flare * 0.08 + (m.force || 0) * 0.02);
+        for (const s of m.defenderShadows || []) {
+          const shadowPulse = 0.92 + Math.sin(time * 4.2 + s.phase) * 0.08 + flare * 0.08;
+          s.shadow.scale.set((s.baseX || 1.3) * shadowPulse, (s.baseY || 0.58) * (0.95 + flare * 0.08), 1);
+          s.shadow.material.opacity = 0.24 * k * (0.72 + flare * 0.32);
+        }
+        for (const c of m.crestLines || []) {
+          c.crest.material.opacity = 0.12 * k * (0.72 + Math.sin(time * 5.4 + c.phase) * 0.12 + flare * 0.28);
+        }
         for (const h of m.hoofRings || []) {
           h.ring.rotation.z += dt * (1.6 + (m.force || 0) * 0.4);
-          h.ring.scale.set(1.26 + flare * 0.18, 0.82 + flare * 0.08, 1);
-          h.ring.material.opacity = 0.38 * k * (0.72 + flare * 0.46);
+          h.ring.scale.set(1.04 + flare * 0.12, 0.66 + flare * 0.06, 1);
+          h.ring.material.opacity = 0.22 * k * (0.68 + flare * 0.38);
         }
         for (const e of m.enemyMarks || []) {
           e.mark.rotation.z -= dt * 1.2;
-          e.mark.scale.setScalar(0.92 + flare * 0.12);
-          e.mark.material.opacity = 0.3 * k * (0.68 + flare * 0.5);
+          e.mark.scale.setScalar(0.84 + flare * 0.1);
+          e.mark.material.opacity = 0.2 * k * (0.64 + flare * 0.42);
         }
       }
       if (m.cavalryLanceBeat) {
@@ -2469,7 +2538,7 @@ export class Game {
         const bob = Math.sin(time * 3.4) * 0.08;
         m.group.position.y = m.baseY + bob + Math.sin(Math.min(1, rise * 1.4) * Math.PI) * 0.22;
         m.group.scale.setScalar(0.92 + Math.sin(Math.min(1, rise * 1.8) * Math.PI) * 0.08);
-        if (m.banner?.material) m.banner.material.opacity = Math.min(0.96, k * 1.25);
+        if (m.banner?.material) m.banner.material.opacity = Math.min(0.78, k * 1.05);
       }
       if (m.gatePressureOmen) {
         const rise = 1 - k;
@@ -2478,13 +2547,13 @@ export class Game {
         m.group.scale.setScalar(0.88 + flare * (m.peak ? 0.18 : 0.1) + (m.force || 0) * 0.08);
         if (m.ring?.material) {
           m.ring.rotation.z += dt * (m.peak ? 1.4 : 0.8);
-          m.ring.material.opacity = (m.peak ? 0.62 : 0.42) * k * (0.72 + flare * 0.42);
+          m.ring.material.opacity = (m.peak ? 0.28 : 0.2) * k * (0.72 + flare * 0.42);
         }
         if (m.crown?.material) {
           m.crown.position.y = 1.15 + (m.force || 0) * 0.24 + Math.sin(time * 7) * 0.055;
-          m.crown.material.opacity = (m.peak ? 0.82 : 0.58) * k;
+          m.crown.material.opacity = (m.peak ? 0.5 : 0.34) * k;
         }
-        for (const ray of m.rays || []) if (ray.material) ray.material.opacity = (m.peak ? 0.64 : 0.42) * k * (0.6 + flare * 0.5);
+        for (const ray of m.rays || []) if (ray.material) ray.material.opacity = (m.peak ? 0.2 : 0.14) * k * (0.6 + flare * 0.5);
       }
       if (m.royalGateGuardFade) {
         const rise = 1 - k;
@@ -2550,7 +2619,7 @@ export class Game {
         }
       }
       if (m.ring) {
-        m.ring.material.opacity = 0.18 * k * (0.8 + Math.sin(time * 4) * 0.2);
+        m.ring.material.opacity = 0.07 * k * (0.78 + Math.sin(time * 4) * 0.18);
         m.ring.scale.setScalar(1 + (1 - k) * 0.08);
       }
       for (const mat of m.mats) mat.opacity = Math.min(mat.opacity, Math.max(0, k));
@@ -3112,6 +3181,20 @@ export class Game {
       assaultPressure: Math.min(1, commandPower),
       timingPeak: timing.peak,
     };
+    this.emit('palaceCommandFx', {
+      kind: 'gate',
+      palace: cit,
+      type: 'gateCommand',
+      count: enemies.length,
+      targetCount: enemies.length,
+      defenders: braceResult.defenders,
+      gateGuard: gateGuard.added,
+      staggered,
+      pressure,
+      timing: timingState,
+      mode: 'royal',
+      countercharge,
+    });
     return { count: enemies.length, mode: 'royal', defenders: braceResult.defenders, gateGuard: gateGuard.added, braced: braceResult.squads, staggered, pressure, timing: timingState, peak: timing.peak, countercharge };
   }
 
@@ -3233,7 +3316,7 @@ export class Game {
     const m = this.map;
     if (!m || !m.citadel || m.citadel.isCustomPalace) return;
     const cit = buildLandCitadel(this.mapDef.id);
-    if (!cit.isPalace) return; // still not ready — keep the procedural citadel
+    if (!cit.isCustomPalace) return; // still not ready — keep the procedural citadel
     const prev = m.citadel;
     cit.musterCd = prev.musterCd || 0;
     cit.boonCd = prev.boonCd || 0;
@@ -3461,13 +3544,17 @@ export class Game {
     enemy._palaceDangerSeen = true;
     const pressure = Math.max(0.35, Math.min(1, weight / 3.2));
     const { cit, front, keep, dir } = approach;
+    const now = this._time || time || 0;
     const radius = 8.5 + pressure * 4.5;
     this._bracePalaceDefenders(front, dir, pressure, 4.2 + pressure * 1.6, enemy);
-    this._showAssaultColumn(enemy.path, enemy.dist || 0, enemy.boss ? 5 : 3, dir, 3.4 + pressure * 1.2);
-    this._showGateMarker(front, dir, radius, 4.6);
-    this._showPalaceShieldLine(front, dir, { width: Math.max(8.2, radius * 1.05), pressure, dur: 4.2 });
-    this.palaceStage?.signalAlarm?.({ front, keep, dir, pressure: pressure * 0.72, dur: 3.2 + pressure * 0.9 });
-    const now = this._time || time || 0;
+    const showDangerBeat = enemy.boss || now - (this._lastPalaceDangerBeatFx || -99) > 1.35;
+    if (showDangerBeat) {
+      this._lastPalaceDangerBeatFx = now;
+      this._showAssaultColumn(enemy.path, enemy.dist || 0, enemy.boss ? 5 : 3, dir, 3.4 + pressure * 1.2);
+      this._showGateMarker(front, dir, radius, 4.6);
+      this._showPalaceShieldLine(front, dir, { width: Math.max(8.2, radius * 1.05), pressure, dur: 4.2 });
+      this.palaceStage?.signalAlarm?.({ front, keep, dir, pressure: pressure * 0.72, dur: 3.2 + pressure * 0.9 });
+    }
     const fieldCadence = enemy.boss ? 0.35 : 0.85;
     if (now - (this._lastPalaceDangerFieldFx || -99) > fieldCadence) {
       this._lastPalaceDangerFieldFx = now;
@@ -3477,7 +3564,12 @@ export class Game {
         radius: fxRadius,
         visualRadius: Math.min(10, 6 + pressure * 3.5),
         visualIntensity: 0.16,
+        commandIntensity: 0.14,
+        threadIntensity: 0.1,
+        rayIntensity: 0.06,
         groundWaveIntensity: 0,
+        targetVisualLimit: 1,
+        anchorVisualLimit: 1,
         dur: 4,
       }, {
         front,
@@ -3488,18 +3580,20 @@ export class Game {
       });
     }
     enemy.applyMark(0.12 + pressure * 0.08, 4.5);
-    this.particles.burst(front.clone().setY(front.y + 1.5), 20 + Math.round(pressure * 18), {
-      speed: 2.6 + pressure,
-      up: 1.4,
-      life: 0.9,
-      size: 0.52,
-      color: enemy.boss ? FXC.blood : FXC.gold,
-      grav: 0.5,
-      spread: 3.8,
-      drag: 0.45,
-    });
-    this.engine.addShake?.(enemy.boss ? 0.42 : 0.18 + pressure * 0.12);
-    this.engine.bloomPulse?.(0.24 + pressure * 0.22);
+    if (showDangerBeat) {
+      this.particles.burst(front.clone().setY(front.y + 1.5), 12 + Math.round(pressure * 10), {
+        speed: 2.1 + pressure * 0.7,
+        up: 1.1,
+        life: 0.62,
+        size: 0.38,
+        color: enemy.boss ? FXC.blood : FXC.gold,
+        grav: 0.5,
+        spread: 2.6,
+        drag: 0.45,
+      });
+      this.engine.addShake?.(enemy.boss ? 0.34 : 0.12 + pressure * 0.08);
+      this.engine.bloomPulse?.(0.18 + pressure * 0.14);
+    }
     if (time - (this._palaceDanger.hornT || -99) > 2.0) {
       this._palaceDanger.hornT = time;
       if (this.audio.palaceAlarm) this.audio.palaceAlarm();
@@ -3561,7 +3655,12 @@ export class Game {
         radius: fxRadius,
         visualRadius: Math.min(11, 7 + pressure * 3),
         visualIntensity: 0.18,
+        commandIntensity: 0.16,
+        threadIntensity: 0.1,
+        rayIntensity: 0.06,
         groundWaveIntensity: 0,
+        targetVisualLimit: 1,
+        anchorVisualLimit: 1,
         dur: 2.4,
       }, {
         front: approach.front,

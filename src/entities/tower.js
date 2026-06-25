@@ -65,6 +65,9 @@ export class Tower {
     this.pos = pad.pos.clone();
     this.attackCd = 0;
     this.shotCount = 0;
+    this.lastTarget = null;
+    this.lastTargetT = -99;
+    this.lastTargetKind = null;
     this.silencedT = 0;
     this.disabledT = 0;
     this.garrisonDisabledT = 0;
@@ -561,6 +564,9 @@ export class Tower {
     const from = this._muzzlePos();
     const role = this.def.role;
     const vfx = this.def.vfx;
+    this.lastTarget = target;
+    this.lastTargetT = this.game?._time || 0;
+    this.lastTargetKind = vfx || role || this.def.id || null;
     // hero signature: Rostam's mace shockwave every 6th shot
     if (this.hero?.special.key === 'maceShockwave' && this.shotCount % 6 === 0) {
       this.game.particles.burst(this.pos, 22, { speed: 5, up: 0.5, life: 0.6, size: 0.6, color: FXC.gold, grav: 2, spread: 3 });
