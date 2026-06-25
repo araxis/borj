@@ -69,10 +69,13 @@ function makeOverlayRing(color, opacity, radius = 1, segments = 96) {
 }
 
 const padRing = makeOverlayRing(0xf4cd6e, 0.92, 2.1, 32);
+padRing.name = 'placement-hover-ring';
 const rangeRing = makeOverlayRing(0x2fa7a0, 0.82, 1, 128);
+rangeRing.name = 'selection-range-ring';
 
 // tight pulsing ring hugging the selected tower's footprint — disambiguates which tower is selected in a cluster
 const selRing = makeOverlayRing(0xffe9a8, 0.85, 1, 48);
+selRing.name = 'selection-footprint-ring';
 let selectedTower = null;
 
 const SELECTED_TARGET_THREAD_TTL = 1.55;
@@ -858,6 +861,14 @@ function zabulistanCombatReadabilitySummary() {
       selectedVisible: !!enemyEngagementLayer.userData.selectedVisible,
       reason: enemyEngagementLayer.userData.reason || null,
     },
+    selection: {
+      active: !!selectedTower?.alive && rangeRing.visible,
+      combatStyle: rangeRing.userData.style === 'zabulistan-combat',
+      rangeOpacity: Number((rangeRing.material.opacity || 0).toFixed(2)),
+      rangeDepthTest: !!rangeRing.material.depthTest,
+      footprintBase: Number((selRing.userData.pulseBase || 0).toFixed(2)),
+      footprintDepthTest: !!selRing.material.depthTest,
+    },
     targetThread: {
       active: selectedTargetThread.visible,
       visible: !!selectedTargetThread.userData.visible,
@@ -1419,6 +1430,7 @@ function setRangeRingDefaultStyle() {
   rangeRing.material.blending = THREE.AdditiveBlending;
   rangeRing.material.opacity = 0.82;
   rangeRing.renderOrder = 30;
+  rangeRing.userData.style = 'default';
   rangeRing.material.needsUpdate = true;
 }
 
@@ -1428,7 +1440,63 @@ function setRangeRingBuildStyle() {
   rangeRing.material.blending = THREE.NormalBlending;
   rangeRing.material.opacity = 0.38;
   rangeRing.renderOrder = 22;
+  rangeRing.userData.style = 'build';
   rangeRing.material.needsUpdate = true;
+}
+
+function setRangeRingZabulistanCombatStyle(budget = zabulistanCombatVisualBudget()) {
+  const focus = budget.gateFocus || budget.commandActive || budget.selectedFocus;
+  rangeRing.material.depthTest = true;
+  rangeRing.material.depthWrite = false;
+  rangeRing.material.blending = THREE.NormalBlending;
+  rangeRing.material.opacity = focus ? 0.24 : 0.32;
+  rangeRing.renderOrder = 22;
+  rangeRing.userData.style = 'zabulistan-combat';
+  rangeRing.material.needsUpdate = true;
+}
+
+function resetSelectionRingDefaultStyle() {
+  selRing.material.depthTest = false;
+  selRing.material.depthWrite = false;
+  selRing.material.blending = THREE.AdditiveBlending;
+  selRing.renderOrder = 30;
+  selRing.userData.pulseBase = 0.65;
+  selRing.userData.pulseAmp = 0.2;
+  selRing.userData.style = 'default';
+  selRing.material.needsUpdate = true;
+}
+
+function syncZabulistanSelectionFocus() {
+  if (!selectedTower?.alive || !rangeRing.visible || hud?.mode?.kind === 'build') {
+    if (rangeRing.userData.style === 'zabulistan-combat') setRangeRingDefaultStyle();
+    if (selRing.userData.style === 'zabulistan-combat') resetSelectionRingDefaultStyle();
+    return { active: false, combatStyle: false };
+  }
+  const active = game?.mapDef?.id === 'zabulistan' && game.waveActive && game.phase === 'combat';
+  if (!active) {
+    if (rangeRing.userData.style === 'zabulistan-combat') setRangeRingDefaultStyle();
+    if (selRing.userData.style === 'zabulistan-combat') resetSelectionRingDefaultStyle();
+    return { active: false, combatStyle: false };
+  }
+
+  const budget = zabulistanCombatVisualBudget();
+  const focus = budget.gateFocus || budget.commandActive || budget.selectedFocus;
+  setRangeRingZabulistanCombatStyle(budget);
+  selRing.material.depthTest = true;
+  selRing.material.depthWrite = false;
+  selRing.material.blending = THREE.NormalBlending;
+  selRing.renderOrder = 24;
+  selRing.userData.pulseBase = focus ? 0.34 : 0.42;
+  selRing.userData.pulseAmp = settings.get('reducedMotion') ? 0 : 0.06;
+  selRing.userData.style = 'zabulistan-combat';
+  selRing.material.needsUpdate = true;
+  return {
+    active: true,
+    combatStyle: true,
+    rangeOpacity: Number(rangeRing.material.opacity.toFixed(2)),
+    footprintBase: Number((selRing.userData.pulseBase || 0).toFixed(2)),
+    focus,
+  };
 }
 
 function rebuildBuildPadHints() {
@@ -1585,6 +1653,7 @@ engine.onUpdate(() => syncEnemyContactFeedback());
 engine.onUpdate(() => syncSelectedTargetThread());
 engine.onUpdate(() => syncZabulistanPalaceCommandFeedback());
 engine.onUpdate(() => syncZabulistanGateHoldFeedback());
+engine.onUpdate(() => syncZabulistanSelectionFocus());
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -1772,20 +1841,20 @@ function showSelection(tower) {
   showRangeFor(null, tower.pos, tower);
   setRangeRingDefaultStyle();
   selRing.material.color.setHex(0xffe9a8);
-  selRing.material.depthTest = false;
-  selRing.userData.pulseBase = 0.65;
-  selRing.userData.pulseAmp = 0.2;
+  resetSelectionRingDefaultStyle();
   selRing.scale.setScalar((tower.model?.radius || 1.1) * 1.35);
   selRing.position.set(tower.pos.x, tower.pos.y + 0.12, tower.pos.z);
   selRing.visible = true;
   const info = ringFor(tower.def, tower.getStats ? tower.getStats() : null);
   showAuraLinks(tower, info ? info.color : 0xffc23a);
+  syncZabulistanSelectionFocus();
 }
 
 function hideSelection() {
   selectedTower = null;
   resetSelectedTargetThread('selection-hidden');
   setRangeRingDefaultStyle();
+  resetSelectionRingDefaultStyle();
   rangeRing.visible = false;
   selRing.visible = false;
   auraLines.visible = false;
@@ -1799,8 +1868,13 @@ function showSelectionPalace(cit) {
   auraLines.visible = false;
   selRing.material.color.setHex(0xffd26a);
   selRing.material.depthTest = true;
+  selRing.material.depthWrite = false;
+  selRing.material.blending = THREE.NormalBlending;
+  selRing.renderOrder = 24;
   selRing.userData.pulseBase = 0.26;
   selRing.userData.pulseAmp = 0.06;
+  selRing.userData.style = 'palace';
+  selRing.material.needsUpdate = true;
   selRing.scale.setScalar(Math.max(10, Math.min(18, (cit.footprint || 15) * 0.62)));
   selRing.position.set(cit.group.position.x, cit.group.position.y + 0.28, cit.group.position.z);
   selRing.visible = true;
@@ -2496,6 +2570,7 @@ window.__dbg = {
         hud?._syncToggle?.();
         const engagement = syncEnemyEngagementLayer();
         const contact = syncEnemyContactFeedback();
+        const selection = syncZabulistanSelectionFocus();
         return {
           ok: true,
           state,
@@ -2509,6 +2584,7 @@ window.__dbg = {
           },
           engagement,
           contact,
+          selection,
           pressure: syncRoadPressureCues(),
           metrics: window.__dbg.visualQa.metrics(),
         };
@@ -2672,6 +2748,8 @@ window.__dbg = {
         let targetThread = syncSelectedTargetThread();
         let command = syncZabulistanPalaceCommandFeedback();
         let gateHold = syncZabulistanGateHoldFeedback();
+        let engagement = syncEnemyEngagementLayer();
+        let selection = syncZabulistanSelectionFocus();
         for (let i = 0; i < 18; i++) {
           g.update(1 / 30, engine.elapsed + i / 30);
           pressure = syncRoadPressureCues();
@@ -2679,6 +2757,8 @@ window.__dbg = {
           targetThread = syncSelectedTargetThread();
           command = syncZabulistanPalaceCommandFeedback();
           gateHold = syncZabulistanGateHoldFeedback();
+          engagement = syncEnemyEngagementLayer();
+          selection = syncZabulistanSelectionFocus();
         }
         if (!targetThread.visible && focusTower?.alive) {
           const reacquired = g.enemies
@@ -2695,6 +2775,8 @@ window.__dbg = {
             contact = syncEnemyContactFeedback();
             command = syncZabulistanPalaceCommandFeedback();
             gateHold = syncZabulistanGateHoldFeedback();
+            engagement = syncEnemyEngagementLayer();
+            selection = syncZabulistanSelectionFocus();
           }
         }
         return {
@@ -2706,6 +2788,8 @@ window.__dbg = {
           view,
           pressure,
           contact,
+          engagement,
+          selection,
           targetThread,
           command,
           gateHold,
@@ -2915,6 +2999,9 @@ function __recordQaUrlResult(qa, result) {
     'zabulistan-palace-facade-fallback',
     'zabulistan-palace-foreground-terrace-wall-main',
     'zabulistan-gate-threshold-transition',
+    'placement-hover-ring',
+    'selection-range-ring',
+    'selection-footprint-ring',
     'build-pad-affordance',
     'build-pad-affordance-pad',
     'zabulistan-road-pressure-cues',
