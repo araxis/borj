@@ -194,6 +194,85 @@ function makeRoadPressureCue() {
 
 for (let i = 0; i < ROAD_PRESSURE_CUE_MAX; i++) roadPressureCues.add(makeRoadPressureCue());
 
+const ENGAGEMENT_CUE_MAX = 8;
+const engagementGroundGeom = new THREE.CircleGeometry(1, 30);
+engagementGroundGeom.rotateX(-Math.PI / 2);
+const engagementHaloGeom = new THREE.RingGeometry(0.74, 1.02, 42);
+engagementHaloGeom.rotateX(-Math.PI / 2);
+const engagementSilhouetteGeom = new THREE.PlaneGeometry(0.72, 1.9);
+const engagementSpineGeom = new THREE.PlaneGeometry(0.09, 1.34);
+const enemyEngagementLayer = new THREE.Group();
+enemyEngagementLayer.name = 'zabulistan-engagement-silhouette-cues';
+enemyEngagementLayer.visible = false;
+enemyEngagementLayer.userData.visualQaIgnore = true;
+
+function makeEnemyEngagementCue() {
+  const cue = new THREE.Group();
+  cue.name = 'zabulistan-engagement-silhouette-cue';
+  cue.visible = false;
+  const ground = new THREE.Mesh(
+    engagementGroundGeom,
+    new THREE.MeshBasicMaterial({
+      color: 0x1e150d,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.NormalBlending,
+      side: THREE.DoubleSide,
+    }),
+  );
+  ground.name = 'zabulistan-engagement-ground-shadow';
+  ground.renderOrder = 20;
+  const halo = new THREE.Mesh(
+    engagementHaloGeom,
+    new THREE.MeshBasicMaterial({
+      color: 0xe0a45c,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.NormalBlending,
+      side: THREE.DoubleSide,
+    }),
+  );
+  halo.name = 'zabulistan-engagement-urgency-halo';
+  halo.renderOrder = 22;
+  const silhouette = new THREE.Mesh(
+    engagementSilhouetteGeom,
+    new THREE.MeshBasicMaterial({
+      color: 0x1b1009,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.NormalBlending,
+      side: THREE.DoubleSide,
+    }),
+  );
+  silhouette.name = 'zabulistan-engagement-unit-silhouette';
+  silhouette.renderOrder = 24;
+  const spine = new THREE.Mesh(
+    engagementSpineGeom,
+    new THREE.MeshBasicMaterial({
+      color: 0xe0a45c,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: true,
+      blending: THREE.NormalBlending,
+      side: THREE.DoubleSide,
+    }),
+  );
+  spine.name = 'zabulistan-engagement-threat-spine';
+  spine.renderOrder = 25;
+  spine.position.x = 0.42;
+  cue.add(ground, halo, silhouette, spine);
+  return cue;
+}
+
+for (let i = 0; i < ENGAGEMENT_CUE_MAX; i++) enemyEngagementLayer.add(makeEnemyEngagementCue());
+
 const CONTACT_CUE_MAX = 10;
 const contactRingGeom = new THREE.RingGeometry(0.72, 0.9, 44);
 contactRingGeom.rotateX(-Math.PI / 2);
@@ -772,6 +851,13 @@ function zabulistanCombatReadabilitySummary() {
       recentHeavyHits: enemyContactFeedback.userData.recentHeavyHits || 0,
       killConfirms: enemyContactFeedback.userData.killConfirms || 0,
     },
+    engagement: {
+      active: enemyEngagementLayer.visible,
+      visible: enemyEngagementLayer.userData.visibleCount || 0,
+      leadUrgency: enemyEngagementLayer.userData.leadUrgency || 0,
+      selectedVisible: !!enemyEngagementLayer.userData.selectedVisible,
+      reason: enemyEngagementLayer.userData.reason || null,
+    },
     targetThread: {
       active: selectedTargetThread.visible,
       visible: !!selectedTargetThread.userData.visible,
@@ -1021,6 +1107,105 @@ function contactColor(enemy, kind = 'hit') {
   if (enemy?.def?.class === 'div') return 0xa990d6;
   if (enemy?.def?.class === 'serpent') return 0x9fc96b;
   return 0xe9b45f;
+}
+
+function resetEnemyEngagementLayer(reason = 'inactive') {
+  enemyEngagementLayer.visible = false;
+  enemyEngagementLayer.userData.visibleCount = 0;
+  enemyEngagementLayer.userData.leadUrgency = 0;
+  enemyEngagementLayer.userData.selectedVisible = false;
+  enemyEngagementLayer.userData.reason = reason;
+  for (const cue of enemyEngagementLayer.children) cue.visible = false;
+  return { active: false, visible: 0, reason };
+}
+
+function syncEnemyEngagementLayer() {
+  if (!game || game.mapDef?.id !== 'zabulistan' || !game.waveActive || game.phase !== 'combat') {
+    return resetEnemyEngagementLayer('inactive-combat');
+  }
+  const enemies = activeZabulistanEnemies();
+  if (!enemies.length) return resetEnemyEngagementLayer('no-enemies');
+  const budget = zabulistanCombatVisualBudget();
+  const reduced = settings.get('reducedMotion');
+  const selectedTargetId = budget.selectedTargetId ?? null;
+  const max = Math.max(3, Math.min(ENGAGEMENT_CUE_MAX, budget.selectedFocus ? 5 : (budget.gateFocus ? 8 : 6)));
+  const now = engine.elapsed;
+  const candidates = enemies
+    .map((enemy) => {
+      const pathLeft = Math.max(0, (enemy.path?.length || 0) - (enemy.dist || 0));
+      const urgency = enemyUrgency(enemy);
+      const hpFrac = Math.max(0, Math.min(1, (enemy.hp || 0) / Math.max(1, enemy.maxHp || 1)));
+      const contact = enemy.blockedBy?.alive || pathLeft < 32 || urgency > 0.62;
+      const selected = selectedTargetId != null && enemy.id === selectedTargetId;
+      const score = urgency + (contact ? 0.24 : 0) + (selected ? 0.32 : 0) + (1 - hpFrac) * 0.1;
+      return { enemy, pathLeft, urgency, hpFrac, contact, selected, score };
+    })
+    .filter((item) => item.selected || item.contact || item.urgency > 0.12 || item.pathLeft < 110)
+    .sort((a, b) => b.score - a.score || b.enemy.dist - a.enemy.dist)
+    .slice(0, max);
+
+  let visible = 0;
+  let leadUrgency = 0;
+  let selectedVisible = false;
+  for (let i = 0; i < enemyEngagementLayer.children.length; i++) {
+    const cue = enemyEngagementLayer.children[i];
+    const item = candidates[i];
+    if (!item) {
+      cue.visible = false;
+      continue;
+    }
+    const { enemy, urgency, hpFrac, contact, selected } = item;
+    const p = enemy.group.position;
+    const head = Math.max(1.1, enemy.model?.headH || 1.7);
+    const groundY = game.map.heightAt(p.x, p.z) + 0.18;
+    cue.position.set(p.x, groundY, p.z);
+    cue.rotation.y = enemy.group.rotation?.y || 0;
+    const color = contactColor(enemy, hpFrac <= 0 ? 'kill' : 'hit');
+    const focus = selected ? 1 : contact ? 0.72 : 0.46;
+    const pulse = reduced ? 0 : Math.sin(now * 5.6 + enemy.id * 0.37) * 0.035;
+    const secondary = selectedTargetId != null && !selected;
+    const secondaryK = secondary ? Math.max(0.38, Math.min(1, budget.contactSecondaryOpacity || 1)) : 1;
+    const scale = (enemy.boss ? 1.36 : enemy.def?.class === 'div' ? 1.14 : 0.9) + urgency * 0.28 + Math.max(0, pulse);
+
+    const ground = cue.children[0];
+    const halo = cue.children[1];
+    const silhouette = cue.children[2];
+    const spine = cue.children[3];
+    ground.scale.set(scale * 0.8, 1, scale * (contact ? 1.18 : 0.92));
+    ground.material.opacity = (0.09 + urgency * 0.11 + (contact ? 0.08 : 0)) * secondaryK;
+    halo.scale.setScalar(scale * (selected ? 1.16 : 1));
+    halo.material.color.setHex(selected ? 0xffdda0 : color);
+    halo.material.opacity = (0.08 + urgency * 0.18 + (selected ? 0.12 : 0) + (contact ? 0.08 : 0)) * secondaryK * (reduced ? 0.82 : 1);
+
+    silhouette.position.set(0, head * 0.56, 0);
+    silhouette.quaternion.copy(engine.camera.quaternion);
+    silhouette.scale.set(scale * (enemy.boss ? 1.22 : 0.86), Math.max(0.72, head * 0.76), 1);
+    silhouette.material.opacity = (0.055 + urgency * 0.09 + focus * 0.05) * secondaryK;
+    silhouette.material.color.setHex(enemy.boss ? 0x26100a : 0x1b1009);
+
+    spine.position.set(scale * 0.38, Math.max(0.96, head * 0.58), 0.02);
+    spine.quaternion.copy(engine.camera.quaternion);
+    spine.scale.set(1, Math.max(0.78, head * 0.62) * (selected ? 1.08 : 1), 1);
+    spine.material.color.setHex(selected ? 0xffdda0 : color);
+    spine.material.opacity = (0.1 + urgency * 0.26 + (selected ? 0.18 : 0) + (contact ? 0.08 : 0)) * secondaryK;
+
+    cue.userData.enemyId = enemy.id;
+    cue.userData.urgency = Number(urgency.toFixed(2));
+    cue.userData.hpFrac = Number(hpFrac.toFixed(2));
+    cue.userData.selected = selected;
+    cue.userData.contact = !!contact;
+    cue.visible = true;
+    visible++;
+    leadUrgency = Math.max(leadUrgency, urgency);
+    selectedVisible = selectedVisible || selected;
+  }
+  enemyEngagementLayer.visible = visible > 0;
+  enemyEngagementLayer.userData.visibleCount = visible;
+  enemyEngagementLayer.userData.leadUrgency = Number(leadUrgency.toFixed(2));
+  enemyEngagementLayer.userData.selectedVisible = selectedVisible;
+  enemyEngagementLayer.userData.budget = budget;
+  enemyEngagementLayer.userData.reason = visible ? 'active' : 'none';
+  return { active: enemyEngagementLayer.visible, visible, leadUrgency, selectedVisible };
 }
 
 function syncEnemyContactFeedback() {
@@ -1385,7 +1570,7 @@ const auraLines = new THREE.LineSegments(
 auraLines.frustumCulled = false;
 auraLines.visible = false;
 
-engine.scene.add(padRing, rangeRing, selRing, auraLines, selectedTargetThread, buildPadHints, roadPressureCues, enemyContactFeedback, palaceCommandFeedback, gateHoldFeedback);
+engine.scene.add(padRing, rangeRing, selRing, auraLines, selectedTargetThread, buildPadHints, roadPressureCues, enemyEngagementLayer, enemyContactFeedback, palaceCommandFeedback, gateHoldFeedback);
 // gentle opacity pulse on the active selection ring
 engine.onUpdate(() => {
   if (!selRing.visible) return;
@@ -1395,6 +1580,7 @@ engine.onUpdate(() => {
 });
 engine.onUpdate(() => syncBuildPadHints());
 engine.onUpdate(() => syncRoadPressureCues());
+engine.onUpdate(() => syncEnemyEngagementLayer());
 engine.onUpdate(() => syncEnemyContactFeedback());
 engine.onUpdate(() => syncSelectedTargetThread());
 engine.onUpdate(() => syncZabulistanPalaceCommandFeedback());
@@ -1850,6 +2036,7 @@ function cleanupBattle() {
   buildPadHints.visible = false;
   roadPressureCues.visible = false;
   roadPressureCues.userData.visibleCount = 0;
+  resetEnemyEngagementLayer();
   resetEnemyContactFeedback();
   resetZabulistanPalaceCommandFeedback();
   resetZabulistanGateHoldFeedback();
@@ -1946,6 +2133,7 @@ const __resetQaOpeningBuild = (g) => {
   g.__qaContactSeeded = false;
   g.palaceAssaultStatus = null;
   enemyContactState.clear();
+  resetEnemyEngagementLayer();
   resetEnemyContactFeedback();
   resetZabulistanGateHoldFeedback();
   roadPressureCues.visible = false;
@@ -2096,6 +2284,7 @@ const __qaZabulistanRealWaveContact = (opts = {}) => {
   let contact = { active: false, visible: 0 };
   for (let i = 0; i < settleFrames; i++) {
     g.update(1 / 30, engine.elapsed + (spawnFrames + i) / 30);
+    syncEnemyEngagementLayer();
     contact = syncEnemyContactFeedback();
     if (opts.selectTower) syncSelectedTargetThread();
   }
@@ -2105,6 +2294,7 @@ const __qaZabulistanRealWaveContact = (opts = {}) => {
       .sort((a, b) => (b.dist || 0) - (a.dist || 0))
       .slice(0, 3);
     cueTargets.forEach((enemy, i) => primeEnemyContactCue(enemy, 0.42 + i * 0.08));
+    syncEnemyEngagementLayer();
     contact = syncEnemyContactFeedback();
   }
   let forcedConfirm = null;
@@ -2162,6 +2352,7 @@ const __qaZabulistanRealWaveContact = (opts = {}) => {
       targetThread = syncSelectedTargetThread();
     }
   }
+  const engagement = syncEnemyEngagementLayer();
   hud?.refreshAll?.();
   return {
     ok: true,
@@ -2169,6 +2360,7 @@ const __qaZabulistanRealWaveContact = (opts = {}) => {
     waveActive: g.waveActive,
     towers: g.towers.filter((tower) => tower.alive).length,
     enemies: g.enemies.filter((enemy) => enemy.alive).length,
+    engagement,
     contact,
     forcedConfirm,
     targetThread,
@@ -2302,6 +2494,7 @@ window.__dbg = {
         hud?.closePanel?.();
         document.body.classList.add('panel-hidden', 'wave-active');
         hud?._syncToggle?.();
+        const engagement = syncEnemyEngagementLayer();
         const contact = syncEnemyContactFeedback();
         return {
           ok: true,
@@ -2314,6 +2507,7 @@ window.__dbg = {
             styleId: g.map?.citadel?.styleId || null,
             asset: palaceStatus(g.mapDef.id),
           },
+          engagement,
           contact,
           pressure: syncRoadPressureCues(),
           metrics: window.__dbg.visualQa.metrics(),
@@ -2727,6 +2921,12 @@ function __recordQaUrlResult(qa, result) {
     'zabulistan-road-pressure-cue',
     'zabulistan-road-pressure-ring',
     'zabulistan-road-pressure-dash',
+    'zabulistan-engagement-silhouette-cues',
+    'zabulistan-engagement-silhouette-cue',
+    'zabulistan-engagement-ground-shadow',
+    'zabulistan-engagement-urgency-halo',
+    'zabulistan-engagement-unit-silhouette',
+    'zabulistan-engagement-threat-spine',
     'zabulistan-contact-feedback-cues',
     'zabulistan-contact-feedback-cue',
     'zabulistan-contact-ground-ring',
