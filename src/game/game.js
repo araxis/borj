@@ -589,12 +589,14 @@ export class Game {
     this._showAssaultColumn(path, baseDist, count, dir, 5.8 + pressure * 1.2);
     this._showGateMarker(front, dir, holdRadius, 5.2 + pressure * 1.4);
     this._showPalaceShieldLine(front, dir, { width: 10.5 + pressure * 3.2, pressure: 0.9 + pressure * 0.16, dur: 5.0 + pressure * 1.7 });
-    this._showGateBanner(front, dir, {
-      label: options.label || (preset.mode === 'royal' ? 'Royal Gate Line' : 'Gate Line'),
-      sublabel: options.subLabel || `${spawned.length} attackers`,
-      pressure,
-      dur: Math.min(holdDur, 5.0 + pressure * 1.6),
-    });
+    if (options.banner !== false) {
+      this._showGateBanner(front, dir, {
+        label: options.label || (preset.mode === 'royal' ? 'Royal Gate Line' : 'Gate Line'),
+        sublabel: options.subLabel || `${spawned.length} attackers`,
+        pressure,
+        dur: Math.min(holdDur, 5.0 + pressure * 1.6),
+      });
+    }
     if (preset.mode === 'royal' || options.fullFx) {
       this._showRoyalGateImpact(front, dir, spawned, { pressure, dur: 2.35 + pressure * 0.7 });
     }

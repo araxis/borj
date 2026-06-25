@@ -2323,6 +2323,7 @@ window.__dbg = {
           mode: opts.mode || 'breach',
           fullFx: opts.fullFx === true,
           commandFx: false,
+          banner: false,
         });
         let feedback = syncZabulistanGateHoldFeedback();
         for (let i = 0; i < 18; i++) {
