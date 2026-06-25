@@ -2749,6 +2749,11 @@ function __recordQaUrlResult(qa, result) {
     'zabulistan-gate-hold-ring',
     'zabulistan-gate-hold-brace',
     'zabulistan-gate-hold-pressure-tick',
+    'zabulistan-gate-road-packed-transition',
+    'zabulistan-gate-road-irregular-curbs',
+    'zabulistan-gate-road-traffic-ruts',
+    'zabulistan-gate-road-hoof-scuffs',
+    'zabulistan-gate-road-edge-rubble',
   ];
   const sceneObjects = Object.fromEntries(names.map((name) => [name, 0]));
   engine.scene.traverse((node) => {

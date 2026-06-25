@@ -28,6 +28,16 @@ function kitMats() {
     padTop: new THREE.MeshStandardMaterial({ color: 0x845e3b, roughness: 1 }),
     padStone: new THREE.MeshStandardMaterial({ color: 0x976a3f, roughness: 1 }),
     padRelief: new THREE.MeshStandardMaterial({ color: 0x483523, roughness: 1 }),
+    roadRut: new THREE.MeshStandardMaterial({
+      color: 0x6e5031,
+      roughness: 1,
+      transparent: true,
+      opacity: 0.34,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -3,
+    }),
     forecourtDust: new THREE.MeshStandardMaterial({
       color: 0x76644b,
       roughness: 1,
@@ -1422,6 +1432,122 @@ function buildGateContactGrit(map, center, fwd, side, rng) {
   return group;
 }
 
+function addGateRoadTransition(map, group, center, fwd, side, yaw, rng) {
+  const mats = kitMats();
+  const toWorld = (forward, lateral) => center.clone().addScaledVector(fwd, forward).addScaledVector(side, lateral);
+  const rows = [0.4, 3.1, 6.0, 9.1, 12.4, 15.8, 19.2];
+  const lanes = [-1, -0.66, -0.32, 0, 0.34, 0.68, 1];
+  const verts = [];
+  const colors = [];
+  const idx = [];
+  const c = new THREE.Color();
+  const edge = new THREE.Color(0x5f4930);
+  const mid = new THREE.Color(0x8e6c43);
+  const sun = new THREE.Color(0xb58c58);
+  for (let r = 0; r < rows.length; r++) {
+    const t = r / Math.max(1, rows.length - 1);
+    const half = 4.05 + t * 1.75 + Math.sin(r * 1.43) * 0.2;
+    for (let l = 0; l < lanes.length; l++) {
+      const lane = lanes[l];
+      const lateral = lane * half + Math.sin(r * 0.86 + l * 1.41) * 0.18;
+      const forward = rows[r] + Math.sin(l * 0.92 + r * 1.18) * 0.18;
+      const p = toWorld(forward, lateral);
+      const edgeT = Math.pow(Math.abs(lane), 0.72);
+      c.copy(sun).lerp(mid, t * 0.42).lerp(edge, edgeT * 0.62);
+      c.offsetHSL(0, -0.035, (rng() - 0.5) * 0.035);
+      verts.push(p.x, map.heightAt(p.x, p.z) + 0.135 + t * 0.018, p.z);
+      colors.push(c.r, c.g, c.b);
+    }
+  }
+  const row = lanes.length;
+  for (let r = 0; r < rows.length - 1; r++) {
+    for (let l = 0; l < lanes.length - 1; l++) {
+      const a = r * row + l;
+      idx.push(a, a + row, a + 1, a + 1, a + row, a + row + 1);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 1,
+    metalness: 0,
+    transparent: true,
+    opacity: 0.78,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
+  });
+  const road = new THREE.Mesh(geo, mat);
+  road.name = 'zabulistan-gate-road-packed-transition';
+  road.castShadow = false;
+  road.receiveShadow = false;
+  road.renderOrder = 4;
+  road.userData.visualQaIgnore = true;
+  group.add(road);
+
+  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  const rutGeo = new THREE.CircleGeometry(1, 8);
+  rutGeo.rotateX(-Math.PI / 2);
+  const curb = [];
+  const ruts = [];
+  const crossings = [];
+  const rubble = [];
+  const rubbleGeo = new THREE.DodecahedronGeometry(1, 0);
+  for (let i = 0; i < 12; i++) {
+    const forward = 0.9 + i * 1.55 + Math.sin(i * 0.77) * 0.22;
+    const t = Math.min(1, forward / 19.2);
+    const half = 4.05 + t * 1.75;
+    for (const lane of [-1, 1]) {
+      const p = toWorld(forward + (rng() - 0.5) * 0.18, lane * (half + 0.34 + rng() * 0.42));
+      curb.push(matrix(
+        p.x,
+        map.heightAt(p.x, p.z) + 0.21,
+        p.z,
+        yaw + (rng() - 0.5) * 0.28,
+        0.32 + rng() * 0.18,
+        0.13 + rng() * 0.04,
+        0.72 + rng() * 0.48,
+        (rng() - 0.5) * 0.05,
+        (rng() - 0.5) * 0.06,
+      ));
+      for (let k = 0; k < 2; k++) {
+        const rp = toWorld(forward + (rng() - 0.5) * 0.85, lane * (half + 0.9 + rng() * 1.25));
+        const s = 0.16 + rng() * 0.32;
+        rubble.push(matrix(rp.x, map.heightAt(rp.x, rp.z) + 0.18, rp.z, rng() * TAU, s * (1.25 + rng()), s * 0.22, s * (0.72 + rng() * 0.8), rng() * 0.2, rng() * 0.18));
+      }
+    }
+    for (const lateral of [-1.18, 1.16]) {
+      const p = toWorld(forward + 0.16, lateral + Math.sin(i * 1.1 + lateral) * 0.12);
+      ruts.push(matrix(p.x, map.heightAt(p.x, p.z) + 0.155, p.z, yaw + (rng() - 0.5) * 0.08, 0.12, 1, 0.82 + rng() * 0.28));
+    }
+    if (i % 3 === 1 && i > 1 && i < 10) {
+      const p = toWorld(forward, (rng() - 0.5) * 0.8);
+      crossings.push(matrix(p.x, map.heightAt(p.x, p.z) + 0.158, p.z, yaw + Math.PI / 2 + (rng() - 0.5) * 0.2, 0.16, 1, 1.1 + rng() * 0.5));
+    }
+  }
+  const curbMesh = addInstanced(group, boxGeo, mats.sandstoneDark, curb, { castShadow: true, receiveShadow: true });
+  if (curbMesh) curbMesh.name = 'zabulistan-gate-road-irregular-curbs';
+  const rutMesh = addInstanced(group, rutGeo, mats.roadRut, ruts, { castShadow: false, receiveShadow: false });
+  if (rutMesh) {
+    rutMesh.name = 'zabulistan-gate-road-traffic-ruts';
+    rutMesh.renderOrder = 5;
+    rutMesh.userData.visualQaIgnore = true;
+  }
+  const crossingMesh = addInstanced(group, rutGeo, mats.roadRut, crossings, { castShadow: false, receiveShadow: false });
+  if (crossingMesh) {
+    crossingMesh.name = 'zabulistan-gate-road-hoof-scuffs';
+    crossingMesh.renderOrder = 5;
+    crossingMesh.userData.visualQaIgnore = true;
+  }
+  const rubbleMesh = addInstanced(group, rubbleGeo, mats.sandstone, rubble, { castShadow: true, receiveShadow: true });
+  if (rubbleMesh) rubbleMesh.name = 'zabulistan-gate-road-edge-rubble';
+}
+
 function addPalaceContactTerrain(map, group, center, fwd, side, yaw, rng) {
   const contact = placeAuthoredGroundProp(map, group, 'zv_palace_contact_terrain_set', center.x, center.z, yaw, {
     targetW: 19.8,
@@ -1627,6 +1753,7 @@ function buildForecourt(map, group, rng) {
     forecourtWash.name = 'zabulistan-forecourt-soft-ground';
     forecourtWash.userData.visualQaIgnore = true;
   }
+  addGateRoadTransition(map, group, center, fwd, side, yaw, rng);
 
   const causewayCenter = exit.clone().addScaledVector(fwd, 7.4);
   placeAuthoredGroundProp(map, group, 'zv_forecourt_causeway', causewayCenter.x, causewayCenter.z, yaw, {
