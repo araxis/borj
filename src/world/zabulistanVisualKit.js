@@ -15,19 +15,19 @@ function kitMats() {
     reed: new THREE.MeshStandardMaterial({ color: 0x8b8a50, roughness: 1 }),
     reedTip: new THREE.MeshStandardMaterial({ color: 0xb69b58, roughness: 1 }),
     padDust: new THREE.MeshStandardMaterial({
-      color: 0x4f493d,
+      color: 0x6b5136,
       roughness: 1,
       transparent: true,
-      opacity: 0.14,
+      opacity: 0.18,
       depthWrite: false,
       polygonOffset: true,
       polygonOffsetFactor: -2,
       polygonOffsetUnits: -2,
     }),
-    padShadow: new THREE.MeshStandardMaterial({ color: 0x4d463c, roughness: 1 }),
-    padTop: new THREE.MeshStandardMaterial({ color: 0x7d7059, roughness: 1 }),
-    padStone: new THREE.MeshStandardMaterial({ color: 0x96866a, roughness: 1 }),
-    padRelief: new THREE.MeshStandardMaterial({ color: 0x5d5448, roughness: 1 }),
+    padShadow: new THREE.MeshStandardMaterial({ color: 0x563b27, roughness: 1 }),
+    padTop: new THREE.MeshStandardMaterial({ color: 0x845e3b, roughness: 1 }),
+    padStone: new THREE.MeshStandardMaterial({ color: 0x976a3f, roughness: 1 }),
+    padRelief: new THREE.MeshStandardMaterial({ color: 0x483523, roughness: 1 }),
     forecourtDust: new THREE.MeshStandardMaterial({
       color: 0x76644b,
       roughness: 1,
@@ -177,8 +177,19 @@ function buildZabulistanPad() {
     return mesh;
   };
 
-  addBox(5.45, 0.18, 4.08, mats.padShadow, 0, 0.09, 0, 0.04);
-  addBox(4.95, 0.13, 3.48, mats.padTop, 0.04, 0.25, -0.02, -0.025);
+  const addPlate = (sx, h, sz, mat, x, y, z, ry = 0, seg = 8, rx = 0, rz = 0) => {
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, h, seg), mat);
+    mesh.scale.set(sx, 1, sz);
+    mesh.position.set(x, y, z);
+    mesh.rotation.set(rx, ry, rz);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    g.add(mesh);
+    return mesh;
+  };
+
+  addPlate(2.86, 0.18, 2.12, mats.padShadow, 0, 0.09, 0, 0.12, 9, 0.01, -0.008);
+  addPlate(2.48, 0.13, 1.76, mats.padTop, 0.04, 0.25, -0.02, -0.07, 11, -0.006, 0.01);
   addBox(4.2, 0.045, 0.16, mats.padRelief, 0.02, 0.34, -1.42);
   addBox(4.0, 0.045, 0.14, mats.padRelief, -0.08, 0.35, 1.35, 0.035);
   addBox(0.16, 0.045, 2.45, mats.padRelief, -2.12, 0.35, 0.0, -0.02);
@@ -195,7 +206,19 @@ function buildZabulistanPad() {
     [0.62, 1.06, 1.12, 0.58, -0.035],
   ];
   tiles.forEach(([x, z, w, d, ry], i) => {
-    addBox(w, 0.052, d, i % 3 === 0 ? mats.padStone : mats.padTop, x, 0.39 + (i % 2) * 0.006, z, ry);
+    addPlate(
+      w * 0.5,
+      0.052,
+      d * 0.5,
+      i % 3 === 0 ? mats.padStone : mats.padTop,
+      x,
+      0.39 + (i % 2) * 0.006,
+      z,
+      ry,
+      5 + (i % 3),
+      i % 2 ? 0.012 : -0.01,
+      (i % 3 - 1) * 0.01,
+    );
   });
 
   const chipGeo = new THREE.DodecahedronGeometry(0.22, 0);
@@ -379,7 +402,7 @@ function replacePads(map, group) {
     const y = map.heightAt(pad.pos.x, pad.pos.z);
     padBlends.push(matrix(pad.pos.x, y + 0.035, pad.pos.z, pad.rot, 1, 1, 1));
     fallbackDust.push(matrix(pad.pos.x, y + 0.04, pad.pos.z, pad.rot, 3.85, 1, 2.75));
-    if (placeAuthoredGroundProp(map, group, 'zv_embedded_pad_set', pad.pos.x, pad.pos.z, pad.rot, { targetW: 6.05, yOffset: -0.13, tint: 0x4e4638 })) {
+    if (placeAuthoredGroundProp(map, group, 'zv_embedded_pad_set', pad.pos.x, pad.pos.z, pad.rot, { targetW: 6.05, yOffset: -0.13, tint: 0x6a4024 })) {
       continue;
     }
     const g = buildZabulistanPad();
@@ -390,7 +413,7 @@ function replacePads(map, group) {
   }
   const authoredBlend = instanceProp('zv_pad_ground_blend', padBlends, {
     unit: 1,
-    tint: 0x3f382d,
+    tint: 0x5d3d26,
     castShadow: false,
     receiveShadow: true,
     frustumCulled: false,

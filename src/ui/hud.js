@@ -42,6 +42,7 @@ const PALACE_ACTION_ICONS = {
   rally: 'assets/ui/palace-actions/rally.svg',
   gate: 'assets/ui/palace-actions/gate.svg',
 };
+const EMPTY_IMG_SRC = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 
 const HERO_TONES = {
   heal: new Set(['featherCall', 'simurghAegis', 'secretProvision', 'simurghBirthright', 'steadfastPrayer', 'royalContinuity', 'courtGrace']),
@@ -212,7 +213,7 @@ export class HUD {
     for (const id of ids) {
       const button = el('button', { class: 'palace-action-btn', type: 'button', 'data-action': id },
         el('span', { class: 'palace-action-icon', 'aria-hidden': 'true' },
-          el('img', { class: 'palace-action-img', alt: '', decoding: 'async', draggable: 'false' }),
+          el('img', { class: 'palace-action-img', src: EMPTY_IMG_SRC, alt: '', decoding: 'async', draggable: 'false' }),
         ),
         el('span', { class: 'palace-action-label' }),
         el('span', { class: 'palace-action-state', 'aria-hidden': 'true' }),
