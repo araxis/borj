@@ -2754,6 +2754,17 @@ function __recordQaUrlResult(qa, result) {
     'zabulistan-gate-road-traffic-ruts',
     'zabulistan-gate-road-hoof-scuffs',
     'zabulistan-gate-road-edge-rubble',
+    'zabulistan-side-terrain-ground',
+    'zabulistan-side-terrain-plant-left-watch',
+    'zabulistan-side-terrain-plant-right-watch',
+    'zabulistan-side-terrain-plant-left-outer',
+    'zabulistan-side-terrain-plant-right-outer',
+    'zabulistan-side-terrain-rubble-left-watch',
+    'zabulistan-side-terrain-rubble-right-watch',
+    'zabulistan-side-terrain-camp-left-outer',
+    'zabulistan-side-terrain-camp-right-outer',
+    'zabulistan-side-terrain-standard-left-watch',
+    'zabulistan-side-terrain-standard-right-watch',
   ];
   const sceneObjects = Object.fromEntries(names.map((name) => [name, 0]));
   engine.scene.traverse((node) => {

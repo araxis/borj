@@ -1548,6 +1548,110 @@ function addGateRoadTransition(map, group, center, fwd, side, yaw, rng) {
   if (rubbleMesh) rubbleMesh.name = 'zabulistan-gate-road-edge-rubble';
 }
 
+function addPalaceSideTerrainClusters(map, group, rng) {
+  const { fwd, side, yaw } = pathApproach(map);
+  const exit = map.exitPos;
+  const mats = kitMats();
+  const point = (forward, lateral) => exit.clone().addScaledVector(fwd, forward).addScaledVector(side, lateral);
+  const insideBoard = (p, margin = 7) => map.visualBoard?.shape !== 'circle' || Math.hypot(p.x, p.z) < map.visualBoard.radius - margin;
+  const clearPads = (p, radius = 3.2) => !(map.pads || []).some((pad) => Math.hypot(p.x - pad.pos.x, p.z - pad.pos.z) < radius + 3.2);
+  const dustGeo = new THREE.CircleGeometry(1, 18);
+  dustGeo.rotateX(-Math.PI / 2);
+  const wash = [];
+  const fallbackRocks = [];
+  const fallbackScrub = [];
+  const fallbackScrubDark = [];
+  const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+  const scrubGeo = new THREE.ConeGeometry(0.2, 0.85, 6);
+  scrubGeo.translate(0, 0.42, 0);
+  const darkScrubGeo = new THREE.ConeGeometry(0.16, 0.68, 5);
+  darkScrubGeo.translate(0, 0.34, 0);
+  const clusters = [
+    { key: 'left-watch', forward: 13.6, lateral: -15.2, sx: 4.8, sz: 1.95, yawAdjust: -0.34, plant: 2.9, rubble: 3.4, scatter: 2.1, standard: 'clothGold' },
+    { key: 'right-watch', forward: 14.2, lateral: 15.0, sx: 4.65, sz: 1.9, yawAdjust: 0.32, plant: 2.8, rubble: 3.25, scatter: 2.0, standard: 'clothRed' },
+    { key: 'left-outer', forward: 23.4, lateral: -19.4, sx: 5.9, sz: 2.15, yawAdjust: -0.48, plant: 3.4, rubble: 4.4, camp: 2.0 },
+    { key: 'right-outer', forward: 24.6, lateral: 19.0, sx: 5.7, sz: 2.1, yawAdjust: 0.46, plant: 3.3, rubble: 4.2, camp: 1.95 },
+    { key: 'left-low', forward: 33.4, lateral: -14.8, sx: 4.8, sz: 1.75, yawAdjust: -0.58, plant: 2.7, rubble: 3.6 },
+    { key: 'right-low', forward: 34.2, lateral: 14.6, sx: 4.7, sz: 1.75, yawAdjust: 0.56, plant: 2.65, rubble: 3.5 },
+  ];
+
+  for (const spec of clusters) {
+    const p = point(spec.forward, spec.lateral);
+    if (!insideBoard(p, 8) || !clearPads(p, 4.2)) continue;
+    const y = map.heightAt(p.x, p.z);
+    wash.push(matrix(p.x, y + 0.08, p.z, yaw + spec.yawAdjust, spec.sx, 1, spec.sz));
+    const plant = placeAuthoredGroundProp(map, group, 'zv_dry_plant_set', p.x, p.z, yaw + spec.yawAdjust, {
+      targetW: spec.plant,
+      yOffset: 0.025,
+      tint: null,
+      sceneName: `zabulistan-side-terrain-plant-${spec.key}`,
+    });
+    const rubblePoint = p.clone()
+      .addScaledVector(side, Math.sign(spec.lateral || 1) * (1.6 + rng() * 0.8))
+      .addScaledVector(fwd, -0.6 + rng() * 1.1);
+    const rubble = placeAuthoredGroundProp(map, group, 'zv_ridge_rubble_set', rubblePoint.x, rubblePoint.z, yaw + spec.yawAdjust + Math.sign(spec.lateral || 1) * 0.16, {
+      targetW: spec.rubble,
+      yOffset: 0.02,
+      tint: 0x5d503f,
+      sceneName: `zabulistan-side-terrain-rubble-${spec.key}`,
+    });
+    if (spec.scatter) {
+      const scatterPoint = p.clone().addScaledVector(fwd, -1.35).addScaledVector(side, Math.sign(spec.lateral || 1) * -0.55);
+      const scatter = placeAuthoredGroundProp(map, group, 'zv_forecourt_scatter_set', scatterPoint.x, scatterPoint.z, yaw + spec.yawAdjust * 0.6, {
+        targetW: spec.scatter,
+        yOffset: 0.03,
+        tint: 0x594633,
+        sceneName: `zabulistan-side-terrain-scatter-${spec.key}`,
+      });
+    }
+    if (spec.camp) {
+      const campPoint = p.clone().addScaledVector(fwd, 0.9).addScaledVector(side, Math.sign(spec.lateral || 1) * 0.72);
+      const camp = placeAuthoredGroundProp(map, group, 'zv_camp_ground_props', campPoint.x, campPoint.z, yaw + Math.PI / 2 + spec.yawAdjust, {
+        targetW: spec.camp,
+        yOffset: 0.03,
+        tint: 0x493829,
+        sceneName: `zabulistan-side-terrain-camp-${spec.key}`,
+      });
+    }
+    if (spec.standard) {
+      const standardPoint = p.clone().addScaledVector(fwd, -0.4).addScaledVector(side, Math.sign(spec.lateral || 1) * -1.25);
+      const standard = makePahlavanStandardAssembly(spec.standard, 0.54);
+      standard.name = `zabulistan-side-terrain-standard-${spec.key}`;
+      standard.position.set(standardPoint.x, map.heightAt(standardPoint.x, standardPoint.z), standardPoint.z);
+      standard.rotation.y = yaw + spec.yawAdjust + Math.sign(spec.lateral || 1) * 0.18;
+      group.add(standard);
+      group.userData.animatedBanners?.push(standard);
+      map.propBanners?.push(standard);
+    }
+    if (!plant || !rubble) {
+      for (let i = 0; i < 9; i++) {
+        const a = rng() * TAU;
+        const d = Math.sqrt(rng()) * (1.2 + rng() * 2.1);
+        const fp = p.clone().addScaledVector(side, Math.cos(a) * d).addScaledVector(fwd, Math.sin(a) * d * 0.6);
+        const fy = map.heightAt(fp.x, fp.z);
+        if (!plant) {
+          const s = 0.52 + rng() * 0.78;
+          (rng() < 0.58 ? fallbackScrub : fallbackScrubDark).push(matrix(fp.x, fy + 0.02, fp.z, rng() * TAU, s * 0.82, s, s * 0.82, (rng() - 0.5) * 0.28, (rng() - 0.5) * 0.18));
+        }
+        if (!rubble && rng() < 0.62) {
+          const s = 0.18 + rng() * 0.38;
+          fallbackRocks.push(matrix(fp.x, fy + 0.09, fp.z, rng() * TAU, s * (1.4 + rng()), s * 0.32, s * (0.85 + rng()), rng() * 0.18, rng() * 0.18));
+        }
+      }
+    }
+  }
+
+  const washMesh = addInstanced(group, dustGeo, mats.padDust, wash, { castShadow: false, receiveShadow: false });
+  if (washMesh) {
+    washMesh.name = 'zabulistan-side-terrain-ground';
+    washMesh.renderOrder = 2;
+    washMesh.userData.visualQaIgnore = true;
+  }
+  addInstanced(group, rockGeo, mats.sandstoneDark, fallbackRocks, { castShadow: true, receiveShadow: true });
+  addInstanced(group, scrubGeo, mats.dryScrub, fallbackScrub, { castShadow: false, receiveShadow: true });
+  addInstanced(group, darkScrubGeo, mats.dryScrubDark, fallbackScrubDark, { castShadow: false, receiveShadow: true });
+}
+
 function addPalaceContactTerrain(map, group, center, fwd, side, yaw, rng) {
   const contact = placeAuthoredGroundProp(map, group, 'zv_palace_contact_terrain_set', center.x, center.z, yaw, {
     targetW: 19.8,
@@ -1911,6 +2015,7 @@ export function buildZabulistanVisualKit(map, rng) {
   addPalaceForegroundTerraceWall(map, group, rng);
   addPalaceCliffShelf(map, group, rng);
   addGateApproachDepth(map, group, rng);
+  addPalaceSideTerrainClusters(map, group, rng);
   addSiegeLandmarks(map, group, rng);
   return group;
 }
