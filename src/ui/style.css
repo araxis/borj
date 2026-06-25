@@ -541,6 +541,12 @@ body.hud-low-chrome .combat-flow-kills {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+body.hud-low-chrome .statchip.gate-omen b {
+  display: block;
+  flex: 1 1 auto;
+  max-width: 7.4em;
+  white-space: nowrap;
+}
 body.hud-low-chrome .gate-omen-detail { max-width: 8.6em; }
 body.hud-low-chrome .combat-flow-kills { max-width: 4.4em; }
 body.hud-low-chrome .iconbtn {
@@ -2881,6 +2887,10 @@ body.rtl .gbtn.launch { letter-spacing: 0; }
     max-width: 116px;
     min-height: 24px;
     padding: 2px 6px 5px;
+  }
+  body.hud-low-chrome.wave-active .statchip.gate-omen b {
+    max-width: 68px;
+    font-size: 0.72rem;
   }
   body.hud-low-chrome.wave-active .statchip.combat-flow {
     flex: 0 1 88px;

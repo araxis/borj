@@ -8,7 +8,7 @@ import { settings } from './core/settings.js';
 import { audio } from './core/audio.js';
 import { Game } from './game/game.js';
 import { hasPalace, loadPalace, palaceStatus, preloadAssets } from './core/assets.js';
-import { loadAllProps } from './core/props3d.js';
+import { loadAllProps, loadZabulistanProps, zabulistanPropsReady } from './core/props3d.js';
 import { auditVisualArtifacts, sanitizeVisualArtifacts } from './core/visualguards.js';
 import { backdropManifestReport, backdropSceneReport } from './world/backdrop.js';
 import { applyBattleSnapshot, saveBattle, clearBattle } from './core/battlesave.js';
@@ -445,6 +445,47 @@ function enemyUrgency(enemy) {
   return Math.max(0, Math.min(1, gatePressure + weight));
 }
 
+function zabulistanCombatVisualBudget() {
+  const active = game?.mapDef?.id === 'zabulistan' && game.waveActive && game.phase === 'combat';
+  if (!active) {
+    return {
+      active: false,
+      gatePressure: 0,
+      roadMax: ROAD_PRESSURE_CUE_MAX,
+      roadOpacity: 1,
+      contactMax: CONTACT_CUE_MAX,
+      contactOpacity: 1,
+      contactSecondaryOpacity: 1,
+      commandOpacity: 1,
+      selectedTargetId: null,
+    };
+  }
+
+  const hold = zabulistanGateHoldState();
+  const gatePressure = Math.max(0, Math.min(1, hold?.pressure || 0));
+  const gateFocus = !!hold && (hold.peak || gatePressure >= 0.46);
+  const commandActive = (palaceCommandFeedback.userData.visibleCount || 0) > 0;
+  const selectedTarget = selectedTower?.alive && selectedTower.lastTarget?.alive ? selectedTower.lastTarget : null;
+  const selectedTargetId = selectedTarget?.id ?? (selectedTargetThread.visible ? selectedTargetThread.userData.targetId : null);
+  const selectedFocus = selectedTargetId != null;
+  const buildMode = hud?.mode?.kind === 'build';
+
+  return {
+    active: true,
+    gatePressure: Number(gatePressure.toFixed(2)),
+    gateFocus,
+    commandActive,
+    selectedFocus,
+    selectedTargetId,
+    roadMax: buildMode ? ROAD_PRESSURE_CUE_MAX : (gateFocus || commandActive ? 6 : 8),
+    roadOpacity: gateFocus || commandActive ? 0.66 : 1,
+    contactMax: selectedFocus ? 5 : (gateFocus ? 6 : CONTACT_CUE_MAX),
+    contactOpacity: gateFocus ? 0.78 : 1,
+    contactSecondaryOpacity: selectedFocus ? 0.58 : 1,
+    commandOpacity: gateFocus ? 0.72 : 1,
+  };
+}
+
 function zabulistanPadPressure(pos, enemies = activeZabulistanEnemies()) {
   if (!pos || !enemies.length) return 0;
   let pressure = 0;
@@ -602,15 +643,19 @@ function zabulistanActivePadScores(pads, towerDef, enemies = activeZabulistanEne
 }
 
 function syncRoadPressureCues() {
-  const enemies = activeZabulistanEnemies().slice(0, ROAD_PRESSURE_CUE_MAX);
+  const budget = zabulistanCombatVisualBudget();
+  const roadMax = Math.max(1, Math.min(ROAD_PRESSURE_CUE_MAX, budget.roadMax || ROAD_PRESSURE_CUE_MAX));
+  const enemies = activeZabulistanEnemies().slice(0, roadMax);
   if (!enemies.length) {
     roadPressureCues.visible = false;
     roadPressureCues.userData.visibleCount = 0;
     roadPressureCues.userData.leadPathLeft = null;
+    roadPressureCues.userData.budget = budget;
     for (const cue of roadPressureCues.children) cue.visible = false;
     return { active: false, visible: 0 };
   }
   const reduced = settings.get('reducedMotion');
+  const opacityBudget = Math.max(0.35, Math.min(1, budget.roadOpacity || 1));
   let visible = 0;
   enemies.forEach((enemy, i) => {
     const cue = roadPressureCues.children[i];
@@ -624,7 +669,7 @@ function syncRoadPressureCues() {
     const scale = (enemy.boss ? 1.16 : 0.82) + urgency * 0.34 + pulse;
     cue.scale.setScalar(scale);
     const color = enemy.boss || urgency > 0.72 ? 0xe47d52 : urgency > 0.42 ? 0xe6a44f : 0xd6bb72;
-    const opacity = reduced ? 0.42 + urgency * 0.12 : 0.38 + urgency * 0.16 + Math.max(0, pulse) * 0.55;
+    const opacity = (reduced ? 0.42 + urgency * 0.12 : 0.38 + urgency * 0.16 + Math.max(0, pulse) * 0.55) * opacityBudget;
     for (const child of cue.children) {
       child.material.color.setHex(color);
       child.material.opacity = child.name.endsWith('dash') ? opacity * 0.72 : opacity;
@@ -637,7 +682,8 @@ function syncRoadPressureCues() {
   roadPressureCues.visible = visible > 0;
   roadPressureCues.userData.visibleCount = visible;
   roadPressureCues.userData.leadPathLeft = Number(Math.max(0, (enemies[0].path?.length || 0) - (enemies[0].dist || 0)).toFixed(1));
-  return { active: true, visible, leadPathLeft: roadPressureCues.userData.leadPathLeft };
+  roadPressureCues.userData.budget = budget;
+  return { active: true, visible, leadPathLeft: roadPressureCues.userData.leadPathLeft, budget };
 }
 
 function resetEnemyContactFeedback() {
@@ -647,6 +693,7 @@ function resetEnemyContactFeedback() {
   enemyContactFeedback.userData.recentKills = 0;
   enemyContactFeedback.userData.recentHeavyHits = 0;
   enemyContactFeedback.userData.killConfirms = 0;
+  enemyContactFeedback.userData.budget = null;
   enemyContactState.clear();
   for (const cue of enemyContactFeedback.children) cue.visible = false;
 }
@@ -657,6 +704,7 @@ function resetZabulistanPalaceCommandFeedback() {
   palaceCommandFeedback.userData.recentKind = null;
   palaceCommandFeedback.userData.recentType = null;
   palaceCommandFeedback.userData.recentAge = null;
+  palaceCommandFeedback.userData.budget = null;
   for (const cue of palaceCommandFeedback.children) {
     cue.visible = false;
     cue.userData.active = false;
@@ -670,6 +718,7 @@ function zabulistanPalaceCommandFeedbackSummary() {
     recentKind: palaceCommandFeedback.userData.recentKind || null,
     recentType: palaceCommandFeedback.userData.recentType || null,
     recentAge: palaceCommandFeedback.userData.recentAge ?? null,
+    budget: palaceCommandFeedback.userData.budget || null,
   };
 }
 
@@ -704,6 +753,34 @@ function zabulistanGateHoldFeedbackSummary() {
     activeDefenders: gateHoldFeedback.userData.activeDefenders || 0,
     enemies: gateHoldFeedback.userData.enemies || 0,
     near: gateHoldFeedback.userData.near || 0,
+  };
+}
+
+function zabulistanCombatReadabilitySummary() {
+  return {
+    budget: zabulistanCombatVisualBudget(),
+    pressure: {
+      active: roadPressureCues.visible,
+      visible: roadPressureCues.userData.visibleCount || 0,
+      leadPathLeft: roadPressureCues.userData.leadPathLeft ?? null,
+    },
+    contact: {
+      active: enemyContactFeedback.visible,
+      visible: enemyContactFeedback.userData.visibleCount || 0,
+      recentHits: enemyContactFeedback.userData.recentHits || 0,
+      recentKills: enemyContactFeedback.userData.recentKills || 0,
+      recentHeavyHits: enemyContactFeedback.userData.recentHeavyHits || 0,
+      killConfirms: enemyContactFeedback.userData.killConfirms || 0,
+    },
+    targetThread: {
+      active: selectedTargetThread.visible,
+      visible: !!selectedTargetThread.userData.visible,
+      targetId: selectedTargetThread.userData.targetId ?? null,
+      age: selectedTargetThread.userData.age ?? null,
+      reason: selectedTargetThread.userData.reason || null,
+    },
+    command: zabulistanPalaceCommandFeedbackSummary(),
+    gateHold: zabulistanGateHoldFeedbackSummary(),
   };
 }
 
@@ -880,6 +957,8 @@ function syncZabulistanPalaceCommandFeedback() {
   }
   const now = engine.elapsed;
   const reduced = settings.get('reducedMotion');
+  const budget = zabulistanCombatVisualBudget();
+  const commandBudget = Math.max(0.45, Math.min(1, budget.commandOpacity || 1));
   let visible = 0;
   let recentAge = null;
   for (let i = 0; i < palaceCommandFeedback.children.length; i++) {
@@ -900,16 +979,17 @@ function syncZabulistanPalaceCommandFeedback() {
     const power = cue.userData.power || 1;
     const [ring, standard, direction, anchor, thread] = cue.children;
     const pulse = reduced ? 0 : Math.sin(now * 5.2 + i * 0.63) * 0.025;
+    const cueOpacity = age < 0.42 ? 1 : commandBudget;
     ring.scale.setScalar((reduced ? 1.08 : 0.88 + out * 0.72 + pulse) * power);
-    ring.material.opacity = (0.1 + life * 0.36) * (reduced ? 0.72 : 1);
+    ring.material.opacity = (0.1 + life * 0.36) * (reduced ? 0.72 : 1) * cueOpacity;
     standard.scale.setScalar((reduced ? 0.9 : 0.72 + out * 0.46) * power);
     standard.rotation.y = reduced ? 0.76 : 0.76 + age * 1.7;
-    standard.material.opacity = (0.15 + life * 0.44) * (reduced ? 0.66 : 1);
+    standard.material.opacity = (0.15 + life * 0.44) * (reduced ? 0.66 : 1) * cueOpacity;
     direction.scale.set(1, (reduced ? 0.9 : 0.84 + out * 0.5) * power, 1);
-    direction.material.opacity = (0.12 + life * 0.36) * (reduced ? 0.58 : 1);
+    direction.material.opacity = (0.12 + life * 0.36) * (reduced ? 0.58 : 1) * cueOpacity;
     anchor.scale.setScalar((reduced ? 1.0 : 0.92 + Math.max(0, pulse) * 2.5) * power);
-    anchor.material.opacity = (0.16 + life * 0.42) * (reduced ? 0.65 : 1);
-    thread.material.opacity = (0.08 + life * 0.34) * (reduced ? 0.52 : 1);
+    anchor.material.opacity = (0.16 + life * 0.42) * (reduced ? 0.65 : 1) * cueOpacity;
+    thread.material.opacity = (0.08 + life * 0.34) * (reduced ? 0.52 : 1) * cueOpacity;
     cue.visible = true;
     cue.userData.age = Number(age.toFixed(2));
     visible++;
@@ -918,6 +998,7 @@ function syncZabulistanPalaceCommandFeedback() {
   palaceCommandFeedback.visible = visible > 0;
   palaceCommandFeedback.userData.visibleCount = visible;
   palaceCommandFeedback.userData.recentAge = recentAge == null ? null : Number(recentAge.toFixed(2));
+  palaceCommandFeedback.userData.budget = budget;
   return zabulistanPalaceCommandFeedbackSummary();
 }
 
@@ -995,6 +1076,10 @@ function syncEnemyContactFeedback() {
     || (b.enemy?.dist || 0) - (a.enemy?.dist || 0));
 
   const reduced = settings.get('reducedMotion');
+  const budget = zabulistanCombatVisualBudget();
+  const contactMax = Math.max(1, Math.min(CONTACT_CUE_MAX, budget.contactMax || CONTACT_CUE_MAX));
+  const layerOpacity = Math.max(0.4, Math.min(1, budget.contactOpacity || 1));
+  const selectedTargetId = budget.selectedTargetId ?? null;
   let visible = 0;
   let recentHits = 0;
   let recentKills = 0;
@@ -1002,7 +1087,7 @@ function syncEnemyContactFeedback() {
   let killConfirms = 0;
   for (let i = 0; i < enemyContactFeedback.children.length; i++) {
     const cue = enemyContactFeedback.children[i];
-    const item = candidates[i];
+    const item = i < contactMax ? candidates[i] : null;
     if (!item) {
       cue.visible = false;
       continue;
@@ -1019,10 +1104,12 @@ function syncEnemyContactFeedback() {
     const fill = cue.children[2];
     const slash = cue.children[3];
     const confirm = cue.children[4];
+    const secondary = selectedTargetId != null && enemy.id !== selectedTargetId;
+    const cueOpacity = layerOpacity * (secondary ? Math.max(0.3, Math.min(1, budget.contactSecondaryOpacity || 1)) : 1);
     const scale = (enemy.boss ? 1.18 : 0.88) + intensity * 0.42 + Math.max(0, pulse);
     ring.scale.setScalar(scale);
     ring.material.color.setHex(color);
-    ring.material.opacity = (0.16 + intensity * 0.38 + lowK * 0.18) * (reduced ? 0.78 : 1);
+    ring.material.opacity = (0.16 + intensity * 0.38 + lowK * 0.18) * (reduced ? 0.78 : 1) * cueOpacity;
 
     const barY = Math.max(1.3, head + 0.62);
     back.position.set(0, barY, 0);
@@ -1030,7 +1117,7 @@ function syncEnemyContactFeedback() {
     back.quaternion.copy(engine.camera.quaternion);
     fill.quaternion.copy(engine.camera.quaternion);
     fill.scale.set(Math.max(0.02, hpFrac), 1, 1);
-    const barOpacity = Math.max(0.18, Math.min(0.78, 0.22 + intensity * 0.72));
+    const barOpacity = Math.max(0.18, Math.min(0.78, 0.22 + intensity * 0.72)) * cueOpacity * (secondary ? 0.66 : 1);
     back.material.opacity = barOpacity * 0.56;
     fill.material.color.setHex(hpFrac < 0.28 || killK > 0 ? 0xe47d52 : color);
     fill.material.opacity = barOpacity;
@@ -1040,7 +1127,7 @@ function syncEnemyContactFeedback() {
     slash.rotation.z += (i % 2 ? -0.38 : 0.38);
     slash.scale.set(0.72 + intensity * 0.52, 0.82 + intensity * 0.64, 1);
     slash.material.color.setHex(color);
-    slash.material.opacity = Math.max(0, (hitK + killK * 0.7) * (reduced ? 0.24 : 0.48));
+    slash.material.opacity = Math.max(0, (hitK + killK * 0.7) * (reduced ? 0.24 : 0.48)) * cueOpacity;
 
     const confirmK = Math.max(killK, heavyK * 0.78);
     const confirmOpacity = Math.max(0, confirmK > 0.04 ? 0.16 + confirmK * (killK > 0.04 ? 0.52 : 0.34) : 0);
@@ -1048,13 +1135,14 @@ function syncEnemyContactFeedback() {
     confirm.rotation.set(0, reduced ? (i % 4) * Math.PI * 0.25 : now * 1.6 + i * 0.44, 0);
     confirm.scale.setScalar((enemy.boss ? 1.34 : 0.98) + confirmK * (reduced ? 0.16 : 0.78));
     confirm.material.color.setHex(killK > 0.04 ? 0xffd978 : color);
-    confirm.material.opacity = confirmOpacity * (reduced ? 0.72 : 1);
+    confirm.material.opacity = confirmOpacity * (reduced ? 0.72 : 1) * cueOpacity;
 
     cue.userData.hpFrac = Number(hpFrac.toFixed(2));
     cue.userData.intensity = Number(intensity.toFixed(2));
     cue.userData.kill = killK > 0.05;
     cue.userData.heavy = heavyK > 0.05;
     cue.userData.confirm = Number(confirmK.toFixed(2));
+    cue.userData.secondary = secondary;
     cue.visible = true;
     visible++;
     if (hitK > 0.05) recentHits++;
@@ -1068,7 +1156,8 @@ function syncEnemyContactFeedback() {
   enemyContactFeedback.userData.recentKills = recentKills;
   enemyContactFeedback.userData.recentHeavyHits = recentHeavyHits;
   enemyContactFeedback.userData.killConfirms = killConfirms;
-  return { active: true, visible, recentHits, recentKills, recentHeavyHits, killConfirms };
+  enemyContactFeedback.userData.budget = budget;
+  return { active: true, visible, recentHits, recentKills, recentHeavyHits, killConfirms, budget };
 }
 
 function resetSelectedTargetThread(reason = 'inactive') {
@@ -1779,7 +1868,10 @@ window.addEventListener('beforeunload', () => { if (game && !game.sandbox) saveB
 
 // boot
 const bootQaPreset = new URLSearchParams(window.location.search).get('qa') || '';
-if (bootQaPreset) loadPalace('zabulistan');
+if (bootQaPreset) {
+  loadPalace('zabulistan');
+  loadZabulistanProps();
+}
 preloadAssets(); // GLTF characters/animals load in the background; procedural fallback until ready
 loadAllProps(); // static building kit (curtain walls, village, docks…) warm before first map build
 import('./models/materials.js').then((m) => m.enhanceMaterials());
@@ -2089,6 +2181,7 @@ window.__dbg = {
   palaceAssault: (options) => game?.sandboxPalaceAssault(options),
   palaceCommandFeedback: (payload) => triggerZabulistanPalaceCommandFeedback(payload),
   gateHoldFeedback: () => syncZabulistanGateHoldFeedback(),
+  combatReadability: () => zabulistanCombatReadabilitySummary(),
   visualQa: {
     metrics: () => ({
       viewport: { w: window.innerWidth, h: window.innerHeight },
@@ -2341,6 +2434,91 @@ window.__dbg = {
           metrics: window.__dbg.visualQa.metrics(),
         };
       }
+      if (state === 'zabulistanCombinedCombatReadability') {
+        const cit = g.map?.citadel;
+        if (!cit?.isPalace) return { ok: false, state, reason: 'missing-palace' };
+        __resetQaOpeningBuild(g);
+        const setup = __qaZabulistanRealWaveContact({
+          ...opts,
+          selectTower: true,
+          forceContactConfirm: opts.forceContactConfirm !== false,
+          towers: opts.towers || 4,
+          settleFrames: Number.isFinite(opts.settleFrames) ? opts.settleFrames : 46,
+        });
+        const focusTower = selectedTower;
+        const assault = g.sandboxPalaceAssault?.({
+          mode: opts.mode || 'breach',
+          fullFx: opts.fullFx === true,
+          commandFx: false,
+          banner: false,
+          count: opts.count,
+        });
+        triggerZabulistanPalaceCommandFeedback({
+          kind: 'gate',
+          type: 'gateCommand',
+          palace: cit,
+          count: assault?.count || 0,
+          targetCount: assault?.count || 0,
+          pressure: assault?.pressure || 0.82,
+        });
+        const view = __qaZabulistanForecourtView({
+          ...opts,
+          forward: Number.isFinite(opts.forward) ? opts.forward : window.innerWidth < 700 ? 27 : 24,
+          side: Number.isFinite(opts.side) ? opts.side : window.innerWidth < 700 ? 14 : 2,
+          dist: Number.isFinite(opts.dist) ? opts.dist : window.innerWidth < 700 ? 106 : 68,
+          pitch: Number.isFinite(opts.pitch) ? opts.pitch : window.innerWidth < 700 ? 0.67 : 0.62,
+          yawOffset: Number.isFinite(opts.yawOffset) ? opts.yawOffset : window.innerWidth < 700 ? 0.05 : 0.02,
+        });
+        hud?.closePanel?.();
+        document.body.classList.add('panel-hidden', 'wave-active');
+        hud?._syncToggle?.();
+        if (focusTower?.alive) showSelection(focusTower);
+        let pressure = syncRoadPressureCues();
+        let contact = syncEnemyContactFeedback();
+        let targetThread = syncSelectedTargetThread();
+        let command = syncZabulistanPalaceCommandFeedback();
+        let gateHold = syncZabulistanGateHoldFeedback();
+        for (let i = 0; i < 18; i++) {
+          g.update(1 / 30, engine.elapsed + i / 30);
+          pressure = syncRoadPressureCues();
+          contact = syncEnemyContactFeedback();
+          targetThread = syncSelectedTargetThread();
+          command = syncZabulistanPalaceCommandFeedback();
+          gateHold = syncZabulistanGateHoldFeedback();
+        }
+        if (!targetThread.visible && focusTower?.alive) {
+          const reacquired = g.enemies
+            .filter((enemy) => enemy.alive && enemy.group?.position)
+            .map((enemy) => ({ enemy, d: focusTower.pos.distanceTo(enemy.group.position) }))
+            .sort((a, b) => a.d - b.d)[0]?.enemy;
+          if (reacquired) {
+            focusTower.lastTarget = reacquired;
+            focusTower.lastTargetT = g._time || engine.elapsed || 0;
+            focusTower.lastTargetKind = focusTower.def?.vfx || focusTower.def?.role || null;
+            showSelection(focusTower);
+            targetThread = syncSelectedTargetThread();
+            pressure = syncRoadPressureCues();
+            contact = syncEnemyContactFeedback();
+            command = syncZabulistanPalaceCommandFeedback();
+            gateHold = syncZabulistanGateHoldFeedback();
+          }
+        }
+        return {
+          ok: true,
+          state,
+          game: g.mapDef.id,
+          setup,
+          assault,
+          view,
+          pressure,
+          contact,
+          targetThread,
+          command,
+          gateHold,
+          layers: zabulistanCombatReadabilitySummary(),
+          metrics: window.__dbg.visualQa.metrics(),
+        };
+      }
       if (state === 'zabulistanCavalryCloseCombat') {
         const result = g.sandboxPalaceAssault?.({ mode: opts.mode || 'royal', fullFx: opts.fullFx === true });
         hud?.refreshAll?.();
@@ -2520,6 +2698,18 @@ const __qaUrlPresets = {
     state: 'zabulistanGateHoldState',
     opts: { ltr: true, reducedMotion: true, mode: 'breach', forward: 25, side: 2, dist: 62, pitch: 0.62, yawOffset: 0.02 },
   },
+  'combined-combat-readability': {
+    state: 'zabulistanCombinedCombatReadability',
+    opts: { ltr: true, reducedMotion: false, mode: 'breach', towerId: 'zabul-watch', towers: 4, settleFrames: 46, forward: 24, side: 2, dist: 68, pitch: 0.62, yawOffset: 0.02 },
+  },
+  'combined-combat-readability-rtl': {
+    state: 'zabulistanCombinedCombatReadability',
+    opts: { rtl: true, reducedMotion: false, mode: 'breach', towerId: 'zabul-watch', towers: 4, settleFrames: 46, forward: 27, side: 14, dist: 106, pitch: 0.67, yawOffset: 0.05 },
+  },
+  'combined-combat-readability-reduced': {
+    state: 'zabulistanCombinedCombatReadability',
+    opts: { ltr: true, reducedMotion: true, mode: 'breach', towerId: 'zabul-watch', towers: 4, settleFrames: 46, forward: 24, side: 2, dist: 68, pitch: 0.62, yawOffset: 0.02 },
+  },
 };
 
 function __recordQaUrlResult(qa, result) {
@@ -2591,24 +2781,37 @@ function __runQaUrlPreset() {
   const qa = new URLSearchParams(window.location.search).get('qa');
   const preset = __qaUrlPresets[qa];
   if (!preset) return;
-  const run = () => window.__dbg.visualQa.state(preset.state, preset.opts);
-  const recordWhenReady = (deadline) => {
-    const result = run();
-    const zabulistanBackdrop = backdropSceneReport(engine.scene).find((entry) => entry.placeId === 'zabulistan');
-    const backdropReady = (zabulistanBackdrop?.loaded || 0) >= 5;
-    const needsPalaceSwap = result?.game === 'zabulistan'
-      && hasPalace(game?.mapDef?.id)
-      && !game?.map?.citadel?.isCustomPalace;
-    if ((backdropReady && !needsPalaceSwap) || performance.now() >= deadline) {
-      __recordQaUrlResult(qa, backdropReady && !needsPalaceSwap ? run() : result);
-      return;
-    }
-    setTimeout(() => recordWhenReady(deadline), 500);
+  const needsZabulistanProps = String(preset.state || '').toLowerCase().includes('zabulistan')
+    || preset.opts?.mapId === 'zabulistan';
+  let started = false;
+  const start = () => {
+    if (started) return;
+    started = true;
+    const run = () => window.__dbg.visualQa.state(preset.state, preset.opts);
+    const recordWhenReady = (deadline) => {
+      const result = run();
+      const zabulistanBackdrop = backdropSceneReport(engine.scene).find((entry) => entry.placeId === 'zabulistan');
+      const backdropReady = (zabulistanBackdrop?.loaded || 0) >= 5;
+      const needsPalaceSwap = result?.game === 'zabulistan'
+        && hasPalace(game?.mapDef?.id)
+        && !game?.map?.citadel?.isCustomPalace;
+      if ((backdropReady && !needsPalaceSwap) || performance.now() >= deadline) {
+        __recordQaUrlResult(qa, backdropReady && !needsPalaceSwap ? run() : result);
+        return;
+      }
+      setTimeout(() => recordWhenReady(deadline), 500);
+    };
+    run();
+    setTimeout(run, 900);
+    setTimeout(run, 1800);
+    setTimeout(() => recordWhenReady(performance.now() + 12000), 3200);
   };
-  run();
-  setTimeout(run, 900);
-  setTimeout(run, 1800);
-  setTimeout(() => recordWhenReady(performance.now() + 12000), 3200);
+  if (needsZabulistanProps && !zabulistanPropsReady()) {
+    loadZabulistanProps(() => start());
+    setTimeout(start, 10000);
+    return;
+  }
+  start();
 }
 
 setTimeout(__runQaUrlPreset, 0);
