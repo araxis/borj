@@ -539,6 +539,7 @@ function zabulistanCombatVisualBudget() {
       contactOpacity: 1,
       contactSecondaryOpacity: 1,
       commandOpacity: 1,
+      commandMax: PALACE_COMMAND_CUE_MAX,
       selectedTargetId: null,
     };
   }
@@ -552,6 +553,7 @@ function zabulistanCombatVisualBudget() {
   const selectedFocus = selectedTargetId != null;
   const buildMode = hud?.mode?.kind === 'build';
 
+  const combinedFocus = gateFocus && selectedFocus;
   return {
     active: true,
     gatePressure: Number(gatePressure.toFixed(2)),
@@ -559,12 +561,13 @@ function zabulistanCombatVisualBudget() {
     commandActive,
     selectedFocus,
     selectedTargetId,
-    roadMax: buildMode ? ROAD_PRESSURE_CUE_MAX : (gateFocus || commandActive ? 6 : 8),
-    roadOpacity: gateFocus || commandActive ? 0.66 : 1,
-    contactMax: selectedFocus ? 5 : (gateFocus ? 6 : CONTACT_CUE_MAX),
-    contactOpacity: gateFocus ? 0.78 : 1,
-    contactSecondaryOpacity: selectedFocus ? 0.58 : 1,
-    commandOpacity: gateFocus ? 0.72 : 1,
+    roadMax: buildMode ? ROAD_PRESSURE_CUE_MAX : (combinedFocus ? 4 : gateFocus || commandActive ? 6 : 8),
+    roadOpacity: combinedFocus ? 0.52 : gateFocus || commandActive ? 0.66 : 1,
+    contactMax: combinedFocus ? 4 : selectedFocus ? 5 : (gateFocus ? 6 : CONTACT_CUE_MAX),
+    contactOpacity: combinedFocus ? 0.68 : gateFocus ? 0.78 : 1,
+    contactSecondaryOpacity: combinedFocus ? 0.42 : selectedFocus ? 0.58 : 1,
+    commandOpacity: combinedFocus ? 0.5 : gateFocus ? 0.72 : 1,
+    commandMax: combinedFocus ? 1 : commandActive ? 2 : PALACE_COMMAND_CUE_MAX,
   };
 }
 
@@ -1056,11 +1059,21 @@ function syncZabulistanPalaceCommandFeedback() {
   const reduced = settings.get('reducedMotion');
   const budget = zabulistanCombatVisualBudget();
   const commandBudget = Math.max(0.45, Math.min(1, budget.commandOpacity || 1));
+  const commandMax = Math.max(1, Math.min(PALACE_COMMAND_CUE_MAX, budget.commandMax || PALACE_COMMAND_CUE_MAX));
+  const activeCommandCues = palaceCommandFeedback.children
+    .filter((cue) => cue.userData.active)
+    .sort((a, b) => (b.userData.start || 0) - (a.userData.start || 0))
+    .slice(0, commandMax);
+  const allowedCommandCues = new Set(activeCommandCues);
   let visible = 0;
   let recentAge = null;
   for (let i = 0; i < palaceCommandFeedback.children.length; i++) {
     const cue = palaceCommandFeedback.children[i];
     if (!cue.userData.active) {
+      cue.visible = false;
+      continue;
+    }
+    if (!allowedCommandCues.has(cue)) {
       cue.visible = false;
       continue;
     }
@@ -2722,7 +2735,13 @@ window.__dbg = {
           commandFx: false,
           banner: false,
           count: opts.count,
+          assaultColumn: false,
+          gateMarker: false,
+          shieldLine: false,
+          stageAlarm: false,
+          cameraFx: false,
         });
+        resetZabulistanPalaceCommandFeedback();
         triggerZabulistanPalaceCommandFeedback({
           kind: 'gate',
           type: 'gateCommand',
@@ -3003,14 +3022,20 @@ const __qaUrlPresets = {
   'combined-combat-readability': {
     state: 'zabulistanCombinedCombatReadability',
     opts: { ltr: true, reducedMotion: false, mode: 'breach', towerId: 'zabul-watch', towers: 4, settleFrames: 46, forward: 24, side: 2, dist: 68, pitch: 0.62, yawOffset: 0.02 },
+    singleShot: true,
+    waitForReady: true,
   },
   'combined-combat-readability-rtl': {
     state: 'zabulistanCombinedCombatReadability',
     opts: { rtl: true, reducedMotion: false, mode: 'breach', towerId: 'zabul-watch', towers: 4, settleFrames: 46, forward: 27, side: 14, dist: 106, pitch: 0.67, yawOffset: 0.05 },
+    singleShot: true,
+    waitForReady: true,
   },
   'combined-combat-readability-reduced': {
     state: 'zabulistanCombinedCombatReadability',
     opts: { ltr: true, reducedMotion: true, mode: 'breach', towerId: 'zabul-watch', towers: 4, settleFrames: 46, forward: 24, side: 2, dist: 68, pitch: 0.62, yawOffset: 0.02 },
+    singleShot: true,
+    waitForReady: true,
   },
   'cavalry-close-combat': {
     state: 'zabulistanCavalryCloseCombat',
@@ -3150,6 +3175,10 @@ function __runQaUrlPreset() {
       }
       setTimeout(() => recordWhenReady(deadline), 500);
     };
+    if (preset.singleShot && preset.waitForReady) {
+      setTimeout(() => recordWhenReady(performance.now() + 9000), 4200);
+      return;
+    }
     if (preset.singleShot) {
       setTimeout(() => __recordQaUrlResult(qa, run()), 4200);
       return;
