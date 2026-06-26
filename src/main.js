@@ -2793,12 +2793,28 @@ window.__dbg = {
           targetThread,
           command,
           gateHold,
+          cavalry: g._lastCavalryCloseCombat || null,
           layers: zabulistanCombatReadabilitySummary(),
           metrics: window.__dbg.visualQa.metrics(),
         };
       }
       if (state === 'zabulistanCavalryCloseCombat') {
-        const result = g.sandboxPalaceAssault?.({ mode: opts.mode || 'royal', fullFx: opts.fullFx === true });
+        g._clearGateMarkers?.();
+        __resetQaOpeningBuild(g);
+        const result = g.sandboxPalaceAssault?.({
+          mode: opts.mode || 'royal',
+          fullFx: opts.fullFx === true,
+          commandFx: false,
+          banner: false,
+          royalImpact: false,
+          countercharge: false,
+          cameraFx: false,
+          assaultColumn: false,
+          gateMarker: false,
+          shieldLine: false,
+          stageAlarm: false,
+        });
+        for (let i = 0; i < 10; i++) g.update(1 / 30, engine.elapsed + i / 30);
         hud?.refreshAll?.();
         const view = __qaZabulistanForecourtView({
           ...opts,
@@ -2810,7 +2826,15 @@ window.__dbg = {
         });
         if (opts.showCommands === true) hud?.showPalace?.(g.map.citadel);
         else hud?.closePanel?.();
-        return { ok: true, state, game: g.mapDef.id, view, result, metrics: window.__dbg.visualQa.metrics() };
+        return {
+          ok: true,
+          state,
+          game: g.mapDef.id,
+          view,
+          result,
+          cavalry: g._lastCavalryCloseCombat || null,
+          metrics: window.__dbg.visualQa.metrics(),
+        };
       }
       if (state === 'palaceCommand') return { ok: true, state, result: g.palaceBoon?.(g.map.citadel) };
       if (state === 'heroCommand') return { ok: true, state, result: g.previewCommandFx?.(opts) };
@@ -2988,6 +3012,21 @@ const __qaUrlPresets = {
     state: 'zabulistanCombinedCombatReadability',
     opts: { ltr: true, reducedMotion: true, mode: 'breach', towerId: 'zabul-watch', towers: 4, settleFrames: 46, forward: 24, side: 2, dist: 68, pitch: 0.62, yawOffset: 0.02 },
   },
+  'cavalry-close-combat': {
+    state: 'zabulistanCavalryCloseCombat',
+    opts: { ltr: true, reducedMotion: false, mode: 'royal', forward: 31, side: -2.2, dist: 42, pitch: 0.54, yawOffset: -0.04 },
+    singleShot: true,
+  },
+  'cavalry-close-combat-rtl': {
+    state: 'zabulistanCavalryCloseCombat',
+    opts: { rtl: true, reducedMotion: false, mode: 'royal', forward: 32, side: -1.2, dist: 46, pitch: 0.56, yawOffset: -0.04 },
+    singleShot: true,
+  },
+  'cavalry-close-combat-reduced': {
+    state: 'zabulistanCavalryCloseCombat',
+    opts: { ltr: true, reducedMotion: true, mode: 'royal', forward: 31, side: -2.2, dist: 42, pitch: 0.54, yawOffset: -0.04 },
+    singleShot: true,
+  },
 };
 
 function __recordQaUrlResult(qa, result) {
@@ -3036,6 +3075,13 @@ function __recordQaUrlResult(qa, result) {
     'zabulistan-gate-hold-ring',
     'zabulistan-gate-hold-brace',
     'zabulistan-gate-hold-pressure-tick',
+    'zabulistan-cavalry-close-combat-fx',
+    'zabulistan-cavalry-lane-thread',
+    'zabulistan-cavalry-defender-shadow',
+    'zabulistan-cavalry-hoof-read',
+    'zabulistan-cavalry-crest-read',
+    'zabulistan-cavalry-lance-thread',
+    'zabulistan-cavalry-enemy-contact-mark',
     'zabulistan-gate-road-packed-transition',
     'zabulistan-gate-road-irregular-curbs',
     'zabulistan-gate-road-traffic-ruts',
@@ -3104,6 +3150,10 @@ function __runQaUrlPreset() {
       }
       setTimeout(() => recordWhenReady(deadline), 500);
     };
+    if (preset.singleShot) {
+      setTimeout(() => __recordQaUrlResult(qa, run()), 4200);
+      return;
+    }
     run();
     setTimeout(run, 900);
     setTimeout(run, 1800);

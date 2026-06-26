@@ -586,9 +586,9 @@ export class Game {
     const holdDur = preset.mode === 'royal' ? 10.5 : preset.mode === 'breach' ? 8.6 : 6.8;
     const holdRadius = preset.mode === 'royal' ? 14.5 : preset.mode === 'breach' ? 12.5 : 10.0;
     const braceResult = this._bracePalaceDefenders(front, dir, pressure, holdDur, spawned[0]);
-    this._showAssaultColumn(path, baseDist, count, dir, 5.8 + pressure * 1.2);
-    this._showGateMarker(front, dir, holdRadius, 5.2 + pressure * 1.4);
-    this._showPalaceShieldLine(front, dir, { width: 10.5 + pressure * 3.2, pressure: 0.9 + pressure * 0.16, dur: 5.0 + pressure * 1.7 });
+    if (options.assaultColumn !== false) this._showAssaultColumn(path, baseDist, count, dir, 5.8 + pressure * 1.2);
+    if (options.gateMarker !== false) this._showGateMarker(front, dir, holdRadius, 5.2 + pressure * 1.4);
+    if (options.shieldLine !== false) this._showPalaceShieldLine(front, dir, { width: 10.5 + pressure * 3.2, pressure: 0.9 + pressure * 0.16, dur: 5.0 + pressure * 1.7 });
     if (options.banner !== false) {
       this._showGateBanner(front, dir, {
         label: options.label || (preset.mode === 'royal' ? 'Royal Gate Line' : 'Gate Line'),
@@ -597,17 +597,19 @@ export class Game {
         dur: Math.min(holdDur, 5.0 + pressure * 1.6),
       });
     }
-    if (preset.mode === 'royal' || options.fullFx) {
+    if ((preset.mode === 'royal' && options.royalImpact !== false) || options.fullFx) {
       this._showRoyalGateImpact(front, dir, spawned, { pressure, dur: 2.35 + pressure * 0.7 });
     }
     const mountedDefenders = this.palaceSquads
       .flatMap((sq) => sq.members || [])
       .filter((m) => m?.alive && m.model?.mounted && m.group?.position && m.group.position.distanceTo(front) <= 42);
-    this._showCavalryCloseCombatBeat(front, dir, mountedDefenders, spawned, {
-      pressure,
-      dur: Math.min(holdDur, 4.8 + pressure * 1.4),
-    });
-    this.palaceStage?.signalAlarm?.({ front, keep: cit.group.position, dir, pressure: 0.58 + pressure * 0.28, dur: 4.0 + pressure * 1.4 });
+    if (options.cavalryCloseCombat !== false) {
+      this._showCavalryCloseCombatBeat(front, dir, mountedDefenders, spawned, {
+        pressure,
+        dur: Math.min(holdDur, 4.8 + pressure * 1.4),
+      });
+    }
+    if (options.stageAlarm !== false) this.palaceStage?.signalAlarm?.({ front, keep: cit.group.position, dir, pressure: 0.58 + pressure * 0.28, dur: 4.0 + pressure * 1.4 });
     const fxRadius = 30 + pressure * 8;
     if (options.fullFx ?? preset.fullFx) {
       this.palaceBoonField.trigger(cit, {
@@ -635,24 +637,26 @@ export class Game {
       });
     }
     const timing = preset.mode === 'royal' ? 'peak' : preset.mode === 'breach' ? 'ready' : 'wait';
-    const countercharge = timing === 'peak'
+    const countercharge = timing === 'peak' && options.countercharge !== false
       ? this._peakGateCountercharge(cit, front, cit.group.position, {
         radius: fxRadius,
         power: pressure * 1.36,
         dur: 2.7,
       })
       : 0;
-    if (this.audio.palaceAlarm) this.audio.palaceAlarm();
-    else this.audio.hornCall?.();
-    this.engine.bloomPulse?.(0.24);
-    this.engine.addShake?.(0.22 + pressure * 0.12);
-    if (preset.mode === 'royal') {
-      this.engine.hitStop?.(0.035);
-      this.engine.slowMo?.(0.58, 0.58);
-      this.engine.bloomPulse?.(0.72);
-      this.engine.addShake?.(0.22);
+    if (options.cameraFx !== false) {
+      if (this.audio.palaceAlarm) this.audio.palaceAlarm();
+      else this.audio.hornCall?.();
+      this.engine.bloomPulse?.(0.24);
+      this.engine.addShake?.(0.22 + pressure * 0.12);
+      if (preset.mode === 'royal') {
+        this.engine.hitStop?.(0.035);
+        this.engine.slowMo?.(0.58, 0.58);
+        this.engine.bloomPulse?.(0.72);
+        this.engine.addShake?.(0.22);
+      }
+      this._cameraFocusBeat(front, { dur: 1.05 + pressure * 0.22, strength: 0.24 + pressure * 0.08, dist: 52, pitch: 0.8, yawOffset: -0.08 });
     }
-    this._cameraFocusBeat(front, { dur: 1.05 + pressure * 0.22, strength: 0.24 + pressure * 0.08, dist: 52, pitch: 0.8, yawOffset: -0.08 });
     this.palaceAssaultStatus = {
       mode: preset.mode,
       count: spawned.length,
@@ -1859,11 +1863,12 @@ export class Game {
     group.name = 'zabulistan-cavalry-close-combat-fx';
     group.position.copy(center);
     group.renderOrder = 57;
+    group.userData.visualQaIgnore = true;
 
     const laneMat = new THREE.LineBasicMaterial({
       color: 0xffd26a,
       transparent: true,
-      opacity: 0.12,
+      opacity: 0.075,
       depthWrite: false,
       depthTest: true,
       blending: THREE.NormalBlending,
@@ -1871,7 +1876,7 @@ export class Game {
     const lanceMat = new THREE.LineBasicMaterial({
       color: 0xd8b66e,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.13,
       depthWrite: false,
       depthTest: true,
       blending: THREE.NormalBlending,
@@ -1879,25 +1884,25 @@ export class Game {
     const hoofMat = new THREE.MeshBasicMaterial({
       color: 0xffd26a,
       transparent: true,
-      opacity: 0.26,
+      opacity: 0.16,
       depthWrite: false,
       depthTest: true,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
       side: THREE.DoubleSide,
     });
     const enemyMat = new THREE.MeshBasicMaterial({
       color: 0xff715c,
       transparent: true,
-      opacity: 0.24,
+      opacity: 0.17,
       depthWrite: false,
       depthTest: true,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
       side: THREE.DoubleSide,
     });
     const shadowMat = new THREE.MeshBasicMaterial({
       color: 0x1b130c,
       transparent: true,
-      opacity: 0.3,
+      opacity: 0.22,
       depthWrite: false,
       depthTest: true,
       side: THREE.DoubleSide,
@@ -1905,7 +1910,7 @@ export class Game {
     const crestMat = new THREE.LineBasicMaterial({
       color: 0xffd26a,
       transparent: true,
-      opacity: 0.14,
+      opacity: 0.1,
       depthWrite: false,
       depthTest: true,
       blending: THREE.NormalBlending,
@@ -1922,31 +1927,35 @@ export class Game {
     const lanePts = [];
 
     for (let i = -1; i <= 1; i++) {
-      const base = side.clone().multiplyScalar(i * 2.25);
+      const base = side.clone().multiplyScalar(i * 1.92);
       lanePts.push(
-        base.clone().addScaledVector(forward, -4.4).setY(0.08),
-        base.clone().addScaledVector(forward, 5.2 + force * 0.45).setY(0.08),
+        base.clone().addScaledVector(forward, -3.7).setY(0.08),
+        base.clone().addScaledVector(forward, 4.45 + force * 0.32).setY(0.08),
       );
     }
     const laneGeo = new THREE.BufferGeometry().setFromPoints(lanePts);
     geos.push(laneGeo);
-    group.add(new THREE.LineSegments(laneGeo, laneMat));
+    const laneThread = new THREE.LineSegments(laneGeo, laneMat);
+    laneThread.name = 'zabulistan-cavalry-lane-thread';
+    group.add(laneThread);
 
     mounted.forEach((m, i) => {
       const p = local(m.group.position, 0.13);
       const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+      shadow.name = 'zabulistan-cavalry-defender-shadow';
       shadow.position.copy(p).setY(p.y - 0.035);
       shadow.rotation.x = -Math.PI / 2;
       shadow.rotation.z = Math.atan2(forward.x, forward.z) + i * 0.08;
-      shadow.scale.set(1.38, 0.58, 1);
+      shadow.scale.set(1.18, 0.48, 1);
       group.add(shadow);
-      defenderShadows.push({ shadow, phase: i * 1.1, baseX: 1.38, baseY: 0.58 });
+      defenderShadows.push({ shadow, phase: i * 1.1, baseX: 1.18, baseY: 0.48 });
 
       const ring = new THREE.Mesh(hoofGeo, hoofMat);
+      ring.name = 'zabulistan-cavalry-hoof-read';
       ring.position.copy(p).setY(p.y + 0.018);
       ring.rotation.x = -Math.PI / 2;
       ring.rotation.z = i * 0.48;
-      ring.scale.set(1.08, 0.68, 1);
+      ring.scale.set(0.92, 0.54, 1);
       group.add(ring);
       hoofRings.push({ ring, phase: i * 1.4 });
 
@@ -1955,6 +1964,7 @@ export class Game {
       const crestGeo = new THREE.BufferGeometry().setFromPoints([crestBase, crestTip]);
       geos.push(crestGeo);
       const crest = new THREE.Line(crestGeo, crestMat);
+      crest.name = 'zabulistan-cavalry-crest-read';
       group.add(crest);
       crestLines.push({ crest, phase: i * 0.8 });
 
@@ -1968,16 +1978,19 @@ export class Game {
         mid.y += 0.18;
         const lanceGeo = new THREE.BufferGeometry().setFromPoints([start, mid, end]);
         geos.push(lanceGeo);
-        group.add(new THREE.Line(lanceGeo, lanceMat));
+        const lance = new THREE.Line(lanceGeo, lanceMat);
+        lance.name = 'zabulistan-cavalry-lance-thread';
+        group.add(lance);
       }
     });
 
     targets.forEach((e, i) => {
       const p = local(e.group.position, 0.16);
       const mark = new THREE.Mesh(enemyGeo, enemyMat);
+      mark.name = 'zabulistan-cavalry-enemy-contact-mark';
       mark.position.copy(p);
       mark.rotation.x = -Math.PI / 2;
-      mark.scale.setScalar(e.boss ? 1.4 : 1.0);
+      mark.scale.setScalar(e.boss ? 1.15 : 0.82);
       mark.rotation.z = i * 0.32;
       group.add(mark);
       enemyMarks.push({ mark, phase: i * 1.1 });
@@ -1988,6 +2001,10 @@ export class Game {
       t: this._time || 0,
       defenders: mounted.length,
       enemies: targets.length,
+      profile: 'low-weight-gate-contact',
+      laneAlpha: 0.075,
+      hoofAlpha: 0.16,
+      enemyAlpha: 0.17,
     };
     this.gateMarkers.push({
       group,
@@ -1996,12 +2013,19 @@ export class Game {
       t: dur,
       dur,
       cavalryCloseCombat: true,
+      line: laneThread,
       hoofRings,
       enemyMarks,
       defenderShadows,
       crestLines,
       baseY: group.position.y,
       force,
+      laneBaseAlpha: 0.075,
+      lanceBaseAlpha: 0.13,
+      hoofBaseAlpha: 0.16,
+      enemyBaseAlpha: 0.17,
+      shadowBaseAlpha: 0.18,
+      crestBaseAlpha: 0.09,
     });
   }
 
@@ -2512,23 +2536,26 @@ export class Game {
         const flare = Math.sin(rise * Math.PI);
         m.group.position.y = m.baseY + flare * 0.08;
         m.group.scale.setScalar(0.96 + flare * 0.08 + (m.force || 0) * 0.02);
+        if (m.line?.material && Number.isFinite(m.laneBaseAlpha)) {
+          m.line.material.opacity = m.laneBaseAlpha * k * (0.7 + flare * 0.2);
+        }
         for (const s of m.defenderShadows || []) {
           const shadowPulse = 0.92 + Math.sin(time * 4.2 + s.phase) * 0.08 + flare * 0.08;
           s.shadow.scale.set((s.baseX || 1.3) * shadowPulse, (s.baseY || 0.58) * (0.95 + flare * 0.08), 1);
-          s.shadow.material.opacity = 0.24 * k * (0.72 + flare * 0.32);
+          s.shadow.material.opacity = (m.shadowBaseAlpha || 0.18) * k * (0.68 + flare * 0.24);
         }
         for (const c of m.crestLines || []) {
-          c.crest.material.opacity = 0.12 * k * (0.72 + Math.sin(time * 5.4 + c.phase) * 0.12 + flare * 0.28);
+          c.crest.material.opacity = (m.crestBaseAlpha || 0.09) * k * (0.7 + Math.sin(time * 5.4 + c.phase) * 0.08 + flare * 0.18);
         }
         for (const h of m.hoofRings || []) {
           h.ring.rotation.z += dt * (1.6 + (m.force || 0) * 0.4);
-          h.ring.scale.set(1.04 + flare * 0.12, 0.66 + flare * 0.06, 1);
-          h.ring.material.opacity = 0.22 * k * (0.68 + flare * 0.38);
+          h.ring.scale.set(0.92 + flare * 0.08, 0.54 + flare * 0.045, 1);
+          h.ring.material.opacity = (m.hoofBaseAlpha || 0.16) * k * (0.66 + flare * 0.28);
         }
         for (const e of m.enemyMarks || []) {
           e.mark.rotation.z -= dt * 1.2;
-          e.mark.scale.setScalar(0.84 + flare * 0.1);
-          e.mark.material.opacity = 0.2 * k * (0.64 + flare * 0.42);
+          e.mark.scale.setScalar(0.72 + flare * 0.08);
+          e.mark.material.opacity = (m.enemyBaseAlpha || 0.17) * k * (0.62 + flare * 0.26);
         }
       }
       if (m.cavalryLanceBeat) {
