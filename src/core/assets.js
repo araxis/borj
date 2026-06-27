@@ -71,6 +71,7 @@ const MODEL_FILES = {
   a_sorceress: 'assets/models/Sorceress.glb',     // Māzandarān witch → sorceress
   // Batch C crawlers — source/reference GLBs until rigged. Runtime refuses to use them as
   // primary enemies unless real animation clips are present; no static-asset fake crawling.
+  a_azhdaha_actor: 'assets/animals/AzhdahaActor.glb',
   a_dragon: 'assets/animals/Azhdaha.glb',         // Azhdahā dragon → dragon
   a_worm: 'assets/animals/Worm.glb',              // Kerm-e Haftvād → worm
   // Heroes — rigged commanders that stand on the tower they lead (key Hero_<id>, hyphens → underscores)

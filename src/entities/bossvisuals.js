@@ -223,7 +223,7 @@ export function createBossVisualKit(def, model) {
 
   addGroundOmen(group, height, palette, animated);
   if (def.class === 'beast' || def.class === 'serpent') {
-    addCrawlerBossKit(group, height, palette, animated);
+    if (!model.anim?.isAsset) addCrawlerBossKit(group, height, palette, animated);
   } else if (def.class === 'div') {
     if (!addAuthoredDetail(group, 'boss_div_crown', 'boss-div-crown-detail', height, 3.2, animated, 1.1)) {
       addDivBossKit(group, height, palette, animated);

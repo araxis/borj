@@ -3023,7 +3023,7 @@ const __qaUrlPresets = {
   },
   'boss-closeup-dragon': {
     state: 'bossCloseup',
-    opts: { ltr: true, mapId: 'mazandaran', defId: 'azhdaha', cameraDist: 18, pitch: 0.36, side: 0.45, forward: 0.45 },
+    opts: { ltr: true, mapId: 'mazandaran', defId: 'azhdaha', cameraDist: 18, pitch: 0.34, side: 0.9, forward: 0.65, yawOffset: Math.PI + 0.28 },
     singleShot: true,
     delayMs: 6500,
   },

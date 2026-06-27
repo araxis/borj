@@ -895,6 +895,8 @@ export function buildEnemyModel(modelKey, options = {}) {
     case 'divBrute': return assetCharacter('a_kharvazan', { height: 3.0 }) || buildDiv({ hide: 'divHide', scale: 1.85, horns: 2, hunch: 0.4, spikes: true });
     case 'divScout': return assetCharacter('a_olad', { height: 2.0 }) || buildDiv({ hide: 'divHideDark', scale: 1.25, horns: 1, club: false, hunch: 0.35 });
     case 'dragon': {
+      const actor = assetCharacter('a_azhdaha_actor', { height: options.boss ? 1.62 : 1.34, walkStride: 1.55 });
+      if (actor?.anim?.actions && Object.keys(actor.anim.actions).length > 0) return actor;
       const d = assetCharacter('a_dragon', { height: options.boss ? 1.85 : 1.5, walkStride: 1.0 });
       if (!d) return buildDragon(options.boss ? 2.05 : 1.7);
       const hasClips = d.anim?.actions && Object.keys(d.anim.actions).length > 0;
