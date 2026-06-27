@@ -25,24 +25,35 @@ let cachedMats = null;
 function kitMats() {
   if (cachedMats) return cachedMats;
   cachedMats = {
-    dryScrub: new THREE.MeshStandardMaterial({ color: 0x6e7440, roughness: 1 }),
-    dryScrubDark: new THREE.MeshStandardMaterial({ color: 0x4e5a32, roughness: 1 }),
-    reed: new THREE.MeshStandardMaterial({ color: 0x8b8a50, roughness: 1 }),
-    reedTip: new THREE.MeshStandardMaterial({ color: 0xb69b58, roughness: 1 }),
+    dryScrub: new THREE.MeshStandardMaterial({ color: 0x6d704b, roughness: 1 }),
+    dryScrubDark: new THREE.MeshStandardMaterial({ color: 0x4b5438, roughness: 1 }),
+    reed: new THREE.MeshStandardMaterial({ color: 0x81784c, roughness: 1 }),
+    reedTip: new THREE.MeshStandardMaterial({ color: 0xa68a52, roughness: 1 }),
     padDust: new THREE.MeshStandardMaterial({
-      color: 0x6b5136,
+      color: 0x806c4d,
       roughness: 1,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.14,
       depthWrite: false,
       polygonOffset: true,
       polygonOffsetFactor: -2,
       polygonOffsetUnits: -2,
     }),
-    padShadow: new THREE.MeshStandardMaterial({ color: 0x563b27, roughness: 1 }),
-    padTop: new THREE.MeshStandardMaterial({ color: 0x845e3b, roughness: 1 }),
-    padStone: new THREE.MeshStandardMaterial({ color: 0x976a3f, roughness: 1 }),
-    padRelief: new THREE.MeshStandardMaterial({ color: 0x483523, roughness: 1 }),
+    padEdgeSand: new THREE.MeshStandardMaterial({
+      color: 0xa28a63,
+      roughness: 1,
+      transparent: true,
+      opacity: 0.12,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    }),
+    padShadow: new THREE.MeshStandardMaterial({ color: 0x65533b, roughness: 1 }),
+    padTop: new THREE.MeshStandardMaterial({ color: 0x927a58, roughness: 1 }),
+    padStone: new THREE.MeshStandardMaterial({ color: 0xb1966c, roughness: 1 }),
+    padRelief: new THREE.MeshStandardMaterial({ color: 0x70553a, roughness: 1 }),
+    padInset: new THREE.MeshStandardMaterial({ color: 0x80684b, roughness: 1 }),
     roadRut: new THREE.MeshStandardMaterial({
       color: 0x6e5031,
       roughness: 1,
@@ -64,10 +75,10 @@ function kitMats() {
       polygonOffsetUnits: -2,
     }),
     shoulderDust: new THREE.MeshStandardMaterial({
-      color: 0x8f7d5d,
+      color: 0x9a855f,
       roughness: 1,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.13,
       depthWrite: false,
       polygonOffset: true,
       polygonOffsetFactor: -2,
@@ -86,10 +97,10 @@ function kitMats() {
     cliffShadow: new THREE.MeshStandardMaterial({ color: 0x454845, roughness: 1 }),
     cliffWarm: new THREE.MeshStandardMaterial({ color: 0x927c5d, roughness: 1 }),
     darkSoil: new THREE.MeshStandardMaterial({
-      color: 0x6d6949,
+      color: 0x625f46,
       roughness: 1,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.16,
       depthWrite: false,
       polygonOffset: true,
       polygonOffsetFactor: -2,
@@ -187,20 +198,16 @@ function buildZabulistanPad() {
   const dustGeo = new THREE.CircleGeometry(1, 24);
   dustGeo.rotateX(-Math.PI / 2);
   const dust = new THREE.Mesh(dustGeo, mats.padDust);
-  dust.scale.set(3.65, 1, 2.78);
-  dust.position.y = 0.035;
+  dust.scale.set(4.15, 1, 3.05);
+  dust.position.y = 0.026;
   dust.renderOrder = 1;
   g.add(dust);
-
-  const addBox = (w, h, d, mat, x, y, z, ry = 0, rx = 0, rz = 0) => {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    mesh.position.set(x, y, z);
-    mesh.rotation.set(rx, ry, rz);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    g.add(mesh);
-    return mesh;
-  };
+  const edgeDust = new THREE.Mesh(dustGeo.clone(), mats.padEdgeSand);
+  edgeDust.scale.set(3.38, 1, 2.48);
+  edgeDust.rotation.y = 0.18;
+  edgeDust.position.y = 0.032;
+  edgeDust.renderOrder = 2;
+  g.add(edgeDust);
 
   const addPlate = (sx, h, sz, mat, x, y, z, ry = 0, seg = 8, rx = 0, rz = 0) => {
     const mesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, h, seg), mat);
@@ -213,49 +220,49 @@ function buildZabulistanPad() {
     return mesh;
   };
 
-  addPlate(2.86, 0.18, 2.12, mats.padShadow, 0, 0.09, 0, 0.12, 9, 0.01, -0.008);
-  addPlate(2.48, 0.13, 1.76, mats.padTop, 0.04, 0.25, -0.02, -0.07, 11, -0.006, 0.01);
-  addBox(4.2, 0.045, 0.16, mats.padRelief, 0.02, 0.34, -1.42);
-  addBox(4.0, 0.045, 0.14, mats.padRelief, -0.08, 0.35, 1.35, 0.035);
-  addBox(0.16, 0.045, 2.45, mats.padRelief, -2.12, 0.35, 0.0, -0.02);
-  addBox(0.14, 0.045, 2.25, mats.padRelief, 2.18, 0.35, -0.06, 0.015);
+  addPlate(2.78, 0.068, 2.0, mats.padShadow, 0, 0.052, 0, 0.12, 10, 0.008, -0.006);
+  addPlate(2.4, 0.046, 1.64, mats.padTop, 0.04, 0.108, -0.02, -0.07, 12, -0.005, 0.008);
+  addPlate(1.52, 0.014, 0.96, mats.padInset, 0.02, 0.14, -0.02, -0.04, 12, -0.004, 0.006);
 
-  const tiles = [
-    [-1.28, -0.72, 1.1, 0.74, 0.03],
-    [0.02, -0.74, 1.18, 0.68, -0.04],
-    [1.32, -0.66, 1.02, 0.76, 0.02],
-    [-1.36, 0.24, 1.02, 0.76, -0.03],
-    [-0.02, 0.18, 1.18, 0.82, 0.035],
-    [1.28, 0.26, 1.08, 0.72, -0.025],
-    [-0.72, 1.08, 1.05, 0.62, 0.04],
-    [0.62, 1.06, 1.12, 0.58, -0.035],
+  const surfaceStones = [
+    [-0.96, -0.58, 0.6, 0.34, 0.12, 6],
+    [-0.18, -0.62, 0.72, 0.38, -0.08, 5],
+    [0.82, -0.5, 0.56, 0.32, 0.18, 6],
+    [-1.22, 0.02, 0.5, 0.38, -0.18, 5],
+    [-0.43, -0.02, 0.64, 0.4, 0.05, 7],
+    [0.4, 0.06, 0.58, 0.36, -0.12, 6],
+    [1.12, 0.12, 0.44, 0.3, 0.2, 5],
+    [-0.76, 0.62, 0.54, 0.32, 0.22, 6],
+    [0.04, 0.7, 0.62, 0.34, -0.14, 5],
+    [0.82, 0.58, 0.44, 0.28, 0.1, 6],
   ];
-  tiles.forEach(([x, z, w, d, ry], i) => {
+  surfaceStones.forEach(([x, z, w, d, ry, seg], i) => {
     addPlate(
-      w * 0.5,
-      0.052,
-      d * 0.5,
+      w,
+      0.02,
+      d,
       i % 3 === 0 ? mats.padStone : mats.padTop,
       x,
-      0.39 + (i % 2) * 0.006,
+      0.162 + (i % 2) * 0.004,
       z,
       ry,
-      5 + (i % 3),
+      seg,
       i % 2 ? 0.012 : -0.01,
       (i % 3 - 1) * 0.01,
     );
   });
 
-  const chipGeo = new THREE.DodecahedronGeometry(0.22, 0);
-  for (let i = 0; i < 14; i++) {
-    const side = i % 4;
-    const t = (Math.floor(i / 4) + 0.3 * (i % 2)) / 3.8;
-    const x = side < 2 ? -2.66 + t * 5.32 : (side === 2 ? -2.7 : 2.68);
-    const z = side < 2 ? (side === 0 ? -2.0 : 1.96) : -1.7 + t * 3.4;
+  const chipGeo = new THREE.DodecahedronGeometry(0.16, 0);
+  for (let i = 0; i < 22; i++) {
+    const a = (i / 22) * TAU + (i % 3) * 0.045;
+    const rX = 2.42 + (i % 4) * 0.08;
+    const rZ = 1.72 + (i % 5) * 0.055;
+    const x = Math.cos(a) * rX;
+    const z = Math.sin(a) * rZ;
     const stone = new THREE.Mesh(chipGeo.clone(), i % 2 ? mats.padShadow : mats.padStone);
-    stone.position.set(x, 0.34 + (i % 3) * 0.015, z);
-    stone.scale.set(1.05 + (i % 4) * 0.16, 0.38 + (i % 2) * 0.08, 0.74 + (i % 5) * 0.08);
-    stone.rotation.set(0.2 + (i % 4) * 0.05, i * 0.71, -0.12 + (i % 3) * 0.08);
+    stone.position.set(x, 0.128 + (i % 3) * 0.006, z);
+    stone.scale.set(0.86 + (i % 4) * 0.1, 0.16 + (i % 2) * 0.05, 0.58 + (i % 5) * 0.06);
+    stone.rotation.set(0.14 + (i % 4) * 0.035, a + Math.PI / 2, -0.08 + (i % 3) * 0.06);
     stone.castShadow = true;
     stone.receiveShadow = true;
     g.add(stone);
@@ -426,13 +433,10 @@ function replacePads(map, group) {
     }
     const y = map.heightAt(pad.pos.x, pad.pos.z);
     padBlends.push(matrix(pad.pos.x, y + 0.035, pad.pos.z, pad.rot, 1, 1, 1));
-    fallbackDust.push(matrix(pad.pos.x, y + 0.04, pad.pos.z, pad.rot, 3.85, 1, 2.75));
-    if (placeAuthoredGroundProp(map, group, 'zv_embedded_pad_set', pad.pos.x, pad.pos.z, pad.rot, { targetW: 6.05, yOffset: -0.13, tint: 0x6a4024 })) {
-      continue;
-    }
+    fallbackDust.push(matrix(pad.pos.x, y + 0.035, pad.pos.z, pad.rot, 4.25, 1, 3.05));
     const g = buildZabulistanPad();
     g.position.copy(pad.pos);
-    g.position.y -= 0.15;
+    g.position.y -= 0.12;
     g.rotation.y = pad.rot;
     group.add(g);
   }
@@ -481,13 +485,13 @@ function dressRoadShoulders(map, group, rng) {
         const z = s.pos.z + side.z * jitter * dir + (rng() - 0.5) * 0.9;
         if (Math.hypot(x - map.exitPos.x, z - map.exitPos.z) < (map._footprint || 12) + 8) continue;
         if (map.visualBoard?.shape === 'circle' && Math.hypot(x, z) > map.visualBoard.radius - 2) continue;
-        const y = map.heightAt(x, z) + 0.12;
-        dust.push(matrix(x, y, z, rng() * TAU, 1.5 + rng() * 1.8, 1, 0.62 + rng() * 0.6));
+        const y = map.heightAt(x, z) + 0.065;
+        dust.push(matrix(x, y, z, rng() * TAU, 1.65 + rng() * 1.95, 1, 0.68 + rng() * 0.62));
         const along = Math.atan2(-s.tangent.z, s.tangent.x);
         if (rng() < 0.48) {
           roadAprons.push(matrix(
             x + (rng() - 0.5) * 0.9,
-            y + 0.004,
+            y + 0.003,
             z + (rng() - 0.5) * 0.9,
             along + (rng() - 0.5) * 0.35,
             0.92 + rng() * 0.36,
@@ -498,7 +502,7 @@ function dressRoadShoulders(map, group, rng) {
         if (rng() < 0.52) {
           roadEdges.push(matrix(
             x + (rng() - 0.5) * 0.8,
-            y + 0.015,
+            y + 0.008,
             z + (rng() - 0.5) * 0.8,
             along + (rng() - 0.5) * 0.28,
             0.78 + rng() * 0.34,
@@ -508,7 +512,7 @@ function dressRoadShoulders(map, group, rng) {
           if (rng() < 0.14) {
             roadFragments.push(matrix(
               x + (rng() - 0.5) * 1.1,
-              y + 0.025,
+              y + 0.014,
               z + (rng() - 0.5) * 1.1,
               along + (rng() - 0.5) * 0.42,
               0.58 + rng() * 0.22,
@@ -520,7 +524,7 @@ function dressRoadShoulders(map, group, rng) {
         if (rng() < 0.44) {
           roadScree.push(matrix(
             x + (rng() - 0.5) * 0.7,
-            y + 0.008,
+            y + 0.005,
             z + (rng() - 0.5) * 0.7,
             along + (rng() - 0.5) * 0.34,
             0.88 + rng() * 0.28,
@@ -528,7 +532,7 @@ function dressRoadShoulders(map, group, rng) {
             0.72 + rng() * 0.22,
           ));
         }
-        if (rng() < 0.58) stoneM.push(matrix(x + (rng() - 0.5) * 1.2, y + 0.06, z + (rng() - 0.5) * 1.2, rng() * TAU, 0.55 + rng() * 0.7, 0.22 + rng() * 0.22, 0.42 + rng() * 0.45, rng() * 0.35, rng() * 0.35));
+        if (rng() < 0.58) stoneM.push(matrix(x + (rng() - 0.5) * 1.2, y + 0.028, z + (rng() - 0.5) * 1.2, rng() * TAU, 0.52 + rng() * 0.64, 0.12 + rng() * 0.16, 0.4 + rng() * 0.4, rng() * 0.26, rng() * 0.26));
       }
     }
   }
@@ -545,8 +549,8 @@ function dressRoadShoulders(map, group, rng) {
     group.add(authoredAprons);
   }
   const authoredEdges = instanceProp('zv_packed_road_edge', roadEdges, { unit: 1, tint: 0x453b30, receiveShadow: true });
+  addInstanced(group, dustGeo, mats.shoulderDust, dust, { castShadow: false, receiveShadow: false });
   if (authoredEdges) group.add(authoredEdges);
-  else addInstanced(group, dustGeo, mats.shoulderDust, dust, { castShadow: false, receiveShadow: false });
   const authoredScree = instanceProp('zv_road_scree_bank', roadScree, { unit: 1, tint: 0x504638, receiveShadow: true });
   if (authoredScree) group.add(authoredScree);
   const authoredFragments = instanceProp('zv_road_stone_fragments', roadFragments, { unit: 1, tint: 0x41382d, receiveShadow: true });
@@ -1192,10 +1196,10 @@ function addGateApproachDepth(map, group, rng) {
 function scatterScrubAndReeds(map, group, rng) {
   const profile = stageKitProfile(map);
   const mats = kitMats();
-  const scrubGeo = new THREE.ConeGeometry(0.18, 0.9, 6);
-  scrubGeo.translate(0, 0.45, 0);
-  const darkGeo = new THREE.ConeGeometry(0.16, 0.72, 5);
-  darkGeo.translate(0, 0.36, 0);
+  const scrubGeo = new THREE.ConeGeometry(0.22, 0.62, 6);
+  scrubGeo.translate(0, 0.31, 0);
+  const darkGeo = new THREE.ConeGeometry(0.18, 0.52, 5);
+  darkGeo.translate(0, 0.26, 0);
   const reedGeo = new THREE.ConeGeometry(0.055, 1.28, 5);
   reedGeo.translate(0, 0.64, 0);
   const tipGeo = new THREE.SphereGeometry(0.07, 6, 5);
@@ -1203,6 +1207,7 @@ function scatterScrubAndReeds(map, group, rng) {
   const patchGeo = new THREE.CircleGeometry(1, 20);
   patchGeo.rotateX(-Math.PI / 2);
   const patches = [];
+  const scrubGround = [];
   const scrubClusters = [];
   const reedPockets = [];
   const scrubCenters = [];
@@ -1215,6 +1220,7 @@ function scatterScrubAndReeds(map, group, rng) {
     const cy = map.heightAt(cx, cz);
     scrubCenters.push([cx, cy, cz]);
     scrubClusters.push(matrix(cx, cy + 0.025, cz, rng() * TAU, 0.82 + rng() * 0.42, 1, 0.78 + rng() * 0.32));
+    scrubGround.push(matrix(cx, cy + 0.052, cz, rng() * TAU, 1.7 + rng() * 1.1, 1, 0.78 + rng() * 0.62));
   }
   const authoredScrub =
     instanceProp('zv_dry_plant_set', scrubClusters, { unit: 1, tint: null, castShadow: false, receiveShadow: true }) ||
@@ -1223,18 +1229,18 @@ function scatterScrubAndReeds(map, group, rng) {
     group.add(authoredScrub);
   } else {
     for (const [cx, , cz] of scrubCenters) {
-    const count = 4 + Math.floor(rng() * 5);
-    for (let k = 0; k < count; k++) {
-      const a = rng() * TAU;
-      const d = rng() * (1.3 + rng() * 1.4);
-      const x = cx + Math.cos(a) * d;
-      const z = cz + Math.sin(a) * d;
-      const y = map.heightAt(x, z) + 0.02;
-      const s = 0.62 + rng() * 0.92;
-      const tilt = (rng() - 0.5) * 0.32;
-      (rng() < 0.62 ? scrub : scrubDark).push(matrix(x, y, z, rng() * TAU, s * 0.82, s * (0.8 + rng() * 0.6), s * 0.82, tilt, (rng() - 0.5) * 0.18));
+      const count = 4 + Math.floor(rng() * 5);
+      for (let k = 0; k < count; k++) {
+        const a = rng() * TAU;
+        const d = rng() * (1.3 + rng() * 1.4);
+        const x = cx + Math.cos(a) * d;
+        const z = cz + Math.sin(a) * d;
+        const y = map.heightAt(x, z) + 0.02;
+        const s = 0.62 + rng() * 0.92;
+        const tilt = (rng() - 0.5) * 0.34;
+        (rng() < 0.62 ? scrub : scrubDark).push(matrix(x, y, z, rng() * TAU, s * 0.92, s * (0.5 + rng() * 0.45), s * 0.86, tilt, (rng() - 0.5) * 0.22));
+      }
     }
-  }
   }
 
   for (let i = 0; i < profile.reedPocketCount; i++) {
@@ -1249,22 +1255,23 @@ function scatterScrubAndReeds(map, group, rng) {
     group.add(authoredReeds);
   } else {
     for (const [cx, cy, cz] of reedCenters) {
-    patches.push(matrix(cx, cy + 0.105, cz, rng() * TAU, 3.4 + rng() * 2.0, 1, 1.5 + rng() * 1.0));
-    for (let k = 0; k < 16; k++) {
-      const a = rng() * TAU;
-      const d = Math.sqrt(rng()) * (2.2 + rng() * 1.6);
-      const x = cx + Math.cos(a) * d;
-      const z = cz + Math.sin(a) * d;
-      const y = map.heightAt(x, z) + 0.02;
-      const s = 0.72 + rng() * 0.92;
-      reeds.push(matrix(x, y, z, rng() * TAU, s * 0.55, s, s * 0.55, (rng() - 0.5) * 0.22, (rng() - 0.5) * 0.22));
-      if (rng() < 0.42) reedTips.push(matrix(x, y + 1.08 * s, z, 0, s * 0.7, s * 0.55, s * 0.7));
+      patches.push(matrix(cx, cy + 0.105, cz, rng() * TAU, 3.4 + rng() * 2.0, 1, 1.5 + rng() * 1.0));
+      for (let k = 0; k < 16; k++) {
+        const a = rng() * TAU;
+        const d = Math.sqrt(rng()) * (2.2 + rng() * 1.6);
+        const x = cx + Math.cos(a) * d;
+        const z = cz + Math.sin(a) * d;
+        const y = map.heightAt(x, z) + 0.02;
+        const s = 0.72 + rng() * 0.92;
+        reeds.push(matrix(x, y, z, rng() * TAU, s * 0.55, s, s * 0.55, (rng() - 0.5) * 0.22, (rng() - 0.5) * 0.22));
+        if (rng() < 0.42) reedTips.push(matrix(x, y + 1.08 * s, z, 0, s * 0.7, s * 0.55, s * 0.7));
+      }
     }
-  }
   }
 
   if (!authoredReeds) addInstanced(group, patchGeo, mats.darkSoil, patches, { castShadow: false, receiveShadow: false });
   if (!authoredScrub) {
+    addInstanced(group, patchGeo, mats.darkSoil, scrubGround, { castShadow: false, receiveShadow: false });
     addInstanced(group, scrubGeo, mats.dryScrub, scrub, { castShadow: false, receiveShadow: true });
     addInstanced(group, darkGeo, mats.dryScrubDark, scrubDark, { castShadow: false, receiveShadow: true });
   }
@@ -1583,10 +1590,10 @@ function addPalaceSideTerrainClusters(map, group, rng) {
   const fallbackScrub = [];
   const fallbackScrubDark = [];
   const rockGeo = new THREE.DodecahedronGeometry(1, 0);
-  const scrubGeo = new THREE.ConeGeometry(0.2, 0.85, 6);
-  scrubGeo.translate(0, 0.42, 0);
-  const darkScrubGeo = new THREE.ConeGeometry(0.16, 0.68, 5);
-  darkScrubGeo.translate(0, 0.34, 0);
+  const scrubGeo = new THREE.ConeGeometry(0.23, 0.62, 6);
+  scrubGeo.translate(0, 0.31, 0);
+  const darkScrubGeo = new THREE.ConeGeometry(0.18, 0.52, 5);
+  darkScrubGeo.translate(0, 0.26, 0);
   const clusters = [
     { key: 'left-watch', forward: 13.6, lateral: -15.2, sx: 4.8, sz: 1.95, yawAdjust: -0.34, plant: 2.9, rubble: 3.4, scatter: 2.1, standard: 'clothGold' },
     { key: 'right-watch', forward: 14.2, lateral: 15.0, sx: 4.65, sz: 1.9, yawAdjust: 0.32, plant: 2.8, rubble: 3.25, scatter: 2.0, standard: 'clothRed' },
@@ -1652,7 +1659,7 @@ function addPalaceSideTerrainClusters(map, group, rng) {
         const fy = map.heightAt(fp.x, fp.z);
         if (!plant) {
           const s = 0.52 + rng() * 0.78;
-          (rng() < 0.58 ? fallbackScrub : fallbackScrubDark).push(matrix(fp.x, fy + 0.02, fp.z, rng() * TAU, s * 0.82, s, s * 0.82, (rng() - 0.5) * 0.28, (rng() - 0.5) * 0.18));
+          (rng() < 0.58 ? fallbackScrub : fallbackScrubDark).push(matrix(fp.x, fy + 0.02, fp.z, rng() * TAU, s * 0.92, s * (0.5 + rng() * 0.42), s * 0.86, (rng() - 0.5) * 0.3, (rng() - 0.5) * 0.22));
         }
         if (!rubble && rng() < 0.62) {
           const s = 0.18 + rng() * 0.38;
