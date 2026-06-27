@@ -3045,11 +3045,11 @@ const __qaUrlPresets = {
   },
   'palace-contact-terrain': {
     state: 'zabulistanForecourt',
-    opts: { selectPalace: true, ltr: true, forward: 31, side: -1.6, dist: 42, pitch: 0.54, yawOffset: -0.04 },
+    opts: { selectPalace: true, ltr: true, forward: 27, side: -1.5, dist: 56, pitch: 0.58, yawOffset: -0.025 },
   },
   'palace-contact-terrain-rtl': {
     state: 'zabulistanForecourt',
-    opts: { selectPalace: true, rtl: true, forward: 32, side: -1.2, dist: 46, pitch: 0.56, yawOffset: -0.04 },
+    opts: { selectPalace: true, rtl: true, forward: 30, side: 0, dist: 110, pitch: 0.68, yawOffset: 0.04 },
   },
   'build-pad-affordance': {
     state: 'zabulistanBuildPads',
@@ -3151,17 +3151,17 @@ const __qaUrlPresets = {
   },
   'cavalry-close-combat': {
     state: 'zabulistanCavalryCloseCombat',
-    opts: { ltr: true, reducedMotion: false, mode: 'royal', forward: 31, side: -2.2, dist: 42, pitch: 0.54, yawOffset: -0.04 },
+    opts: { ltr: true, reducedMotion: false, mode: 'royal', forward: 27, side: -1.5, dist: 56, pitch: 0.58, yawOffset: -0.025 },
     singleShot: true,
   },
   'cavalry-close-combat-rtl': {
     state: 'zabulistanCavalryCloseCombat',
-    opts: { rtl: true, reducedMotion: false, mode: 'royal', forward: 32, side: -1.2, dist: 46, pitch: 0.56, yawOffset: -0.04 },
+    opts: { rtl: true, reducedMotion: false, mode: 'royal', forward: 30, side: 0, dist: 110, pitch: 0.68, yawOffset: 0.04 },
     singleShot: true,
   },
   'cavalry-close-combat-reduced': {
     state: 'zabulistanCavalryCloseCombat',
-    opts: { ltr: true, reducedMotion: true, mode: 'royal', forward: 31, side: -2.2, dist: 42, pitch: 0.54, yawOffset: -0.04 },
+    opts: { ltr: true, reducedMotion: true, mode: 'royal', forward: 27, side: -1.5, dist: 56, pitch: 0.58, yawOffset: -0.025 },
     singleShot: true,
   },
 };
