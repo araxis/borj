@@ -3,8 +3,23 @@ import { MATS, MeshBuilder } from '../models/materials.js';
 import { makeFlame } from '../models/towerkit.js';
 import { makeBanner } from './props.js';
 import { getProp, instanceProp, propBase } from '../core/props3d.js';
+import { zabulistanVisualProfile } from '../data/zabulistanVisualProfile.js';
 
 const TAU = Math.PI * 2;
+const DEFAULT_KIT_PROFILE = Object.freeze({
+  roadShoulderStride: 6,
+  groundPatchCount: 24,
+  scrubClusterCount: 34,
+  reedPocketCount: 7,
+  weatheredRockCount: 18,
+  ridgeWallCount: 42,
+  beaconMarks: Object.freeze([0.18, 0.36, 0.56, 0.74]),
+  siegeMarks: Object.freeze([0.25, 0.68]),
+});
+
+function stageKitProfile(map) {
+  return zabulistanVisualProfile(map?.def?.id)?.kit || DEFAULT_KIT_PROFILE;
+}
 
 let cachedMats = null;
 function kitMats() {
@@ -444,6 +459,7 @@ function replacePads(map, group) {
 }
 
 function dressRoadShoulders(map, group, rng) {
+  const profile = stageKitProfile(map);
   const mats = kitMats();
   const dustGeo = new THREE.CircleGeometry(1, 18);
   dustGeo.rotateX(-Math.PI / 2);
@@ -456,7 +472,7 @@ function dressRoadShoulders(map, group, rng) {
   const stoneGeo = new THREE.DodecahedronGeometry(0.38, 0);
   for (const path of map.paths || []) {
     const samples = path.samples || [];
-    for (let i = 4; i < samples.length - 5; i += 6) {
+    for (let i = 4; i < samples.length - 5; i += profile.roadShoulderStride) {
       const s = samples[i];
       const side = new THREE.Vector3(-s.tangent.z, 0, s.tangent.x).normalize();
       for (const dir of [-1, 1]) {
@@ -541,11 +557,12 @@ function dressRoadShoulders(map, group, rng) {
 }
 
 function addGroundPatches(map, group, rng) {
+  const profile = stageKitProfile(map);
   const mats = kitMats();
   const patchGeo = new THREE.CircleGeometry(1, 9);
   patchGeo.rotateX(-Math.PI / 2);
   const patches = [];
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < profile.groundPatchCount; i++) {
     const p = randomClearPoint(map, rng, 3.6, 90);
     if (!p) continue;
     const [x, y, z] = p;
@@ -694,9 +711,10 @@ function placeLocalGroup(map, group, obj, x, z, ry, yOffset = 0) {
 }
 
 function addSiegeLandmarks(map, group, rng) {
+  const profile = stageKitProfile(map);
   for (const path of map.paths || []) {
     if (!path.length) continue;
-    const marks = [0.18, 0.36, 0.56, 0.74];
+    const marks = profile.beaconMarks;
     for (let i = 0; i < marks.length; i++) {
       const s = path.samples[Math.max(0, Math.min(path.samples.length - 1, Math.floor(marks[i] * (path.samples.length - 1))))];
       const side = new THREE.Vector3(-s.tangent.z, 0, s.tangent.x).normalize();
@@ -710,7 +728,7 @@ function addSiegeLandmarks(map, group, rng) {
       trackFlame(map, group, tower.userData.flame);
     }
 
-    const siegeMarks = [0.25, 0.68];
+    const siegeMarks = profile.siegeMarks;
     for (let i = 0; i < siegeMarks.length; i++) {
       const s = path.samples[Math.max(0, Math.min(path.samples.length - 1, Math.floor(siegeMarks[i] * (path.samples.length - 1))))];
       const side = new THREE.Vector3(-s.tangent.z, 0, s.tangent.x).normalize();
@@ -755,13 +773,14 @@ function addRoadDefenses(map, group, rng) {
 }
 
 function addCliffTerraces(map, group, rng) {
+  const profile = stageKitProfile(map);
   const mats = kitMats();
   const cliffGeo = new THREE.DodecahedronGeometry(1, 0);
   const ridgeWalls = [];
   const cliff = [];
   const shadow = [];
   const radius = map.visualBoard?.radius || 86;
-  const count = 42;
+  const count = profile.ridgeWallCount;
   for (let i = 0; i < count; i++) {
     const a = (i / count) * TAU + (rng() - 0.5) * 0.08;
     const r = radius - 5.4 - rng() * 5.6;
@@ -1171,6 +1190,7 @@ function addGateApproachDepth(map, group, rng) {
 }
 
 function scatterScrubAndReeds(map, group, rng) {
+  const profile = stageKitProfile(map);
   const mats = kitMats();
   const scrubGeo = new THREE.ConeGeometry(0.18, 0.9, 6);
   scrubGeo.translate(0, 0.45, 0);
@@ -1188,7 +1208,7 @@ function scatterScrubAndReeds(map, group, rng) {
   const scrubCenters = [];
   const reedCenters = [];
 
-  for (let i = 0; i < 34; i++) {
+  for (let i = 0; i < profile.scrubClusterCount; i++) {
     const p = randomClearPoint(map, rng, 2.1, 70);
     if (!p) continue;
     const [cx, , cz] = p;
@@ -1203,7 +1223,7 @@ function scatterScrubAndReeds(map, group, rng) {
     group.add(authoredScrub);
   } else {
     for (const [cx, , cz] of scrubCenters) {
-    const count = 4 + Math.floor(rng() * 7);
+    const count = 4 + Math.floor(rng() * 5);
     for (let k = 0; k < count; k++) {
       const a = rng() * TAU;
       const d = rng() * (1.3 + rng() * 1.4);
@@ -1217,7 +1237,7 @@ function scatterScrubAndReeds(map, group, rng) {
   }
   }
 
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < profile.reedPocketCount; i++) {
     const p = randomClearPoint(map, rng, 4.2, 100);
     if (!p) continue;
     const [cx, cy, cz] = p;
@@ -1230,7 +1250,7 @@ function scatterScrubAndReeds(map, group, rng) {
   } else {
     for (const [cx, cy, cz] of reedCenters) {
     patches.push(matrix(cx, cy + 0.105, cz, rng() * TAU, 3.4 + rng() * 2.0, 1, 1.5 + rng() * 1.0));
-    for (let k = 0; k < 22; k++) {
+    for (let k = 0; k < 16; k++) {
       const a = rng() * TAU;
       const d = Math.sqrt(rng()) * (2.2 + rng() * 1.6);
       const x = cx + Math.cos(a) * d;
@@ -1255,17 +1275,18 @@ function scatterScrubAndReeds(map, group, rng) {
 }
 
 function scatterWeatheredRocks(map, group, rng) {
+  const profile = stageKitProfile(map);
   const mats = kitMats();
   const fallbackGeo = new THREE.DodecahedronGeometry(0.9, 0);
   const fallback = [];
   const rubble = [];
   let glbPlaced = 0;
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < profile.weatheredRockCount; i++) {
     const p = randomClearPoint(map, rng, 5.2, 100);
     if (!p) continue;
     const [x, y, z] = p;
     const big = rng() < 0.26;
-    if (big && glbPlaced < 5 && placeAuthoredGroundProp(map, group, 'zv_cliff_shoulder_set', x, z, rng() * TAU, {
+    if (big && glbPlaced < 4 && placeAuthoredGroundProp(map, group, 'zv_cliff_shoulder_set', x, z, rng() * TAU, {
       targetW: 3.2 + rng() * 1.5,
       yOffset: -0.1,
       tint: 0x4f4f49,

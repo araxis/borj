@@ -400,7 +400,13 @@ body.rtl.panel-hidden .panel-toggle { left: auto; right: 4px; }
 /* Atlas cell rendered as a cover-cropped canvas (see applyAtlasCell). Sits
    behind the absolutely-positioned badges that follow it in the DOM. */
 .cellimg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-.rp-portrait, .heroassignrow .mini, .mapcard .mapimg { position: relative; overflow: hidden; }
+.rp-portrait,
+.heroassignrow .mini,
+.mapcard .mapimg,
+#endScreen .unlocks .uimg {
+  position: relative;
+  overflow: hidden;
+}
 .card .portrait .emblem {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   font-size: 2.6rem; text-shadow: 0 3px 8px rgba(0,0,0,0.8);
@@ -514,25 +520,68 @@ body.rtl .rp-section h4 { letter-spacing: 0; }
 /* ---------- low-chrome tactical HUD ---------- */
 body.hud-low-chrome #topbar {
   top: 8px;
-  max-width: min(1360px, calc(100vw - 20px));
-  flex-wrap: wrap;
+  max-width: min(820px, calc(100vw - 20px));
+  flex-wrap: nowrap;
   justify-content: center;
   gap: 5px 8px;
-  padding: 5px 14px;
+  padding: 5px 10px;
   border-radius: 8px;
   background: linear-gradient(160deg, rgba(29,22,14,0.88), rgba(14,10,7,0.9));
   backdrop-filter: blur(6px);
+  overflow: hidden;
 }
-body.hud-low-chrome #topbar .sep { height: 18px; opacity: 0.72; }
-body.hud-low-chrome .statchip { gap: 5px; font-size: 0.94rem; }
+body.hud-low-chrome #topbar .sep { display: none; }
+body.hud-low-chrome .statchip { gap: 4px; font-size: 0.88rem; }
 body.hud-low-chrome .statchip .ico { font-size: 1rem; }
+body.hud-low-chrome #codexBtn,
+body.hud-low-chrome #settingsBtn,
+body.hud-low-chrome #langBtn,
+body.hud-low-chrome #speedBtns .iconbtn[data-speed="3"],
+body.hud-low-chrome #speedBtns .iconbtn[data-speed="4"] {
+  display: none !important;
+}
+body.hud-low-chrome #sandboxTools {
+  position: absolute;
+  inset-inline-end: 8px;
+  top: 42px;
+  opacity: 0.66;
+  transform: scale(0.86);
+  transform-origin: top right;
+}
+body.rtl.hud-low-chrome #sandboxTools { transform-origin: top left; }
 body.hud-low-chrome .statchip.gate-omen {
-  max-width: min(248px, 30vw);
+  max-width: min(190px, 22vw);
   min-width: 0;
 }
 body.hud-low-chrome .statchip.combat-flow {
-  max-width: min(150px, 18vw);
+  max-width: min(120px, 14vw);
   min-width: 0;
+}
+body.hud-low-chrome.hud-combat-mode #topbar {
+  max-width: min(680px, calc(100vw - 20px));
+  gap: 4px 6px;
+  padding-inline: 8px;
+}
+body.hud-low-chrome.hud-combat-mode .statchip.gate-omen {
+  max-width: 124px;
+}
+body.hud-low-chrome.hud-combat-mode .statchip.combat-flow {
+  max-width: 52px;
+}
+body.hud-low-chrome.hud-combat-mode #gateOmenState,
+body.hud-low-chrome.hud-combat-mode #combatFlowLive,
+body.hud-low-chrome.hud-combat-mode .gate-omen-detail,
+body.hud-low-chrome.hud-combat-mode .combat-flow-kills {
+  display: none;
+}
+body.hud-low-chrome.hud-combat-mode .statchip.gate-omen b {
+  max-width: 5.8em;
+}
+body.hud-low-chrome.hud-combat-mode .statchip.combat-flow b {
+  max-width: 2.7em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 body.hud-low-chrome .statchip.gate-omen b,
 body.hud-low-chrome .gate-omen-detail,
@@ -547,8 +596,8 @@ body.hud-low-chrome .statchip.gate-omen b {
   max-width: 7.4em;
   white-space: nowrap;
 }
-body.hud-low-chrome .gate-omen-detail { max-width: 8.6em; }
-body.hud-low-chrome .combat-flow-kills { max-width: 4.4em; }
+body.hud-low-chrome .gate-omen-detail { max-width: 6.4em; }
+body.hud-low-chrome .combat-flow-kills { max-width: 3.8em; }
 body.hud-low-chrome .iconbtn {
   min-width: 30px;
   min-height: 28px;
@@ -615,6 +664,36 @@ body.hud-low-chrome .quick-build-tray {
   pointer-events: auto;
   scrollbar-width: none;
   transition: opacity 0.22s ease, transform 0.22s ease;
+}
+body.hud-low-chrome.hud-palace-selected .quick-build-tray,
+body.hud-low-chrome.hud-drawer-open .quick-build-tray {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-10px);
+}
+body.rtl.hud-low-chrome.hud-palace-selected .quick-build-tray,
+body.rtl.hud-low-chrome.hud-drawer-open .quick-build-tray {
+  transform: translateX(10px);
+}
+body.hud-low-chrome.hud-combat-mode .quick-build-tray {
+  top: auto;
+  bottom: max(52px, calc(52px + env(safe-area-inset-bottom)));
+  left: auto;
+  right: max(10px, env(safe-area-inset-right));
+  max-height: none;
+  padding: 0;
+}
+body.rtl.hud-low-chrome.hud-combat-mode .quick-build-tray {
+  right: auto;
+  left: max(10px, env(safe-area-inset-left));
+}
+body.hud-low-chrome.hud-combat-mode .quick-build-btn {
+  display: none;
+}
+body.hud-low-chrome.hud-combat-mode .quick-build-more {
+  display: grid;
+  width: 40px;
+  height: 40px;
 }
 body.hud-low-chrome .quick-build-tray::-webkit-scrollbar { display: none; }
 body.rtl.hud-low-chrome .quick-build-tray {
@@ -805,6 +884,9 @@ body.hud-low-chrome #rightPanel {
   background: linear-gradient(160deg, rgba(34,26,17,0.91), rgba(18,13,8,0.93));
   backdrop-filter: blur(5px);
 }
+body.hud-low-chrome.hud-drawer-open .palace-action-rail {
+  display: none !important;
+}
 body.hud-low-chrome #rightPanel.visible {
   animation: rpSlide 0.26s cubic-bezier(.18,.82,.24,1) both;
 }
@@ -819,17 +901,17 @@ body.hud-low-chrome .rp-name { font-size: 1.06rem; }
 body.hud-low-chrome .rp-faname { font-size: 0.86rem; }
 body.hud-low-chrome .rp-section { margin-bottom: 9px; }
 body.hud-low-chrome .palace-action-rail {
-  width: 292px;
-  height: 110px;
-  transform: translate(-50%, -106%);
+  width: 304px;
+  height: 112px;
+  transform: translate(-50%, -102%);
 }
 body.hud-low-chrome .palace-action-btn {
-  width: 52px;
-  height: 60px;
+  width: 48px;
+  height: 56px;
 }
 body.hud-low-chrome .palace-action-icon {
   inset: 8px 10px 16px;
-  font-size: 1.08rem;
+  font-size: 1.02rem;
 }
 body.hud-low-chrome .palace-action-state {
   min-width: 31px;
@@ -1608,19 +1690,25 @@ body.rtl .hcc-kicker { letter-spacing: 0; }
 #waveBtn { font-size: 1.05rem; padding: 0.6em 1.6em; min-width: 16em; }
 body.hud-low-chrome #bottomBar {
   bottom: 12px;
-  padding: 7px 12px;
+  padding: 5px 9px;
   border-radius: 8px;
-  background: linear-gradient(160deg, rgba(29,22,14,0.86), rgba(13,9,6,0.9));
+  background: linear-gradient(160deg, rgba(29,22,14,0.72), rgba(13,9,6,0.78));
   backdrop-filter: blur(5px);
+  transition: opacity 0.18s ease, transform 0.18s ease, background 0.18s ease;
 }
 body.hud-low-chrome #waveBtn {
-  min-width: 13.2em;
-  padding: 0.48em 1.15em;
-  font-size: 0.94rem;
+  min-width: 11.4em;
+  padding: 0.42em 0.9em;
+  font-size: 0.86rem;
+}
+body.hud-low-chrome.hud-build-mode #bottomBar,
+body.hud-low-chrome.hud-palace-selected #bottomBar:not(.wave-active) {
+  opacity: 0.72;
+  transform: translateX(-50%) translateY(4px);
 }
 body.hud-low-chrome #bottomBar.wave-active {
-  padding: 5px 8px;
-  background: rgba(15, 11, 7, 0.68);
+  padding: 4px 7px;
+  background: rgba(15, 11, 7, 0.58);
 }
 body.hud-low-chrome #waveBtn.wave-active {
   min-width: 0;
@@ -2868,6 +2956,14 @@ body.rtl .gbtn.launch { letter-spacing: 0; }
   body.hud-low-chrome.wave-active .gold-chip {
     max-width: 62px;
     overflow: hidden;
+  }
+  body.hud-low-chrome.hud-combat-mode .gold-chip {
+    flex: 0 0 auto;
+    max-width: 28px;
+    padding-inline: 5px;
+  }
+  body.hud-low-chrome.hud-combat-mode #goldVal {
+    display: none;
   }
   body.hud-low-chrome.wave-active .gold-chip b {
     max-width: 42px;

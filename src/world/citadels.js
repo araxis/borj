@@ -16,6 +16,7 @@ import { buildSoldierModel } from '../models/creature.js';
 import { Projectile, lashEffect } from '../entities/projectile.js';
 import { FXC } from '../fx/particles.js';
 import { clonePalaceScene, hasPalace, sanitizePalaceShadows } from '../core/assets.js';
+import { zabulistanVisualProfile } from '../data/zabulistanVisualProfile.js';
 
 // landmarks are monumental: everything in a style is authored small, then the whole
 // architecture is scaled up; garrison guards are added AFTER scaling at human size
@@ -491,31 +492,38 @@ const STYLE_BY_PLACE = {
 
 export function citadelStyleFor(placeId) { return STYLE_BY_PLACE[placeId] || 'royal-court'; }
 
-// places with a giant custom palace GLB (a_palace_<id>); gated — the procedural citadel below stays
-// the never-break fallback until the model loads. Palaces clear a larger, flatter base.
-const PALACE_RADIUS = 25; // palace horizontal half-extent (world units) — a dominating central landmark
-const PALACE_CLEAR = 30;  // terrain-flatten radius around the palace
-const PALACE_MIN_HEIGHT = 26; // floor so even a squat palace model towers over the ~7–11u forest trees
+// places with a custom palace GLB; gated, so the procedural citadel below stays
+// the never-break fallback until the model loads.
+const DEFAULT_PALACE_PROFILE = Object.freeze({
+  radius: 25,
+  clear: 30,
+  minHeight: 26,
+});
+
+function palaceVisualProfile(placeId) {
+  return zabulistanVisualProfile(placeId)?.palace || DEFAULT_PALACE_PROFILE;
+}
 
 
 export function citadelFootprint(placeId) {
-  if (hasPalace(placeId)) return PALACE_CLEAR;
+  if (hasPalace(placeId)) return palaceVisualProfile(placeId).clear;
   return STYLES[citadelStyleFor(placeId)].footprint * CITADEL_SCALE;
 }
 
-// Central palace from a giant custom GLB: scaled to a giant landmark, centered on the exit, base
+// Central palace from a custom GLB: scaled per stage, centered on the exit, base
 // ground-snapped. Returns a citadel-shaped object (group/muzzles/height/footprint/animated/defense);
 // null when the model isn't loaded so buildLandCitadel falls back to the procedural style.
 function buildPalaceCitadel(placeId) {
   const scene = clonePalaceScene(placeId);
   if (!scene) return null;
+  const profile = palaceVisualProfile(placeId);
   const box = new THREE.Box3().setFromObject(scene);
   const size = box.getSize(new THREE.Vector3());
-  // fit the horizontal half-extent to PALACE_RADIUS, but never let the palace end up shorter than
-  // PALACE_MIN_HEIGHT — a squat model scales up off its height instead so it always towers over trees.
+  // Fit the horizontal half-extent to the stage profile, but keep a minimum height so
+  // custom palaces remain readable next to tree and tower silhouettes.
   const s = Math.max(
-    PALACE_RADIUS / Math.max(0.001, Math.max(size.x, size.z) * 0.5),
-    PALACE_MIN_HEIGHT / Math.max(0.001, size.y),
+    profile.radius / Math.max(0.001, Math.max(size.x, size.z) * 0.5),
+    profile.minHeight / Math.max(0.001, size.y),
   );
   scene.scale.setScalar(s);
   const height = size.y * s;
@@ -533,11 +541,11 @@ function buildPalaceCitadel(placeId) {
     group: outer,
     muzzles: [
       new THREE.Vector3(0, height * 0.74, 0),
-      new THREE.Vector3(PALACE_RADIUS * 0.45, height * 0.5, PALACE_RADIUS * 0.1),
-      new THREE.Vector3(-PALACE_RADIUS * 0.45, height * 0.5, PALACE_RADIUS * 0.1),
+      new THREE.Vector3(profile.radius * 0.45, height * 0.5, profile.radius * 0.1),
+      new THREE.Vector3(-profile.radius * 0.45, height * 0.5, profile.radius * 0.1),
     ],
     height,
-    footprint: PALACE_RADIUS,
+    footprint: profile.radius,
     animated: { banners: [], flames: [], guards: [], glows: [], spinners: [] },
     defense: { ...style.defense },
     styleId: 'palace-' + placeId,

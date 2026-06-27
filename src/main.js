@@ -19,6 +19,7 @@ import { Menus } from './ui/menus.js';
 import { Codex } from './ui/codex.js';
 import { SettingsUI } from './ui/settingsui.js';
 import { $ } from './ui/dom.js';
+import { zabulistanVisualProfile } from './data/zabulistanVisualProfile.js';
 
 initLangDOM();
 document.documentElement.style.fontSize = `${15 * settings.get('uiScale')}px`;
@@ -2265,6 +2266,7 @@ const __qaBackdropView = (opts = {}) => {
 const __qaZabulistanForecourtView = (opts = {}) => {
   const map = game?.map;
   if (!map) return null;
+  const qaProfile = zabulistanVisualProfile(map.def?.id)?.qa || {};
   rts.followEntity(null);
   rts._fly = null;
   const samples = map.paths?.[0]?.samples || [];
@@ -2275,12 +2277,15 @@ const __qaZabulistanForecourtView = (opts = {}) => {
   fwd.normalize();
   const side = new THREE.Vector3(-fwd.z, 0, fwd.x);
   const mobile = window.innerWidth < 700;
+  const defaults = mobile
+    ? { ...(qaProfile.forecourtView || {}), ...(qaProfile.mobileView || {}) }
+    : (qaProfile.forecourtView || {});
   const target = exit.clone()
-    .addScaledVector(fwd, Number.isFinite(opts.forward) ? opts.forward : mobile ? 28 : 26)
-    .addScaledVector(side, Number.isFinite(opts.side) ? opts.side : 0);
-  const yaw = Math.atan2(fwd.x, fwd.z) + (Number.isFinite(opts.yawOffset) ? opts.yawOffset : 0.02);
-  const pitch = Number.isFinite(opts.pitch) ? opts.pitch : mobile ? 0.66 : 0.64;
-  const dist = Number.isFinite(opts.dist) ? opts.dist : mobile ? 66 : 62;
+    .addScaledVector(fwd, Number.isFinite(opts.forward) ? opts.forward : defaults.forward ?? (mobile ? 28 : 26))
+    .addScaledVector(side, Number.isFinite(opts.side) ? opts.side : defaults.side ?? 0);
+  const yaw = Math.atan2(fwd.x, fwd.z) + (Number.isFinite(opts.yawOffset) ? opts.yawOffset : defaults.yawOffset ?? 0.02);
+  const pitch = Number.isFinite(opts.pitch) ? opts.pitch : defaults.pitch ?? (mobile ? 0.66 : 0.64);
+  const dist = Number.isFinite(opts.dist) ? opts.dist : defaults.dist ?? (mobile ? 66 : 62);
   rts.target.set(target.x, 0, target.z);
   rts.targetGoal.copy(rts.target);
   rts.yaw = rts.yawGoal = yaw;

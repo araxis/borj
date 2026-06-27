@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { sanitizeVisualArtifacts } from './visualguards.js';
+import { zabulistanVisualProfile } from '../data/zabulistanVisualProfile.js';
 
 const MODEL_FILES = {
   // KayKit (CC0) — chibi proportions; kept as deep fallbacks only
@@ -287,13 +288,26 @@ export function sanitizePalaceShadows(root) {
 
 function palaceMaterialProfile(root, placeId) {
   if (placeId !== 'zabulistan' || !root?.traverse) return root;
+  const profile = zabulistanVisualProfile(placeId)?.palace?.material || {};
   const toned = new Map();
-  const colorMul = new THREE.Color(0xe2c28d);
+  const colorMul = new THREE.Color(profile.colorMul ?? 0xe2c28d);
+  const lightStone = new THREE.Color(profile.lightStone ?? 0xc6a36f);
+  const midStone = new THREE.Color(profile.midStone ?? 0xa0774d);
+  const darkStone = new THREE.Color(profile.darkStone ?? 0x604431);
   const toneMaterial = (mat) => {
     if (!mat?.isMaterial) return mat;
     if (toned.has(mat)) return toned.get(mat);
     const m = mat.clone();
-    if (m.color?.isColor) m.color.multiply(colorMul).lerp(new THREE.Color(0xc2a36f), 0.08);
+    if (m.color?.isColor) {
+      const luminance = m.color.r * 0.2126 + m.color.g * 0.7152 + m.color.b * 0.0722;
+      if (luminance > 0.66) {
+        m.color.lerp(lightStone, 0.52);
+      } else if (luminance < 0.14) {
+        m.color.lerp(darkStone, 0.68);
+      } else {
+        m.color.multiply(colorMul).lerp(midStone, 0.16);
+      }
+    }
     if (m.emissive?.isColor) m.emissive.setHex(0x000000);
     if ('emissiveIntensity' in m) m.emissiveIntensity = 0;
     if ('metalness' in m) m.metalness = Math.min(Number.isFinite(m.metalness) ? m.metalness : 0, 0.06);

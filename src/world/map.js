@@ -13,12 +13,14 @@ import { getProp, instanceProp, propReady, propBase, propRotFix, placeM4, KIT_UN
 import { makeFlame } from '../models/towerkit.js';
 import { makeRng } from './noise.js';
 import { buildZabulistanVisualKit, rebuildZabulistanVisualKit } from './zabulistanVisualKit.js';
+import { zabulistanVisualProfile } from '../data/zabulistanVisualProfile.js';
 
 export class GameMap {
   constructor(mapDef, scene) {
     this.def = mapDef;
     this.place = PLACES_BY_ID[mapDef.id];
     const baseBiome = BIOMES[this.place?.biome || 'plains'];
+    const visualProfile = zabulistanVisualProfile(mapDef.id);
     this.biome = mapDef.id === 'zabulistan'
       ? {
         ...baseBiome,
@@ -59,43 +61,7 @@ export class GameMap {
     // per-map prop overrides win over the biome defaults (e.g. Mazandaran zeroes cypress while
     // Manijeh Garden — same forest biome — keeps the garden sarv).
     this.effectiveProps = { ...this.biome.props, ...this.place?.props };
-    this.visualBoard = mapDef.id === 'zabulistan'
-      ? {
-        shape: 'circle',
-        radius: 86,
-        edgeStart: 62,
-        edgeTintFogMix: 0.34,
-        edgeTintStrength: 0.36,
-        apronFar: 286,
-        apronGroundColor: 0x686d58,
-        apronGroundFogMix: 0.08,
-        apronNearColor: 0x7a7762,
-        apronNearFogMix: 0.18,
-        apronFarColor: 0x8d8172,
-        apronFarFogMix: 0.34,
-        apronFogStart: 0.3,
-        apronFogEnd: 0.96,
-        apronFogMax: 0.76,
-        apronFogLinear: 0.06,
-        veilInner: 178,
-        veilOuter: 306,
-        veilOpacity: 0.072,
-        veilGroundColor: 0x777663,
-        veilGroundFogMix: 0.24,
-        edgeBlendInner: 70,
-        edgeBlendOuter: 152,
-        edgeBlendOpacity: 0.28,
-        edgeBlendGroundColor: 0x5e6753,
-        edgeBlendMidColor: 0x72735f,
-        edgeBlendOuterColor: 0x897b6e,
-        edgeBlendFogMix: 0.09,
-        edgeBlendFogStart: 0.8,
-        edgeBlendFogEnd: 1,
-        edgeBlendGroundMix: 0.54,
-        edgeBlendGroundMixRange: 0.16,
-        skipMountainRing: true,
-      }
-      : null;
+    this.visualBoard = visualProfile?.board ? { ...visualProfile.board } : null;
     this.scene = scene;
     this.group = new THREE.Group();
     scene.add(this.group);
