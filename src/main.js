@@ -3221,7 +3221,6 @@ function __recordQaUrlResult(qa, result) {
     'zabulistan-cavalry-enemy-contact-mark',
     'boss-visual-kit',
     'boss-human-regalia-detail',
-    'boss-creature-crest-detail',
     'boss-div-crown-detail',
     'boss-ground-omen-ring',
     'boss-ground-omen-inner',

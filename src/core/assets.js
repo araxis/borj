@@ -61,7 +61,6 @@ const MODEL_FILES = {
   // Optional static boss attachments. These sit over the animated rig and can fail
   // independently; the runtime procedural boss kit remains the fallback.
   boss_human_regalia: 'assets/bosses/boss-human-regalia.glb',
-  boss_creature_crest: 'assets/bosses/boss-creature-crest.glb',
   boss_div_crown: 'assets/bosses/boss-div-crown.glb',
   // Batch B divs (rigged + animated) — replace procedural buildDiv/sorceress branches
   a_divsepid: 'assets/animals/DivSepid.glb',      // White Div → divSepid
