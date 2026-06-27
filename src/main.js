@@ -2310,6 +2310,42 @@ const __qaPathSampleAt = (path, dist) => {
   }
   return best;
 };
+const __qaBossCloseupView = (boss, opts = {}) => {
+  if (!boss?.group?.position) return null;
+  rts.followEntity(null);
+  rts._fly = null;
+  rts._focusBeat = null;
+  const pos = boss.group.position;
+  const sample = __qaPathSampleAt(boss.path, boss.dist);
+  const fwd = new THREE.Vector3(
+    sample?.tangent?.x ?? Math.sin(boss.group.rotation.y || 0),
+    0,
+    sample?.tangent?.z ?? Math.cos(boss.group.rotation.y || 0),
+  );
+  if (fwd.lengthSq() < 0.0001) fwd.set(0, 0, 1);
+  fwd.normalize();
+  const side = new THREE.Vector3(-fwd.z, 0, fwd.x);
+  const mobile = window.innerWidth < 700;
+  const target = new THREE.Vector3(pos.x, 0, pos.z)
+    .addScaledVector(fwd, Number.isFinite(opts.forward) ? opts.forward : mobile ? 1.1 : 1.35)
+    .addScaledVector(side, Number.isFinite(opts.side) ? opts.side : mobile ? 0.45 : 0.25);
+  const yaw = Math.atan2(fwd.x, fwd.z) + (Number.isFinite(opts.yawOffset) ? opts.yawOffset : 0);
+  const pitch = Number.isFinite(opts.pitch) ? opts.pitch : mobile ? 0.44 : 0.4;
+  const dist = Number.isFinite(opts.cameraDist) ? opts.cameraDist : Number.isFinite(opts.dist) ? opts.dist : mobile ? 24 : 20;
+  rts.target.set(target.x, 0, target.z);
+  rts.targetGoal.copy(rts.target);
+  rts.yaw = rts.yawGoal = yaw;
+  rts.pitch = rts.pitchGoal = pitch;
+  rts.dist = rts.distGoal = Math.max(rts.minDist || 18, dist);
+  rts.update(0.016);
+  engine.updateCamera?.();
+  return {
+    target: { x: Number(target.x.toFixed(2)), z: Number(target.z.toFixed(2)) },
+    yaw: Number(yaw.toFixed(3)),
+    pitch: Number(pitch.toFixed(3)),
+    dist: Number(rts.dist.toFixed(1)),
+  };
+};
 const __qaZabulistanRealWaveContact = (opts = {}) => {
   const g = game;
   const path = g?.map?.paths?.[0];
@@ -2863,6 +2899,43 @@ window.__dbg = {
       if (state === 'palaceCommand') return { ok: true, state, result: g.palaceBoon?.(g.map.citadel) };
       if (state === 'heroCommand') return { ok: true, state, result: g.previewCommandFx?.(opts) };
       if (state === 'gateAssault') return { ok: true, state, result: g.sandboxPalaceAssault?.({ mode: opts.mode || 'royal', fullFx: true }) };
+      if (state === 'bossCloseup') {
+        __resetQaOpeningBuild(g);
+        const banner = $('#bossBanner');
+        if (banner) {
+          banner.classList.remove('show', 'stage', 'arrival', 'challenge', 'victory', 'defeat');
+          banner.textContent = '';
+        }
+        const setup = g.sandboxBossSaga?.({
+          defId: opts.defId || g.mapDef.boss || 'houman',
+          result: opts.result || 'active',
+          skipArrival: true,
+          dist: Number.isFinite(opts.pathDist) ? opts.pathDist : undefined,
+        });
+        for (let i = 0; i < 14; i++) g.update(1 / 30, engine.elapsed + i / 30);
+        const boss = g.enemies.find((enemy) => enemy.boss && enemy.alive);
+        const view = __qaBossCloseupView(boss, opts);
+        hud?.closePanel?.();
+        document.body.classList.add('panel-hidden', 'wave-active', 'boss-closeup-active');
+        hud?._syncToggle?.();
+        return {
+          ok: true,
+          state,
+          game: g.mapDef.id,
+          setup,
+          view,
+          boss: boss ? {
+            id: boss.id,
+            defId: boss.def?.id,
+            className: boss.def?.class,
+            model: boss.def?.model,
+            hp: Math.round(boss.hp || 0),
+            visualChildren: boss.visual?.children?.length || 0,
+            headH: Number((boss.model?.headH || 0).toFixed(2)),
+          } : null,
+          metrics: window.__dbg.visualQa.metrics(),
+        };
+      }
       if (state === 'bossArrival') return { ok: true, state, result: g.sandboxBossSaga?.({ defId: opts.defId || g.mapDef.boss || 'houman', result: 'active' }) };
       if (state === 'sagaTrial') return { ok: true, state, result: g.sandboxBossSaga?.({ defId: opts.defId || g.mapDef.boss || 'houman', result: 'active', skipArrival: true }) };
       if (state === 'bossBroken') return { ok: true, state, result: g.sandboxBossSaga?.({ defId: opts.defId || g.mapDef.boss || 'houman', result: 'broken', resultDelay: opts.resultDelay ?? 0, skipArrival: true }) };
@@ -2936,6 +3009,40 @@ window.__dbg = {
 };
 
 const __qaUrlPresets = {
+  'boss-closeup': {
+    state: 'bossCloseup',
+    opts: { ltr: true, mapId: 'kabul', defId: 'houman', cameraDist: 18, pitch: 0.35, forward: 0.65 },
+    singleShot: true,
+    delayMs: 6500,
+  },
+  'boss-closeup-zahhak': {
+    state: 'bossCloseup',
+    opts: { ltr: true, mapId: 'damavand', defId: 'zahhak', cameraDist: 18, pitch: 0.35, side: 0.15, forward: 0.55 },
+    singleShot: true,
+    delayMs: 6500,
+  },
+  'boss-closeup-dragon': {
+    state: 'bossCloseup',
+    opts: { ltr: true, mapId: 'mazandaran', defId: 'azhdaha', cameraDist: 18, pitch: 0.36, side: 0.45, forward: 0.45 },
+    singleShot: true,
+    delayMs: 6500,
+  },
+  'boss-arrival': {
+    state: 'bossArrival',
+    opts: { ltr: true, mapId: 'kabul', defId: 'houman' },
+  },
+  'boss-trial': {
+    state: 'sagaTrial',
+    opts: { ltr: true, mapId: 'kabul', defId: 'houman' },
+  },
+  'boss-arrival-zahhak': {
+    state: 'bossArrival',
+    opts: { ltr: true, mapId: 'damavand', defId: 'zahhak' },
+  },
+  'boss-arrival-dragon': {
+    state: 'bossArrival',
+    opts: { ltr: true, mapId: 'mazandaran', defId: 'azhdaha' },
+  },
   'palace-contact-terrain': {
     state: 'zabulistanForecourt',
     opts: { selectPalace: true, ltr: true, forward: 31, side: -1.6, dist: 42, pitch: 0.54, yawOffset: -0.04 },
@@ -3112,6 +3219,12 @@ function __recordQaUrlResult(qa, result) {
     'zabulistan-cavalry-crest-read',
     'zabulistan-cavalry-lance-thread',
     'zabulistan-cavalry-enemy-contact-mark',
+    'boss-visual-kit',
+    'boss-human-regalia-detail',
+    'boss-creature-crest-detail',
+    'boss-div-crown-detail',
+    'boss-ground-omen-ring',
+    'boss-ground-omen-inner',
     'zabulistan-gate-road-packed-transition',
     'zabulistan-gate-road-irregular-curbs',
     'zabulistan-gate-road-traffic-ruts',
@@ -3181,11 +3294,11 @@ function __runQaUrlPreset() {
       setTimeout(() => recordWhenReady(deadline), 500);
     };
     if (preset.singleShot && preset.waitForReady) {
-      setTimeout(() => recordWhenReady(performance.now() + 9000), 4200);
+      setTimeout(() => recordWhenReady(performance.now() + 9000), preset.delayMs ?? 4200);
       return;
     }
     if (preset.singleShot) {
-      setTimeout(() => __recordQaUrlResult(qa, run()), 4200);
+      setTimeout(() => __recordQaUrlResult(qa, run()), preset.delayMs ?? 4200);
       return;
     }
     run();

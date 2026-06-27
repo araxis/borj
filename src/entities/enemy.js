@@ -7,6 +7,7 @@ import { animWalk, animAttack } from '../models/humanoid.js';
 import { pointAt } from '../world/road.js';
 import { FXC } from '../fx/particles.js';
 import { settings } from '../core/settings.js';
+import { createBossVisualKit } from './bossvisuals.js';
 
 const barGeo = new THREE.PlaneGeometry(1.2, 0.13);
 const barBgMat = new THREE.MeshBasicMaterial({ color: 0x1a1410, transparent: true, opacity: 0.75, depthWrite: false });
@@ -105,11 +106,18 @@ export class Enemy {
     this.feudBrokenT = 0;
     this.guardBrokenT = 0;
 
-    this.model = buildEnemyModel(def.model);
+    this.model = buildEnemyModel(def.model, { boss: this.boss, defId: def.id, className: def.class });
     if (isLarva) this.model.group.scale.multiplyScalar(0.45);
     this.group = new THREE.Group();
     this.visual = new THREE.Group();
     this.visual.add(this.model.group);
+    if (this.boss && !isLarva) {
+      this.bossVisual = createBossVisualKit(def, this.model);
+      if (this.bossVisual?.group) {
+        this.visual.add(this.bossVisual.group);
+        this.model.headH = Math.max(this.model.headH || 1.7, this.bossVisual.headH || 0);
+      }
+    }
     this.group.add(this.visual);
     // generous click target: never rendered (colorWrite off) but raycastable
     const proxyH = (this.model.headH || 1.7) * (isLarva ? 0.5 : 1) + 0.5;
@@ -1015,6 +1023,7 @@ export class Enemy {
     else if (this.model.animType === 'serpent' && rig.segments) animSerpent(rig, time + this.id, animSpeed);
     else if (this.model.animType === 'fly' && rig.veil) rig.veil.scale.setScalar(1 + Math.sin(time * 3) * 0.12);
     animShoulderSerpents(rig, time);
+    this.bossVisual?.update?.(time, dt, this);
 
     // health bar faces camera
     this.barFg.scale.x = Math.max(0.001, this.hp / this.maxHp);
@@ -1034,6 +1043,7 @@ export class Enemy {
   destroy() {
     this._clearTelegraphs();
     this._clearAbilityBeams();
+    this.bossVisual?.dispose?.();
     this.game.scene.remove(this.group);
   }
 }
