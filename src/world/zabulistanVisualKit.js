@@ -65,10 +65,10 @@ function kitMats() {
       polygonOffsetUnits: -3,
     }),
     forecourtDust: new THREE.MeshStandardMaterial({
-      color: 0x76644b,
+      color: 0x7a6c52,
       roughness: 1,
       transparent: true,
-      opacity: 0.16,
+      opacity: 0.12,
       depthWrite: false,
       polygonOffset: true,
       polygonOffsetFactor: -2,
@@ -86,12 +86,12 @@ function kitMats() {
     }),
     sandstone: new THREE.MeshStandardMaterial({ color: 0x998a70, roughness: 0.98 }),
     sandstoneDark: new THREE.MeshStandardMaterial({ color: 0x766752, roughness: 1 }),
-    facadeStone: new THREE.MeshStandardMaterial({ color: 0x9b8055, roughness: 0.98 }),
-    facadeLight: new THREE.MeshStandardMaterial({ color: 0xc1a36d, roughness: 0.95 }),
-    gateShadow: new THREE.MeshStandardMaterial({ color: 0x17100b, roughness: 1 }),
-    gateWood: new THREE.MeshStandardMaterial({ color: 0x2e1b10, roughness: 0.94 }),
-    gateBronze: new THREE.MeshStandardMaterial({ color: 0x7a4e22, roughness: 0.72, metalness: 0.16 }),
-    agedTurquoise: new THREE.MeshStandardMaterial({ color: 0x208a85, roughness: 0.82, metalness: 0.04 }),
+    facadeStone: new THREE.MeshStandardMaterial({ color: 0x907a59, roughness: 0.98 }),
+    facadeLight: new THREE.MeshStandardMaterial({ color: 0xab8c5f, roughness: 0.96 }),
+    gateShadow: new THREE.MeshStandardMaterial({ color: 0x493725, roughness: 1 }),
+    gateWood: new THREE.MeshStandardMaterial({ color: 0x674228, roughness: 0.94 }),
+    gateBronze: new THREE.MeshStandardMaterial({ color: 0x806033, roughness: 0.74, metalness: 0.1 }),
+    agedTurquoise: new THREE.MeshStandardMaterial({ color: 0x2a7770, roughness: 0.86, metalness: 0.02 }),
     terraceTop: new THREE.MeshStandardMaterial({ color: 0x89785b, roughness: 1 }),
     cliffFace: new THREE.MeshStandardMaterial({ color: 0x686a66, roughness: 1 }),
     cliffShadow: new THREE.MeshStandardMaterial({ color: 0x454845, roughness: 1 }),
@@ -342,22 +342,6 @@ function buildPalaceBaseWrap() {
 function addPalaceFacadeDressing(map, group, fwd, side, yaw) {
   const exit = map.exitPos;
   const base = exit.clone().addScaledVector(fwd, 11.5);
-  const placed = placeAuthoredGroundProp(map, group, 'zv_palace_facade_dressing', base.x, base.z, yaw, {
-    targetW: 13.45,
-    yOffset: 0.12,
-    tint: null,
-    sceneName: 'zabulistan-palace-facade-dressing',
-  });
-  if (placed) {
-    placed.userData.visualQaIgnore = true;
-    placed.traverse((node) => {
-      if (node.isMesh) {
-        node.castShadow = false;
-        node.receiveShadow = true;
-      }
-    });
-    return true;
-  }
 
   const mats = kitMats();
   const fallback = new THREE.Group();
@@ -379,33 +363,33 @@ function addPalaceFacadeDressing(map, group, fwd, side, yaw) {
     return mesh;
   };
 
-  addBox('zabulistan-palace-facade-shadow-recess', 0, 2.55, -0.18, 2.2, 4.55, 0.18, mats.gateShadow);
-  addBox('zabulistan-palace-facade-left-jamb', -1.42, 2.58, 0.02, 0.54, 4.72, 0.36, mats.facadeStone, 0.015);
-  addBox('zabulistan-palace-facade-right-jamb', 1.42, 2.58, 0.02, 0.54, 4.72, 0.36, mats.facadeStone, -0.015);
-  addBox('zabulistan-palace-facade-left-buttress', -3.12, 2.32, 0.02, 0.7, 4.1, 0.42, mats.sandstone);
-  addBox('zabulistan-palace-facade-right-buttress', 3.12, 2.32, 0.02, 0.7, 4.1, 0.42, mats.sandstone);
-  addBox('zabulistan-palace-facade-left-door', -0.42, 1.7, -0.42, 0.72, 2.55, 0.08, mats.gateWood);
-  addBox('zabulistan-palace-facade-right-door', 0.42, 1.7, -0.42, 0.72, 2.55, 0.08, mats.gateWood);
-  addBox('zabulistan-palace-facade-door-seam', 0, 1.7, -0.48, 0.06, 2.7, 0.05, mats.gateBronze);
-  for (const z of [0.72, 1.6, 2.48]) {
-    addBox(`zabulistan-palace-facade-door-band-${z}`, 0, z, -0.52, 1.55, 0.06, 0.06, mats.gateBronze);
+  addBox('zabulistan-palace-facade-shadow-recess', 0, 2.15, -0.16, 1.34, 2.9, 0.1, mats.gateShadow);
+  addBox('zabulistan-palace-facade-left-jamb', -1.18, 2.38, 0.0, 0.42, 3.86, 0.3, mats.facadeStone, 0.012);
+  addBox('zabulistan-palace-facade-right-jamb', 1.18, 2.38, 0.0, 0.42, 3.86, 0.3, mats.facadeStone, -0.012);
+  addBox('zabulistan-palace-facade-left-buttress', -2.35, 2.08, 0.02, 0.54, 3.35, 0.34, mats.sandstone);
+  addBox('zabulistan-palace-facade-right-buttress', 2.35, 2.08, 0.02, 0.54, 3.35, 0.34, mats.sandstone);
+  addBox('zabulistan-palace-facade-left-door', -0.42, 1.55, 0.08, 0.78, 2.36, 0.055, mats.gateWood);
+  addBox('zabulistan-palace-facade-right-door', 0.42, 1.55, 0.08, 0.78, 2.36, 0.055, mats.gateWood);
+  addBox('zabulistan-palace-facade-door-seam', 0, 1.55, 0.13, 0.045, 2.42, 0.04, mats.gateBronze);
+  for (const z of [0.72, 1.45, 2.16]) {
+    addBox(`zabulistan-palace-facade-door-band-${z}`, 0, z, 0.15, 1.46, 0.045, 0.04, mats.gateBronze);
   }
-  addBox('zabulistan-palace-facade-turquoise-sill', 0, 3.38, -0.52, 1.85, 0.12, 0.06, mats.agedTurquoise);
+  addBox('zabulistan-palace-facade-turquoise-sill', 0, 3.04, 0.14, 1.48, 0.09, 0.04, mats.agedTurquoise);
   for (let i = 0; i < 11; i++) {
     const a = Math.PI * (i / 10);
-    const x = Math.cos(a) * 1.38;
-    const y = 3.55 + Math.sin(a) * 1.38;
-    addBox(`zabulistan-palace-facade-arch-stone-${i}`, x, y, -0.48, 0.46, 0.34, 0.18, i % 3 === 1 ? mats.facadeLight : mats.facadeStone, Math.PI / 2 - a);
+    const x = Math.cos(a) * 1.14;
+    const y = 3.14 + Math.sin(a) * 1.08;
+    addBox(`zabulistan-palace-facade-arch-stone-${i}`, x, y, 0.04, 0.34, 0.25, 0.13, i % 4 === 1 ? mats.facadeLight : mats.facadeStone, Math.PI / 2 - a);
   }
-  for (const [i, y] of [4.88, 5.68, 6.52].entries()) {
-    addBox(`zabulistan-palace-facade-weathered-course-${i}`, 0, y, -0.04, 6.2 - i * 0.34, 0.12, 0.24, i === 1 ? mats.facadeLight : mats.sandstone);
+  for (const [i, y] of [4.22, 4.9, 5.56].entries()) {
+    addBox(`zabulistan-palace-facade-weathered-course-${i}`, 0, y, 0.06, 4.9 - i * 0.28, 0.09, 0.16, i === 1 ? mats.facadeLight : mats.sandstone);
   }
-  for (const [i, x] of [-3.0, -2.08, -1.16, 1.16, 2.08, 3.0].entries()) {
-    addBox(`zabulistan-palace-facade-parapet-chip-${i}`, x, 7.03 + (i % 2) * 0.05, -0.02, 0.54, 0.42, 0.28, i % 2 ? mats.facadeStone : mats.sandstone);
+  for (const [i, x] of [-2.38, -1.5, -0.62, 0.62, 1.5, 2.38].entries()) {
+    addBox(`zabulistan-palace-facade-parapet-chip-${i}`, x, 5.98 + (i % 2) * 0.04, -0.02, 0.42, 0.32, 0.22, i % 2 ? mats.facadeStone : mats.sandstone);
   }
   for (const lane of [-1, 1]) {
-    addBox(`zabulistan-palace-facade-standard-pole-${lane < 0 ? 'left' : 'right'}`, lane * 2.62, 3.75, -0.54, 0.07, 2.35, 0.06, mats.gateWood);
-    addBox(`zabulistan-palace-facade-standard-cloth-${lane < 0 ? 'left' : 'right'}`, lane * 2.92, 3.32, -0.58, 0.62, 1.46, 0.045, lane < 0 ? MATS().clothRed : MATS().clothGold, lane * 0.045);
+    addBox(`zabulistan-palace-facade-standard-pole-${lane < 0 ? 'left' : 'right'}`, lane * 2.1, 3.12, -0.48, 0.055, 1.78, 0.045, mats.gateWood);
+    addBox(`zabulistan-palace-facade-standard-cloth-${lane < 0 ? 'left' : 'right'}`, lane * 2.34, 2.8, -0.52, 0.46, 1.04, 0.036, lane < 0 ? MATS().clothRed : MATS().clothGold, lane * 0.04);
   }
   group.add(fallback);
   return false;
@@ -1469,9 +1453,9 @@ function addGateRoadTransition(map, group, center, fwd, side, yaw, rng) {
   const colors = [];
   const idx = [];
   const c = new THREE.Color();
-  const edge = new THREE.Color(0x5f4930);
-  const mid = new THREE.Color(0x8e6c43);
-  const sun = new THREE.Color(0xb58c58);
+  const edge = new THREE.Color(0x5c4b37);
+  const mid = new THREE.Color(0x7b6245);
+  const sun = new THREE.Color(0x9b7b54);
   for (let r = 0; r < rows.length; r++) {
     const t = r / Math.max(1, rows.length - 1);
     const half = 4.05 + t * 1.75 + Math.sin(r * 1.43) * 0.2;
@@ -1504,7 +1488,7 @@ function addGateRoadTransition(map, group, center, fwd, side, yaw, rng) {
     roughness: 1,
     metalness: 0,
     transparent: true,
-    opacity: 0.78,
+    opacity: 0.62,
     depthWrite: false,
     polygonOffset: true,
     polygonOffsetFactor: -3,
@@ -1682,9 +1666,9 @@ function addPalaceSideTerrainClusters(map, group, rng) {
 
 function addPalaceContactTerrain(map, group, center, fwd, side, yaw, rng) {
   const contact = placeAuthoredGroundProp(map, group, 'zv_palace_contact_terrain_set', center.x, center.z, yaw, {
-    targetW: 19.8,
-    yOffset: 0.18,
-    tint: null,
+    targetW: 18.4,
+    yOffset: 0.11,
+    tint: 0x76654d,
     sceneName: 'zabulistan-palace-contact-terrain',
   });
   if (contact) {
@@ -1695,9 +1679,12 @@ function addPalaceContactTerrain(map, group, center, fwd, side, yaw, rng) {
       node.renderOrder = 8;
       const materials = Array.isArray(node.material) ? node.material : [node.material];
       materials.filter(Boolean).forEach((mat) => {
+        if (mat.color?.isColor) mat.color.lerp(new THREE.Color(0x806d50), 0.28);
+        mat.transparent = true;
+        mat.opacity = Math.min(Number.isFinite(mat.opacity) ? mat.opacity : 1, 0.9);
         mat.polygonOffset = true;
-        mat.polygonOffsetFactor = -4.5;
-        mat.polygonOffsetUnits = -4.5;
+        mat.polygonOffsetFactor = -3.2;
+        mat.polygonOffsetUnits = -3.2;
       });
     });
     return;
@@ -1713,9 +1700,9 @@ function addPalaceContactTerrain(map, group, center, fwd, side, yaw, rng) {
   const colors = [];
   const idx = [];
   const c = new THREE.Color();
-  const outer = new THREE.Color(0x76664c);
-  const mid = new THREE.Color(0x9a7a51);
-  const light = new THREE.Color(0xb18e5f);
+  const outer = new THREE.Color(0x695d48);
+  const mid = new THREE.Color(0x88714f);
+  const light = new THREE.Color(0xa2845a);
   const toWorld = (lx, lz) => center.clone().addScaledVector(side, lx).addScaledVector(fwd, lz);
 
   for (let z = 0; z < rows.length; z++) {
@@ -1751,7 +1738,7 @@ function addPalaceContactTerrain(map, group, center, fwd, side, yaw, rng) {
     roughness: 1,
     metalness: 0,
     transparent: true,
-    opacity: 0.86,
+    opacity: 0.7,
     depthWrite: false,
     polygonOffset: true,
     polygonOffsetFactor: -3.6,
@@ -1783,9 +1770,9 @@ function addPalaceThresholdContactMask(map, group, center, fwd, side, rng) {
   const verts = [];
   const colors = [];
   const idx = [];
-  const warm = new THREE.Color(0xb58f5e);
-  const packed = new THREE.Color(0x96724a);
-  const edge = new THREE.Color(0x735b40);
+  const warm = new THREE.Color(0xa48158);
+  const packed = new THREE.Color(0x806648);
+  const edge = new THREE.Color(0x65513b);
   const c = new THREE.Color();
   const toWorld = (lx, lz) => center.clone().addScaledVector(side, lx).addScaledVector(fwd, lz);
 
@@ -1796,7 +1783,7 @@ function addPalaceThresholdContactMask(map, group, center, fwd, side, rng) {
       const p = toWorld(lateral, forward);
       const edgeT = Math.min(1, Math.abs(lateral) / 11.6);
       const depthT = z / Math.max(1, rows.length - 1);
-      verts.push(p.x, map.heightAt(p.x, p.z) + 0.38 + depthT * 0.018, p.z);
+      verts.push(p.x, map.heightAt(p.x, p.z) + 0.29 + depthT * 0.014, p.z);
       c.copy(warm).lerp(packed, depthT * 0.45).lerp(edge, edgeT * 0.28);
       c.offsetHSL(0, -0.035, (rng() - 0.5) * 0.03);
       colors.push(c.r, c.g, c.b);
@@ -1822,7 +1809,7 @@ function addPalaceThresholdContactMask(map, group, center, fwd, side, rng) {
     roughness: 1,
     metalness: 0,
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.58,
     depthWrite: false,
     polygonOffset: true,
     polygonOffsetFactor: -5,
@@ -1843,7 +1830,7 @@ function addPalaceThresholdContactMask(map, group, center, fwd, side, rng) {
     const lane = i % 2 ? -1 : 1;
     const p = toWorld(lane * (2.4 + rng() * 8.2), -7.25 + rng() * 1.95);
     const s = 0.14 + rng() * 0.22;
-    chips.push(matrix(p.x, map.heightAt(p.x, p.z) + 0.42, p.z, rng() * TAU, s * (1.2 + rng()), s * 0.2, s * (0.72 + rng() * 0.65), rng() * 0.18, rng() * 0.2));
+    chips.push(matrix(p.x, map.heightAt(p.x, p.z) + 0.32, p.z, rng() * TAU, s * (1.2 + rng()), s * 0.18, s * (0.72 + rng() * 0.65), rng() * 0.18, rng() * 0.2));
   }
   const chipMesh = addInstanced(group, chipGeo, mats.sandstone, chips, { castShadow: false, receiveShadow: true });
   if (chipMesh) chipMesh.name = 'zabulistan-palace-contact-threshold-stones';
@@ -1890,27 +1877,27 @@ function buildForecourt(map, group, rng) {
   const causewayCenter = exit.clone().addScaledVector(fwd, 7.4);
   placeAuthoredGroundProp(map, group, 'zv_forecourt_causeway', causewayCenter.x, causewayCenter.z, yaw, {
     targetW: 10.8,
-    yOffset: 0.045,
-    tint: 0x66543d,
+    yOffset: 0.032,
+    tint: 0x6f614b,
     sceneName: 'zabulistan-forecourt-causeway',
   });
   placeAuthoredGroundProp(map, group, 'zv_forecourt_retaining_edges', causewayCenter.x, causewayCenter.z, yaw, {
     targetW: 11.2,
-    yOffset: 0.055,
-    tint: 0x675844,
+    yOffset: 0.038,
+    tint: 0x6c604c,
     sceneName: 'zabulistan-forecourt-retaining-edges',
   });
   placeAuthoredGroundProp(map, group, 'zv_forecourt_approach_edges', center.x, center.z, yaw, {
     targetW: 12.8,
-    yOffset: 0.072,
-    tint: 0x66583f,
+    yOffset: 0.048,
+    tint: 0x6c6048,
     sceneName: 'zabulistan-forecourt-approach-edges',
   });
   const lowerApproach = center.clone().addScaledVector(fwd, 7.3);
   placeAuthoredGroundProp(map, group, 'zv_forecourt_approach_edges', lowerApproach.x, lowerApproach.z, yaw, {
     targetW: 11.4,
-    yOffset: 0.068,
-    tint: 0x6a5a42,
+    yOffset: 0.046,
+    tint: 0x6e614a,
     sceneName: 'zabulistan-forecourt-lower-approach-edges',
   });
   for (const lane of [-1, 1]) {
@@ -1919,15 +1906,16 @@ function buildForecourt(map, group, rng) {
       .addScaledVector(fwd, lane > 0 ? 0.4 : -0.2);
     placeAuthoredGroundProp(map, group, 'zv_road_scree_bank', shoulder.x, shoulder.z, yaw + lane * 0.18, {
       targetW: 4.7,
-      yOffset: 0.062,
-      tint: 0x6b5d48,
+      yOffset: 0.044,
+      tint: 0x6d624e,
       sceneName: `zabulistan-forecourt-lower-scree-${lane < 0 ? 'left' : 'right'}`,
     });
   }
 
   const transitionPlaced = placeAuthoredGroundProp(map, group, 'zv_gate_threshold_transition', center.x, center.z, yaw, {
-    targetW: 8.85,
-    yOffset: 0.068,
+    targetW: 8.45,
+    yOffset: 0.04,
+    tint: 0x74634b,
     sceneName: 'zabulistan-gate-threshold-transition',
   });
   addPalaceContactTerrain(map, group, center, fwd, side, yaw, rng);
