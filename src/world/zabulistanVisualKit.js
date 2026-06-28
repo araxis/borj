@@ -642,7 +642,7 @@ function addRoadsideCliffShoulders(map, group, rng) {
       }
     }
   }
-  const authoredShoulders = instanceProp('zv_cliff_shoulder_set', shoulderSets, { unit: 1, tint: 0x4f4f49, receiveShadow: true });
+  const authoredShoulders = instanceProp('zv_cliff_shoulder_set', shoulderSets, { unit: 1, tint: null, receiveShadow: true });
   if (authoredShoulders) {
     group.add(authoredShoulders);
     return;
@@ -811,7 +811,7 @@ function addCliffTerraces(map, group, rng) {
     (i % 3 === 0 ? shadow : cliff).push(m);
   }
 
-  const authoredRidge = instanceProp('zv_outer_ridge_wall_set', ridgeWalls, { unit: 1, tint: 0x4b4b45, receiveShadow: true });
+  const authoredRidge = instanceProp('zv_outer_ridge_wall_set', ridgeWalls, { unit: 1, tint: null, receiveShadow: true });
   if (authoredRidge) {
     group.add(authoredRidge);
     return;
@@ -1127,7 +1127,7 @@ function addGateApproachDepth(map, group, rng) {
     if (placeAuthoredGroundProp(map, group, 'zv_gate_cliff_siege_set', p.x, p.z, yaw + spec.yawAdjust, {
       targetW: spec.targetW,
       yOffset: -0.035,
-      tint: 0x4f4638,
+      tint: null,
       sceneName: `zabulistan-gate-cliff-siege-${spec.key}`,
     })) authored++;
   }
@@ -1296,7 +1296,7 @@ function scatterWeatheredRocks(map, group, rng) {
     if (big && glbPlaced < 4 && placeAuthoredGroundProp(map, group, 'zv_cliff_shoulder_set', x, z, rng() * TAU, {
       targetW: 3.2 + rng() * 1.5,
       yOffset: -0.1,
-      tint: 0x4f4f49,
+      tint: null,
     })) {
       glbPlaced++;
       continue;
