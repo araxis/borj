@@ -343,6 +343,22 @@ function addPalaceFacadeDressing(map, group, fwd, side, yaw) {
   const exit = map.exitPos;
   const base = exit.clone().addScaledVector(fwd, 11.5);
 
+  const authored = placeAuthoredGroundProp(map, group, 'zv_palace_facade_dressing', base.x, base.z, yaw, {
+    targetW: 6.9,
+    yOffset: 0.08,
+    sceneName: 'zabulistan-palace-facade-dressing',
+  });
+  if (authored) {
+    authored.userData.visualQaIgnore = true;
+    authored.traverse((o) => {
+      if (o.isMesh) {
+        o.castShadow = true;
+        o.receiveShadow = true;
+      }
+    });
+    return true;
+  }
+
   const mats = kitMats();
   const fallback = new THREE.Group();
   fallback.name = 'zabulistan-palace-facade-fallback';
