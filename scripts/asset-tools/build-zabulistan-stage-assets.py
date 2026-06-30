@@ -32,9 +32,14 @@ MATS = {
     "stone": make_mat("warm_dark_stone", (0.24, 0.21, 0.16, 1), 0.96),
     "stone_light": make_mat("weathered_sandstone", (0.36, 0.30, 0.21, 1), 0.93),
     "stone_shadow": make_mat("cliff_shadow_stone", (0.14, 0.14, 0.13, 1), 0.98),
+    "door_shadow": make_mat("deep_gate_shadow", (0.075, 0.055, 0.038, 1), 1.0),
+    "facade_warm": make_mat("sun_worn_facade_stone", (0.44, 0.36, 0.24, 1), 0.96),
+    "facade_light": make_mat("chipped_facade_highlight", (0.56, 0.46, 0.30, 1), 0.92),
     "dust": make_mat("packed_dust", (0.28, 0.22, 0.14, 1), 1.0),
     "dust_dark": make_mat("old_earth_shadow", (0.15, 0.13, 0.10, 1), 1.0),
     "base_earth": make_mat("settled_base_earth", (0.34, 0.27, 0.18, 1), 1.0),
+    "contact_earth": make_mat("forecourt_contact_earth", (0.50, 0.40, 0.27, 1), 1.0),
+    "contact_sun": make_mat("sun_warmed_contact_sand", (0.62, 0.50, 0.32, 1), 1.0),
     "stage_earth": make_mat("trampled_stage_earth", (0.27, 0.21, 0.14, 1), 1.0),
     "road_core": make_mat("compacted_gate_road", (0.30, 0.24, 0.16, 1), 1.0),
     "curb": make_mat("weathered_gate_curb", (0.44, 0.38, 0.28, 1), 0.96),
@@ -45,6 +50,7 @@ MATS = {
     "wood_dark": make_mat("charred_dark_wood", (0.12, 0.075, 0.045, 1), 0.92),
     "bronze": make_mat("aged_bronze", (0.48, 0.31, 0.14, 1), 0.58, 0.32),
     "gold": make_mat("dulled_campaign_gold", (0.68, 0.48, 0.18, 1), 0.5, 0.38),
+    "turquoise": make_mat("aged_turquoise_glaze", (0.08, 0.54, 0.52, 1), 0.78, 0.04),
     "leather": make_mat("dark_saddle_leather", (0.16, 0.085, 0.055, 1), 0.86),
     "cloth_red": make_mat("worn_red_wool", (0.42, 0.08, 0.10, 1), 0.96),
     "cloth_gold": make_mat("worn_ochre_wool", (0.58, 0.38, 0.10, 1), 0.96),
@@ -406,21 +412,6 @@ def road_apron_breakup():
 
 def forecourt_causeway():
     clear_scene()
-    outer = [
-        (-5.15, -6.8), (-3.75, -7.38), (-1.38, -7.08), (1.52, -7.18),
-        (3.82, -7.02), (5.12, -6.36), (4.55, 6.65), (2.9, 7.22),
-        (0.72, 7.02), (-1.7, 7.28), (-3.65, 6.86), (-4.8, 5.95),
-    ]
-    irregular_plate("forecourt_causeway_dust_wash", outer, 0.022, MATS["dust_wash"], 0, 0.008)
-    packed = [(x * 0.82 + (0.05 if i % 2 else -0.04), y * 0.86) for i, (x, y) in enumerate(outer)]
-    irregular_plate("forecourt_causeway_packed_earth", packed, 0.045, MATS["dust_soft"], 0.024, 0.01)
-
-    spine = [
-        (-3.45, -6.05), (-1.38, -6.28), (1.54, -6.14), (3.48, -5.72),
-        (3.12, 5.82), (1.02, 6.28), (-1.55, 6.18), (-3.22, 5.66),
-    ]
-    irregular_plate("forecourt_causeway_sunken_spine", spine, 0.07, MATS["dust_dark"], 0.048, 0.018)
-
     row_y = [-5.55, -4.15, -2.72, -1.32, 0.08, 1.5, 2.92, 4.36, 5.64]
     for row, y in enumerate(row_y):
         width = 5.65 - abs(row - 4) * 0.22
@@ -578,14 +569,176 @@ def palace_base_transition():
         )
 
 
+def gate_threshold_transition():
+    clear_scene()
+    for i, y in enumerate([-3.1, -2.58, -1.96]):
+        cube(
+            f"gate_threshold_worn_stair_nose_{i}",
+            (0.08 if i % 2 else -0.1, y, 0.105 + i * 0.018),
+            (5.7 - i * 0.52, 0.16, 0.075),
+            MATS["curb" if i != 1 else "stone_light"],
+            (0, 0, -0.018 + i * 0.016),
+            0.012,
+        )
+
+    slab_rows = [
+        (-2.36, -1.54, 0.92, 0.36, -0.08),
+        (-1.18, -1.46, 1.0, 0.34, 0.04),
+        (0.08, -1.42, 1.08, 0.36, -0.03),
+        (1.34, -1.28, 0.96, 0.34, 0.08),
+        (-1.72, -0.62, 1.02, 0.32, 0.08),
+        (-0.48, -0.5, 0.92, 0.32, -0.02),
+        (0.72, -0.4, 1.0, 0.32, 0.04),
+    ]
+    for i, (x, y, w, d, r) in enumerate(slab_rows):
+        cube(
+            f"gate_threshold_settled_slab_{i}",
+            (x, y, 0.13 + (i % 3) * 0.012),
+            (w, d, 0.07),
+            MATS["curb" if i % 3 else "stone_light"],
+            (0, 0, r),
+            0.012,
+        )
+
+    for side in [-1, 1]:
+        for i, y in enumerate([-2.98, -2.24, -1.34, -0.52, 0.08]):
+            cube(
+                f"gate_threshold_side_curb_{'l' if side < 0 else 'r'}_{i}",
+                (side * (3.46 + (i % 2) * 0.22), y, 0.15 + (i % 2) * 0.016),
+                (0.52 + (i % 3) * 0.08, 0.52 + (i % 2) * 0.14, 0.12),
+                MATS["stone_light" if i % 2 else "stone"],
+                (0, 0, side * (0.05 + i * 0.018)),
+                0.012,
+            )
+
+    for i, x in enumerate([-2.65, -1.68, -0.58, 0.62, 1.74, 2.72]):
+        cube(
+            f"gate_threshold_cross_wear_{i}",
+            (x, -2.54 + (i % 2) * 0.16, 0.17),
+            (0.48 + (i % 3) * 0.08, 0.055, 0.028),
+            MATS["dust"],
+            (0, 0, -0.12 + i * 0.045),
+            0.004,
+        )
+
+    for i in range(38):
+        side = -1 if i % 2 else 1
+        band = i // 2
+        x = side * (2.72 + (band % 6) * 0.34 + (0.06 if i % 3 else -0.05))
+        y = -3.22 + (band % 7) * 0.48 + ((i % 4) - 1.5) * 0.045
+        mat = MATS["stone_light"] if i % 4 else MATS["stone_shadow"] if i % 7 == 0 else MATS["stone"]
+        rock(
+            f"gate_threshold_spill_stone_{i}",
+            (x, y, 0.14 + (i % 3) * 0.014),
+            (0.16 + (i % 4) * 0.045, 0.08 + (i % 3) * 0.026, 0.09 + (i % 5) * 0.022),
+            mat,
+            1700 + i,
+            (0.1, 0.02 * (i % 3), i * 0.25),
+        )
+
+
+def palace_contact_terrain_set():
+    clear_scene()
+    rng = random.Random(7331)
+
+    def patch(name, cx, cy, w, d, mat, seed, rot=0.0, z=0.0, height=0.026):
+        prng = random.Random(seed)
+        points = []
+        count = 7 + seed % 3
+        for i in range(count):
+            a = (i / count) * math.tau + prng.uniform(-0.12, 0.12)
+            radius = 0.78 + prng.random() * 0.26
+            px = math.cos(a) * w * 0.5 * radius
+            py = math.sin(a) * d * 0.5 * radius
+            rx = px * math.cos(rot) - py * math.sin(rot)
+            ry = px * math.sin(rot) + py * math.cos(rot)
+            points.append((cx + rx, cy + ry))
+        irregular_plate(name, points, height, mat, z, 0.005)
+
+    patch_rows = [
+        (-6.05, [-6.2, -3.35, -0.58, 2.25, 5.55], 1.5, 0.64),
+        (-5.02, [-7.15, -4.62, -1.78, 1.05, 3.9, 6.65], 1.44, 0.68),
+        (-4.18, [-5.8, -2.88, -0.12, 2.72, 5.85], 1.58, 0.6),
+        (-3.6, [-6.7, -4.1, -1.35, 1.42, 4.25, 6.9], 1.52, 0.62),
+        (-2.55, [-7.4, -5.0, -2.5, 0.18, 2.75, 5.2, 7.6], 1.38, 0.72),
+        (-1.38, [-6.2, -3.9, -1.35, 1.15, 3.85, 6.2], 1.62, 0.78),
+        (-0.18, [-7.0, -4.62, -2.12, 0.55, 3.1, 5.75, 7.88], 1.42, 0.7),
+        (1.1, [-6.5, -3.55, -0.6, 2.45, 5.55], 1.88, 0.82),
+        (2.35, [-7.6, -4.8, -1.88, 1.12, 4.05, 7.0], 1.58, 0.68),
+        (3.58, [-6.25, -3.1, 0.0, 3.25, 6.35], 1.36, 0.58),
+    ]
+    for row, (cy, xs, base_w, base_d) in enumerate(patch_rows):
+        for col, cx in enumerate(xs):
+            if (row + col) % 6 == 0:
+                continue
+            mat = MATS["contact_sun"] if (row + col) % 3 == 1 else MATS["contact_earth"]
+            patch(
+                f"palace_contact_broken_earth_{row}_{col}",
+                cx + rng.uniform(-0.16, 0.16),
+                cy + rng.uniform(-0.12, 0.12),
+                base_w * rng.uniform(0.82, 1.16),
+                base_d * rng.uniform(0.78, 1.18),
+                mat,
+                2800 + row * 23 + col,
+                rng.uniform(-0.22, 0.22),
+                0.012 + row * 0.002,
+                0.018 + (row % 3) * 0.004,
+            )
+
+    for i, y in enumerate([-3.82, -2.74, -1.66, -0.52, 0.66, 1.86, 3.02]):
+        for x in [-3.6, -1.08, 1.32, 3.82]:
+            if (i + int(abs(x) * 10)) % 4 == 0:
+                continue
+            cube(
+                f"palace_contact_settled_stone_{i}_{x}",
+                (x + rng.uniform(-0.18, 0.18), y + rng.uniform(-0.08, 0.08), 0.09 + (i % 3) * 0.01),
+                (0.66 + (i % 3) * 0.12, 0.18 + (i % 2) * 0.06, 0.055),
+                MATS["curb" if i % 2 else "stone_light"],
+                (0, 0, rng.uniform(-0.18, 0.18)),
+                0.008,
+            )
+
+    for side in [-1, 1]:
+        for i in range(18):
+            band = i // 2
+            x = side * (4.85 + (band % 5) * 0.54 + rng.uniform(-0.08, 0.14))
+            y = -3.8 + (band % 9) * 0.76 + rng.uniform(-0.08, 0.08)
+            mat = MATS["stone_light"] if i % 3 else MATS["stone"]
+            rock(
+                f"palace_contact_edge_scree_{'l' if side < 0 else 'r'}_{i}",
+                (x, y, 0.12 + (i % 3) * 0.016),
+                (0.18 + (i % 4) * 0.045, 0.09 + (i % 3) * 0.025, 0.08 + (i % 5) * 0.02),
+                mat,
+                3100 + i + (0 if side < 0 else 40),
+                (0.08, 0.018 * (i % 3), side * (0.1 + i * 0.09)),
+            )
+
+
 def forecourt_approach_edges():
     clear_scene()
-    center = [(-3.2, -4.55), (3.35, -4.45), (3.1, 4.24), (1.45, 4.65), (-1.7, 4.58), (-3.38, 4.1)]
-    irregular_plate("forecourt_approach_packed_core", center, 0.052, MATS["road_core"], 0.024, 0.01)
-    side_wash_l = [(-5.6, -4.9), (-4.0, -4.62), (-3.74, 4.12), (-5.28, 4.82), (-6.12, 1.12)]
-    side_wash_r = [(-x, y + (0.08 if i % 2 else -0.04)) for i, (x, y) in enumerate(side_wash_l)]
-    irregular_plate("forecourt_approach_left_shelf", side_wash_l, 0.042, MATS["stage_earth"], 0.018, 0.008)
-    irregular_plate("forecourt_approach_right_shelf", side_wash_r, 0.042, MATS["stage_earth"], 0.018, 0.008)
+    for i, y in enumerate([-4.2, -3.2, -2.05, -0.92, 0.22, 1.4, 2.62, 3.72]):
+        for lane, x in enumerate([-1.42, 0.04, 1.48]):
+            if (i + lane) % 4 == 0:
+                continue
+            cube(
+                f"forecourt_approach_inset_chip_{i}_{lane}",
+                (x + (0.05 if i % 2 else -0.04), y + (lane - 1) * 0.045, 0.112 + (lane % 2) * 0.01),
+                (0.42 + ((i + lane) % 3) * 0.1, 0.07, 0.03),
+                MATS["curb" if (i + lane) % 2 else "stone_light"],
+                (0, 0, -0.08 + i * 0.024 + lane * 0.035),
+                0.004,
+            )
+
+    for side in [-1, 1]:
+        for i, y in enumerate([-4.45, -3.28, -2.05, -0.78, 0.48, 1.72, 2.96, 4.08]):
+            cube(
+                f"forecourt_approach_outer_chip_{'l' if side < 0 else 'r'}_{i}",
+                (side * (4.36 + (i % 2) * 0.26), y, 0.12 + (i % 2) * 0.012),
+                (0.42 + (i % 3) * 0.08, 0.12 + (i % 2) * 0.04, 0.035),
+                MATS["stone_light" if i % 2 else "curb"],
+                (0, 0, side * (0.12 + i * 0.018)),
+                0.004,
+            )
 
     for side in [-1, 1]:
         for i, y in enumerate([-4.08, -3.18, -2.22, -1.16, -0.08, 1.08, 2.12, 3.14, 4.0]):
@@ -593,7 +746,7 @@ def forecourt_approach_edges():
                 f"forecourt_approach_curb_{'l' if side < 0 else 'r'}_{i}",
                 (side * (3.72 + (i % 3) * 0.13), y, 0.17 + (i % 2) * 0.018),
                 (0.48 + (i % 4) * 0.055, 0.64 + (i % 2) * 0.18, 0.16),
-                MATS["curb" if i % 3 else "stone_shadow"],
+                MATS["curb" if i % 3 else "stone"],
                 (0, 0, side * (0.05 + (i - 4) * 0.012)),
                 0.012,
             )
@@ -602,7 +755,7 @@ def forecourt_approach_edges():
                 f"forecourt_approach_edge_stone_{'l' if side < 0 else 'r'}_{j}",
                 (side * (4.58 + (j % 2) * 0.34), y, 0.16 + (j % 3) * 0.018),
                 (0.22 + (j % 3) * 0.05, 0.12 + (j % 2) * 0.04, 0.11 + (j % 4) * 0.025),
-                MATS["stone_light" if j % 2 else "stone_shadow"],
+                MATS["stone_light" if j % 2 else "stone"],
                 1240 + j + (0 if side < 0 else 20),
                 (0.09, 0.02 * j, side * (0.18 + j * 0.11)),
             )
@@ -611,8 +764,8 @@ def forecourt_approach_edges():
         cube(
             f"forecourt_approach_cross_wear_{i}",
             (0.08 if i % 2 else -0.12, y, 0.096),
-            (2.65 + (i % 3) * 0.34, 0.09, 0.045),
-            MATS["dust"],
+            (0.72 + (i % 3) * 0.18, 0.045, 0.026),
+            MATS["curb" if i % 2 else "stone_light"],
             (0, 0, -0.08 + i * 0.028),
             0.004,
         )
@@ -620,17 +773,6 @@ def forecourt_approach_edges():
 
 def cavalry_staging_set():
     clear_scene()
-    outer = [
-        (-3.45, -1.42), (-2.2, -1.82), (-0.4, -1.72), (1.65, -1.55),
-        (3.18, -1.05), (3.44, 0.35), (2.72, 1.35), (0.95, 1.68),
-        (-1.42, 1.58), (-3.2, 0.92),
-    ]
-    irregular_plate("cavalry_staging_dust_wash", outer, 0.018, MATS["dust_wash"], 0, 0.006)
-    inner = [(x * 0.86 + (0.05 if i % 2 else -0.04), y * 0.76) for i, (x, y) in enumerate(outer)]
-    irregular_plate("cavalry_staging_packed_earth", inner, 0.044, MATS["stage_earth"], 0.018, 0.008)
-    tread = [(-2.65, -1.08), (-1.3, -1.22), (0.2, -1.08), (1.5, -0.9), (2.45, -0.58), (2.24, 0.32), (1.08, 0.68), (-0.55, 0.76), (-2.1, 0.58), (-2.72, -0.1)]
-    irregular_plate("cavalry_staging_trodden_center", tread, 0.057, MATS["dust"], 0.012, 0.006)
-
     for i, x in enumerate([-2.58, -0.86, 0.86, 2.58]):
         cylinder(f"hitch_post_{i}", (x, -0.42, 0.52), 0.075, 1.04, 8, MATS["wood_dark"], bevel=0.01)
         cone(f"hitch_post_cap_{i}", (x, -0.42, 1.15), 0.12, 0.18, 8, MATS["bronze"], bevel=0.005)
@@ -745,19 +887,6 @@ def cavalry_staging_set():
 
 def gate_cliff_siege_set():
     clear_scene()
-    shadow = [
-        (-5.4, -4.6), (-3.1, -5.1), (-0.8, -4.72), (2.35, -4.3),
-        (4.74, -2.62), (5.12, 0.22), (4.36, 3.52), (2.1, 4.82),
-        (-0.92, 5.06), (-3.82, 4.14), (-5.18, 1.38),
-    ]
-    irregular_plate("gate_depth_shadow_wash", shadow, 0.026, MATS["dust_wash"], 0.0, 0.006)
-    tread = [
-        (-3.82, -3.72), (-2.08, -4.08), (0.52, -3.76), (2.88, -2.86),
-        (3.45, -0.55), (3.02, 2.48), (1.42, 3.55), (-1.18, 3.72),
-        (-3.36, 2.58), (-4.02, -0.1),
-    ]
-    irregular_plate("gate_depth_trampled_shelf", tread, 0.054, MATS["stage_earth"], 0.02, 0.008)
-
     masses = [
         (-3.8, -2.55, 1.1, 1.25, 1.0, 2.55, 1320),
         (-3.9, 0.65, 1.42, 1.42, 1.18, 3.05, 1321),
@@ -916,6 +1045,354 @@ def gate_cliff_siege_set():
         )
 
 
+def palace_foreground_terrace_wall():
+    clear_scene()
+    shadow = [
+        (-10.8, -5.55), (-8.4, -6.22), (-4.7, -6.55), (-0.85, -6.42),
+        (3.15, -6.15), (7.4, -5.5), (10.85, -4.2), (10.45, -0.68),
+        (9.22, 1.46), (6.35, 2.72), (3.02, 3.22), (0.92, 4.48),
+        (-0.92, 4.52), (-3.25, 3.18), (-6.72, 2.5), (-9.54, 1.05),
+        (-10.72, -1.6),
+    ]
+    terrace = [
+        (-9.5, -4.72), (-7.02, -5.36), (-3.6, -5.55), (-0.28, -5.32),
+        (3.65, -5.02), (7.35, -4.28), (9.42, -2.62), (9.15, 0.3),
+        (7.42, 1.62), (4.1, 2.26), (1.55, 2.42), (0.62, 3.44),
+        (-0.68, 3.42), (-1.62, 2.38), (-4.38, 2.18), (-7.62, 1.38),
+        (-9.42, -0.45),
+    ]
+    landing = [
+        (-5.6, -4.28), (-2.2, -4.65), (1.8, -4.5), (5.8, -3.88),
+        (5.46, -2.18), (2.65, -1.58), (-2.62, -1.7), (-5.78, -2.52),
+    ]
+    tread = [
+        (-4.72, -5.82), (-1.55, -6.12), (1.85, -5.92), (4.82, -5.42),
+        (4.48, -4.42), (1.25, -4.72), (-1.72, -4.82), (-4.86, -4.82),
+    ]
+
+    for i, (y, w, h, z) in enumerate([(-5.62, 7.4, 0.12, 0.24), (-4.96, 6.55, 0.12, 0.32), (-4.3, 5.65, 0.11, 0.4)]):
+        cube(
+            f"palace_foreground_step_tread_{i}",
+            (0.08 if i % 2 else -0.08, y, z),
+            (w, 0.32, h),
+            MATS["curb" if i == 1 else "stone_light"],
+            (0.0, 0.0, -0.018 + i * 0.022),
+            0.012,
+        )
+
+    for i in range(13):
+        x = -5.9 + i * 0.98
+        y = -6.05 + abs(i - 6) * 0.088 + (0.05 if i % 2 else -0.035)
+        cube(
+            f"palace_foreground_front_curb_{i}",
+            (x, y, 0.31 + (i % 3) * 0.012),
+            (0.76 + (i % 3) * 0.11, 0.24 + (i % 2) * 0.055, 0.23),
+            MATS["stone" if i % 2 else "stone_light"],
+            (0.018 * (i % 3), 0.0, -0.12 + i * 0.018),
+            0.012,
+        )
+
+    for side in [-1, 1]:
+        for i in range(8):
+            y = -4.42 + i * 0.86
+            x = side * (5.75 + i * 0.22 + (0.11 if i % 2 else -0.04))
+            cube(
+                f"palace_foreground_side_retainer_{'l' if side < 0 else 'r'}_{i}",
+                (x, y, 0.47 + (i % 3) * 0.02),
+                (1.18 + (i % 2) * 0.18, 0.42, 0.48 + (i % 2) * 0.08),
+                MATS["stone_shadow" if i % 4 == 1 else "stone"],
+                (0.02 * (i % 2), 0.0, side * (0.19 + i * 0.028)),
+                0.014,
+            )
+            cube(
+                f"palace_foreground_wall_cap_{'l' if side < 0 else 'r'}_{i}",
+                (x + side * 0.04, y + 0.02, 0.83 + (i % 2) * 0.018),
+                (1.0 + (i % 3) * 0.12, 0.32, 0.18),
+                MATS["curb"],
+                (0.0, 0.0, side * (0.2 + i * 0.028)),
+                0.01,
+            )
+
+    for side in [-1, 1]:
+        for i, y in enumerate([-3.94, -2.62, -1.22, 0.08, 1.24]):
+            x = side * (7.05 + (i % 2) * 0.34)
+            rock(
+                f"palace_foreground_cliff_shoulder_{'l' if side < 0 else 'r'}_{i}",
+                (x, y, 0.54 + (i % 3) * 0.08),
+                (0.72 + (i % 2) * 0.24, 0.54 + (i % 3) * 0.08, 0.62 + (i % 2) * 0.12),
+                MATS["stone_shadow" if i % 2 else "stone_light"],
+                1520 + i + (0 if side < 0 else 20),
+                (0.08 * i, 0.02, side * (0.22 + i * 0.12)),
+            )
+
+    for side in [-1, 1]:
+        for i, y in enumerate([-3.32, -2.1, -0.74, 0.62]):
+            cylinder(
+                f"palace_foreground_low_post_{'l' if side < 0 else 'r'}_{i}",
+                (side * (4.48 + (i % 2) * 0.18), y, 0.82),
+                0.055,
+                1.04 + (i % 2) * 0.16,
+                7,
+                MATS["wood_dark"],
+                rot=(0.06 * side, 0.0, side * 0.08),
+                bevel=0.004,
+            )
+            cone(
+                f"palace_foreground_low_post_tip_{'l' if side < 0 else 'r'}_{i}",
+                (side * (4.48 + (i % 2) * 0.18), y, 1.44 + (i % 2) * 0.08),
+                0.085,
+                0.2,
+                7,
+                MATS["bronze"],
+                rot=(0.06 * side, 0.0, side * 0.08),
+                bevel=0.004,
+            )
+        cylinder(
+            f"palace_foreground_low_lashing_{'l' if side < 0 else 'r'}",
+            (side * 4.52, -1.38, 0.96),
+            0.032,
+            4.22,
+            7,
+            MATS["rope"],
+            rot=(math.pi / 2, 0.0, side * 0.06),
+        )
+
+    for i in range(14):
+        x = -4.5 + (i % 7) * 1.42 + (0.05 if i % 2 else -0.08)
+        y = -4.76 + (i // 7) * 2.05 + ((i % 3) - 1) * 0.09
+        cube(
+            f"palace_foreground_road_wear_{i}",
+            (x, y, 0.215 + (i % 2) * 0.01),
+            (0.34 + (i % 3) * 0.12, 0.045, 0.026),
+            MATS["curb" if i % 3 else "stone_light"],
+            (0.0, 0.0, -0.2 + i * 0.023),
+            0.002,
+        )
+
+    for i in range(34):
+        angle = -0.35 + i * 0.2
+        radius = 4.2 + (i % 6) * 0.34
+        x = math.cos(angle) * radius + ((i % 3) - 1) * 0.14
+        y = -2.35 + math.sin(angle) * 1.9 + (i % 4) * 0.06
+        if abs(x) < 1.15 and y < -1.8:
+            x += 1.32 if i % 2 else -1.32
+        rock(
+            f"palace_foreground_scree_{i}",
+            (x, y, 0.13 + (i % 3) * 0.014),
+            (0.16 + (i % 4) * 0.04, 0.09 + (i % 2) * 0.035, 0.08 + (i % 5) * 0.026),
+            MATS["stone_light" if i % 2 else "stone_shadow"],
+            1580 + i,
+            (0.08, 0.01 * (i % 3), i * 0.24),
+        )
+
+
+def palace_slope_terrace_set():
+    clear_scene()
+    mass_specs = [
+        (-3.2, -2.3, 0.55, 1.45, 1.05, 0.95, "stone_shadow", -0.18),
+        (-1.7, -2.55, 0.72, 1.2, 0.9, 1.1, "stone", 0.06),
+        (0.05, -2.35, 0.82, 1.55, 0.82, 1.22, "stone_shadow", 0.16),
+        (1.72, -2.1, 0.7, 1.22, 0.9, 1.08, "stone", -0.08),
+        (3.02, -1.78, 0.52, 1.32, 0.92, 0.9, "stone_light", 0.24),
+        (-3.65, -0.85, 0.78, 1.18, 0.82, 1.25, "stone", 0.12),
+        (-2.02, -0.58, 0.98, 1.42, 0.72, 1.44, "stone_shadow", -0.22),
+        (0.02, -0.42, 1.08, 1.62, 0.78, 1.52, "stone", 0.08),
+        (1.9, -0.22, 0.92, 1.36, 0.76, 1.26, "stone_light", -0.14),
+        (3.5, 0.08, 0.7, 1.18, 0.8, 1.0, "stone_shadow", 0.2),
+        (-2.85, 1.05, 1.18, 1.3, 0.7, 1.62, "stone_shadow", -0.06),
+        (-1.05, 1.18, 1.32, 1.48, 0.68, 1.76, "stone", 0.18),
+        (0.92, 1.28, 1.28, 1.42, 0.68, 1.66, "stone_light", -0.16),
+        (2.82, 1.48, 1.02, 1.24, 0.72, 1.36, "stone_shadow", 0.1),
+        (-1.8, 2.42, 1.44, 1.2, 0.58, 1.64, "stone", -0.18),
+        (0.18, 2.58, 1.52, 1.32, 0.58, 1.72, "stone_shadow", 0.04),
+        (2.08, 2.74, 1.34, 1.12, 0.58, 1.46, "stone_light", 0.16),
+    ]
+    for i, (x, y, z, sx, sy, sz, mat_key, rz) in enumerate(mass_specs):
+        rock(
+            f"palace_slope_cliff_mass_{i}",
+            (x, y, z),
+            (sx, sy, sz),
+            MATS[mat_key],
+            1820 + i,
+            (0.08 * (i % 3), 0.02 * (i % 2), rz),
+        )
+
+    for i, y in enumerate([-2.72, -1.5, -0.32, 0.82, 1.92, 2.82]):
+        width = 4.6 - min(i, 3) * 0.42
+        cube(
+            f"palace_slope_cut_ledge_{i}",
+            ((0.08 if i % 2 else -0.08), y, 0.36 + i * 0.19),
+            (width, 0.2 + (i % 2) * 0.05, 0.11),
+            MATS["curb" if i % 2 else "stone_light"],
+            (0.0, 0.0, -0.06 + i * 0.024),
+            0.012,
+        )
+
+    for side in [-1, 1]:
+        for i, y in enumerate([-2.18, -1.04, 0.18, 1.34, 2.38]):
+            cube(
+                f"palace_slope_retainer_{'l' if side < 0 else 'r'}_{i}",
+                (side * (2.85 + (i % 2) * 0.18), y, 0.5 + i * 0.17),
+                (0.52 + (i % 3) * 0.08, 0.44 + (i % 2) * 0.08, 0.22),
+                MATS["stone_shadow" if i % 3 == 1 else "stone"],
+                (0.0, 0.0, side * (0.08 + i * 0.03)),
+                0.012,
+            )
+
+    for i in range(42):
+        side = -1 if i % 2 else 1
+        band = i // 2
+        x = side * (0.8 + (band % 6) * 0.54 + (0.05 if i % 3 else -0.08))
+        y = -2.9 + (band % 9) * 0.62 + ((i % 4) - 1.5) * 0.05
+        z = 0.16 + min(6, band % 9) * 0.075 + (i % 3) * 0.014
+        if abs(x) < 1.15 and y < -1.7:
+            x += side * 0.72
+        rock(
+            f"palace_slope_scree_{i}",
+            (x, y, z),
+            (0.15 + (i % 4) * 0.045, 0.09 + (i % 3) * 0.026, 0.08 + (i % 5) * 0.02),
+            MATS["stone_light" if i % 2 else "stone_shadow"],
+            1880 + i,
+            (0.08, 0.01 * (i % 3), i * 0.22),
+        )
+
+
+def palace_facade_dressing():
+    clear_scene()
+    # Local axes: X = palace lateral, Y = outward toward forecourt, Z = height.
+    cube("facade_shadow_recess", (0.0, -0.16, 2.58), (2.25, 0.34, 4.7), MATS["door_shadow"], (0, 0, 0), 0.035)
+    for side in [-1, 1]:
+        label = "left" if side < 0 else "right"
+        cube(
+            f"facade_gate_jamb_{label}",
+            (side * 1.46, 0.02, 2.62),
+            (0.58, 0.72, 4.95),
+            MATS["facade_warm"],
+            (0.0, 0.0, side * -0.015),
+            0.035,
+        )
+        cube(
+            f"facade_outer_buttress_{label}",
+            (side * 3.3, 0.06, 2.45),
+            (0.72, 0.9, 4.35),
+            MATS["stone_light" if side < 0 else "facade_warm"],
+            (0.0, 0.0, side * -0.045),
+            0.035,
+        )
+        cube(
+            f"facade_battered_foot_{label}",
+            (side * 2.35, 0.02, 0.38),
+            (2.05, 1.02, 0.76),
+            MATS["stone"],
+            (0.0, 0.0, side * -0.035),
+            0.028,
+        )
+        cube(
+            f"facade_hanging_standard_{label}",
+            (side * 2.74, -0.42, 4.15),
+            (0.08, 0.08, 2.35),
+            MATS["wood_dark"],
+            (0.0, 0.0, side * 0.02),
+            0.006,
+        )
+        cube(
+            f"facade_banner_cloth_{label}",
+            (side * 2.96, -0.48, 3.48),
+            (0.74, 0.06, 1.7),
+            MATS["cloth_red" if side < 0 else "cloth_gold"],
+            (0.0, 0.0, side * 0.055),
+            0.01,
+        )
+
+    # Smaller readable gate: panels and metalwork hide the old oversized black void.
+    for side in [-1, 1]:
+        cube(
+            f"facade_dark_gate_leaf_{'l' if side < 0 else 'r'}",
+            (side * 0.43, -0.38, 1.78),
+            (0.78, 0.16, 2.72),
+            MATS["wood_dark"],
+            (0.0, 0.0, side * 0.012),
+            0.018,
+        )
+        for z in [0.72, 1.62, 2.52]:
+            cube(
+                f"facade_gate_bronze_band_{'l' if side < 0 else 'r'}_{int(z * 10)}",
+                (side * 0.43, -0.48, z),
+                (0.7, 0.08, 0.08),
+                MATS["bronze"],
+                (0.0, 0.0, 0.0),
+                0.006,
+            )
+    cube("facade_gate_center_seam", (0.0, -0.51, 1.78), (0.08, 0.08, 2.72), MATS["bronze"], (0, 0, 0), 0.004)
+    cube("facade_turquoise_arch_sill", (0.0, -0.48, 3.36), (1.78, 0.08, 0.16), MATS["turquoise"], (0, 0, 0), 0.01)
+
+    # Voussoirs along a shallow arch, staggered so the facade reads hand-set rather than as a slab.
+    arch_center_z = 3.55
+    radius = 1.38
+    for i in range(11):
+        a = math.pi * (i / 10.0)
+        x = math.cos(a) * radius
+        z = arch_center_z + math.sin(a) * radius
+        mat = MATS["facade_light" if i % 3 == 1 else "facade_warm"]
+        cube(
+            f"facade_arch_voussoir_{i}",
+            (x, -0.44, z),
+            (0.46, 0.34, 0.34),
+            mat,
+            (0.0, -(a - math.pi / 2.0), 0.0),
+            0.018,
+        )
+
+    # Course lines and parapet chips break up the cylindrical palace body in close framing.
+    for i, z in enumerate([4.9, 5.72, 6.62]):
+        cube(
+            f"facade_weathered_course_{i}",
+            (0.0, -0.08, z),
+            (6.65 - i * 0.42, 0.45, 0.16),
+            MATS["facade_light" if i == 1 else "stone_light"],
+            (0.0, 0.0, (i - 1) * 0.012),
+            0.012,
+        )
+    for i, x in enumerate([-3.1, -2.15, -1.2, 1.2, 2.15, 3.1]):
+        cube(
+            f"facade_parapet_chip_{i}",
+            (x, -0.1, 7.16 + (i % 2) * 0.06),
+            (0.62, 0.5, 0.46),
+            MATS["stone" if i % 2 else "facade_warm"],
+            (0.0, 0.0, (i - 2) * 0.014),
+            0.018,
+        )
+
+    for i, x in enumerate([-2.35, -1.25, 1.25, 2.35]):
+        cube(
+            f"facade_small_shadow_window_{i}",
+            (x, -0.5, 5.66 + (i % 2) * 0.42),
+            (0.34, 0.08, 0.82),
+            MATS["door_shadow"],
+            (0.0, 0.0, 0.0),
+            0.01,
+        )
+        cube(
+            f"facade_window_lintel_{i}",
+            (x, -0.52, 6.12 + (i % 2) * 0.42),
+            (0.58, 0.08, 0.08),
+            MATS["bronze"],
+            (0.0, 0.0, 0.0),
+            0.004,
+        )
+
+    # Loose stones at the gate foot help the facade land on the existing threshold dressing.
+    for i, x in enumerate([-3.55, -2.8, -1.95, 1.95, 2.8, 3.55]):
+        rock(
+            f"facade_foot_stone_{i}",
+            (x, -0.35 + (i % 3) * 0.16, 0.24 + (i % 2) * 0.06),
+            (0.22 + (i % 3) * 0.05, 0.16, 0.12 + (i % 2) * 0.04),
+            MATS["stone_light" if i % 2 else "stone"],
+            2240 + i,
+            (0.05, 0.02 * i, i * 0.4),
+        )
+
+
 def export_glb(filename, builder):
     builder()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -939,11 +1416,16 @@ EXPORTS = [
     ("road-scree-bank.glb", road_scree_bank),
     ("road-apron-breakup.glb", road_apron_breakup),
     ("palace-base-transition.glb", palace_base_transition),
+    ("gate-threshold-transition.glb", gate_threshold_transition),
+    ("palace-contact-terrain-set.glb", palace_contact_terrain_set),
     ("forecourt-causeway.glb", forecourt_causeway),
     ("forecourt-retaining-edges.glb", forecourt_retaining_edges),
     ("forecourt-approach-edges.glb", forecourt_approach_edges),
     ("cavalry-staging-set.glb", cavalry_staging_set),
     ("gate-cliff-siege-set.glb", gate_cliff_siege_set),
+    ("palace-foreground-terrace-wall.glb", palace_foreground_terrace_wall),
+    ("palace-slope-terrace-set.glb", palace_slope_terrace_set),
+    ("palace-facade-dressing.glb", palace_facade_dressing),
 ]
 
 

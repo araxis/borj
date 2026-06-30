@@ -141,6 +141,8 @@ export const ZABULISTAN_PROP_NAMES = [
   'zv_road_scree_bank',
   'zv_road_apron_breakup',
   'zv_palace_base_transition',
+  'zv_gate_threshold_transition',
+  'zv_palace_contact_terrain_set',
   'zv_dry_scrub_cluster',
   'zv_reed_pocket',
   'zv_packed_road_edge',
@@ -151,6 +153,9 @@ export const ZABULISTAN_PROP_NAMES = [
   'zv_forecourt_scatter_set',
   'zv_camp_ground_props',
   'zv_gate_cliff_siege_set',
+  'zv_palace_foreground_terrace_wall',
+  'zv_palace_slope_terrace_set',
+  'zv_palace_facade_dressing',
 ];
 const ZABULISTAN_PROP_FILES = {
   zv_standard_frame: ZABULISTAN_PROP_DIR + 'standard-frame.glb',
@@ -170,6 +175,8 @@ const ZABULISTAN_PROP_FILES = {
   zv_road_scree_bank: ZABULISTAN_PROP_DIR + 'road-scree-bank.glb',
   zv_road_apron_breakup: ZABULISTAN_PROP_DIR + 'road-apron-breakup.glb',
   zv_palace_base_transition: ZABULISTAN_PROP_DIR + 'palace-base-transition.glb',
+  zv_gate_threshold_transition: ZABULISTAN_PROP_DIR + 'gate-threshold-transition.glb',
+  zv_palace_contact_terrain_set: ZABULISTAN_PROP_DIR + 'palace-contact-terrain-set.glb',
   zv_dry_scrub_cluster: ZABULISTAN_PROP_DIR + 'dry-scrub-cluster.glb',
   zv_reed_pocket: ZABULISTAN_PROP_DIR + 'reed-pocket.glb',
   zv_packed_road_edge: ZABULISTAN_PROP_DIR + 'packed-road-edge.glb',
@@ -180,6 +187,9 @@ const ZABULISTAN_PROP_FILES = {
   zv_forecourt_scatter_set: ZABULISTAN_PROP_DIR + 'forecourt-scatter-set.glb',
   zv_camp_ground_props: ZABULISTAN_PROP_DIR + 'camp-ground-props.glb',
   zv_gate_cliff_siege_set: ZABULISTAN_PROP_DIR + 'gate-cliff-siege-set.glb',
+  zv_palace_foreground_terrace_wall: ZABULISTAN_PROP_DIR + 'palace-foreground-terrace-wall.glb',
+  zv_palace_slope_terrace_set: ZABULISTAN_PROP_DIR + 'palace-slope-terrace-set.glb',
+  zv_palace_facade_dressing: ZABULISTAN_PROP_DIR + 'palace-facade-dressing.glb',
 };
 
 // Custom licensed forest trees for Mazandaran's dense Hyrcanian forest. Raw source

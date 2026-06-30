@@ -393,12 +393,18 @@ export class Soldier {
           1.8, 0.6,
         );
       }
-      if (this.model.anim) { this.model.anim.play('walk', { timeScale: Math.max(0.6, moveMult) }); if (this.model.mounted && Math.random() < dt * 1.2) this.game.audio.gallop(); }
+      if (this.model.anim) {
+        const useGallop = this.model.mounted && this.model.anim.actions?.run?.length && (moveMult > 1.35 || this.sortieT > 0 || (this.squad.gateLineT || 0) > 0.05);
+        this.model.anim.play(useGallop ? 'run' : 'walk', {
+          fade: useGallop ? 0.28 : 0.22,
+          timeScale: Math.max(0.55, useGallop ? Math.min(1.35, moveMult * 0.72) : moveMult),
+        });
+        if (this.model.mounted && Math.random() < dt * 1.2) this.game.audio.gallop();
+      }
       else if (this.model.animType === 'quad' && rig.mount) { animQuad(rig.mount, time + this.id, moveMult); if (Math.random() < dt * 1.2) this.game.audio.gallop(); }
       else if (rig.legL) animWalk(rig, time + this.id, moveMult);
     } else {
-      // a mounted GLB has only a gallop clip — ease it to a slow paw-in-place so it doesn't sprint while standing
-      if (this.model.anim) this.model.anim.play('idle', this.model.mounted ? { timeScale: 0.18 } : undefined);
+      if (this.model.anim) this.model.anim.play('idle', this.model.mounted ? { fade: 0.34, timeScale: 0.22 } : undefined);
       else if (this.model.animType === 'quad' && rig.mount) animQuad(rig.mount, time + this.id, 0.1);
       else if (rig.legL) animIdle(rig, time + this.id);
     }

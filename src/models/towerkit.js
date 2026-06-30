@@ -12,9 +12,9 @@ import { fireMaterial } from '../fx/fire.js';
 
 // ---------- low-level parts (operate on a MeshBuilder) ----------
 
-function platform(b, r, h, mat = 'stoneDark', y = 0) {
+function platform(b, r, h, mat = 'stoneDark', y = 0, topMat = 'stone') {
   b.box(r * 2.3, h, r * 2.3, mat, 0, y + h / 2, 0);
-  b.box(r * 2.0, h, r * 2.0, 'stone', 0, y + h + 0.06, 0); // top slab lip
+  b.box(r * 2.0, h, r * 2.0, topMat, 0, y + h + 0.06, 0); // top slab lip
   return y + h + 0.12;
 }
 
@@ -200,7 +200,8 @@ function genericTower(opts) {
   const {
     age = 0, wallMat = 'stone', baseMat = 'stoneDark', r = 1.5,
     floors: baseFloors = 2, crown = 'crenel', domeMat = 'turquoise', sides = 4,
-    bannerColor = 'clothRed', torches = 2, shields = false, glowRelief = false,
+    bannerColor = 'clothRed', torches = 2, shields = false, glowRelief = false, crownMat = 'stone',
+    platformTopMat = 'stone', stairMat = 'stone',
   } = opts;
   // ages REBUILD the tower: Kayanian/Sasanian add whole floors, Mastery adds two —
   // an upgraded tower must read as a different building at a glance
@@ -210,8 +211,8 @@ function genericTower(opts) {
 
   // base layer
   let b = new MeshBuilder();
-  let y = platform(b, r, 0.7, baseMat);
-  stairs(b, r, 0.7);
+  let y = platform(b, r, 0.7, baseMat, 0, platformTopMat);
+  stairs(b, r, 0.7, stairMat);
   const wallH = 2.2 + age * 0.55;
   y = taperedWall(b, r, r * 0.88, wallH, y, wallMat, sides);
   iwan(b, r * 0.95, 0.85, 1.9, 'plaster', 1);
@@ -241,7 +242,7 @@ function genericTower(opts) {
   const rc = Math.max(r * 0.36, r * (0.88 - (floors - 1) * 0.13));
   let topY = y2;
   if (crown === 'crenel') {
-    topY = crenellations(b, rc, y2, wallMat === 'stoneWhite' ? 'stoneWhite' : 'stone', sides === 4);
+    topY = crenellations(b, rc, y2, wallMat === 'stoneWhite' ? 'stoneWhite' : crownMat, sides === 4);
   } else if (crown === 'dome') {
     topY = crenellations(b, rc, y2, 'stone', sides === 4);
     topY = dome(b, rc * 0.95, topY, age >= 4 ? 'gold' : domeMat) + 0.2;
@@ -320,6 +321,81 @@ function genericTower(opts) {
 
 const RECIPES = {
   watchtower: (age) => genericTower({ age, wallMat: 'stone', floors: 2, crown: 'crenel', bannerColor: 'clothRed' }),
+  zabulWatchtower: (age) => {
+    const t = genericTower({
+      age,
+      wallMat: 'brickRed',
+      baseMat: 'zabulEarth',
+      platformTopMat: 'zabulStone',
+      stairMat: 'zabulStoneLight',
+      floors: 2,
+      crown: 'crenel',
+      crownMat: 'mudbrick',
+      bannerColor: 'clothRed',
+      torches: 2,
+      shields: true,
+      glowRelief: age >= 2,
+    });
+    let b = new MeshBuilder();
+    // Warm highland footings: low embedded stone, broken curbs, and cedar braces.
+    b.box(4.2, 0.16, 4.2, 'zabulEarth', 0, 0.11, 0, Math.PI / 4);
+    b.box(3.62, 0.18, 3.62, 'zabulStoneDark', 0, 0.32, 0, Math.PI / 4);
+    b.box(2.92, 0.14, 2.92, 'zabulStone', 0, 0.53, 0, Math.PI / 4);
+    const flagstone = (x, z, sx, sz, ry, mat = 'zabulStoneLight', seg = 6) => {
+      const m = new THREE.Matrix4().compose(
+        new THREE.Vector3(x, 0.08, z),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)),
+        new THREE.Vector3(sx, 1, sz),
+      );
+      b.add(new THREE.CylinderGeometry(1, 1, 0.08, seg), mat, m);
+    };
+    [
+      [-1.65, 1.55, 0.48, 0.3, 0.32, 'zabulStoneLight', 5],
+      [-0.9, 1.82, 0.36, 0.24, -0.2, 'zabulStone', 6],
+      [-0.18, 1.64, 0.5, 0.25, 0.18, 'zabulStoneLight', 7],
+      [0.62, 1.8, 0.42, 0.27, -0.36, 'zabulStone', 5],
+      [1.45, 1.58, 0.5, 0.3, 0.22, 'zabulStoneDark', 6],
+      [-1.85, -1.28, 0.42, 0.28, -0.34, 'zabulStoneDark', 5],
+      [-0.98, -1.72, 0.48, 0.26, 0.24, 'zabulStone', 6],
+      [0.04, -1.88, 0.38, 0.24, -0.12, 'zabulStoneLight', 7],
+      [0.92, -1.7, 0.46, 0.27, 0.4, 'zabulStone', 5],
+      [1.78, -1.28, 0.42, 0.29, -0.28, 'zabulStoneDark', 6],
+    ].forEach(([x, z, sx, sz, ry, mat, seg]) => flagstone(x, z, sx, sz, ry, mat, seg));
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + (i % 2 ? 0.08 : -0.05);
+      const x = Math.cos(a) * 2.08;
+      const z = Math.sin(a) * 2.08;
+      b.box(0.58 + (i % 3) * 0.08, 0.2, 0.34 + (i % 2) * 0.08, i % 2 ? 'zabulStone' : 'zabulStoneDark', x, 0.34, z, -a + 0.18);
+    }
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      b.box(0.24, 2.7 + age * 0.2, 0.24, 'woodDark', Math.cos(a) * 1.85, 2.25, Math.sin(a) * 1.85, a);
+      b.box(0.18, 2.6, 0.18, 'wood', Math.cos(a) * 1.48, 2.7, Math.sin(a) * 1.48, a, 0, 0.38);
+    }
+    b.cyl(1.72, 1.82, 0.34, 12, 'relief', 0, 4.0 + age * 0.25, 0);
+    t.layers.base.add(b.build());
+
+    b = new MeshBuilder();
+    const deckY = t.height + 0.18;
+    b.box(3.25, 0.22, 0.24, 'wood', 0, deckY, 1.26);
+    b.box(3.25, 0.22, 0.24, 'wood', 0, deckY, -1.26);
+    b.box(0.24, 0.22, 3.25, 'wood', 1.26, deckY, 0);
+    b.box(0.24, 0.22, 3.25, 'wood', -1.26, deckY, 0);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      b.box(0.28, 0.42, 0.16, i % 2 ? 'mudbrick' : 'stone', Math.cos(a) * 1.34, deckY + 0.35, Math.sin(a) * 1.34, -a);
+    }
+    spearRack(b, 1.38, 0.58, deckY + 0.05, Math.PI / 2);
+    spearRack(b, -1.38, -0.58, deckY + 0.05, -Math.PI / 2);
+    t.layers.crown.add(b.build());
+
+    const standard = makeBanner(age >= 3 ? 'clothGold' : 'clothRed', 1.0, 1.65, 3.0 + age * 0.18);
+    standard.position.set(0, Math.max(1.2, t.height - 1.0), -1.42);
+    standard.rotation.y = Math.PI;
+    t.group.add(standard);
+    t.animated.banners.push(standard);
+    return t;
+  },
   reedOutpost: (age) => {
     const t = genericTower({ age, wallMat: 'mudbrick', baseMat: 'wood', floors: 1, crown: 'platform', torches: 1, bannerColor: 'clothTeal' });
     const b = new MeshBuilder();

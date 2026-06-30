@@ -27,7 +27,7 @@ export const TOWERS = [
     role: 'archer', dmgType: 'arrow', cost: 70,
     damage: 14, range: 11, rate: 1.1, splash: 0,
     affinity: ['bow', 'sistani', 'courage', 'strength'], placeRef: 'zabulistan',
-    model: 'watchtower', vfx: 'arrow',
+    model: 'zabulWatchtower', vfx: 'arrow',
     compatHeroes: ['rostam', 'sam', 'faramarz', 'nariman', 'zal'],
   },
   {

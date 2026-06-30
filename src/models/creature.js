@@ -634,24 +634,36 @@ function buildDragon(scale = 1.7) {
       }
     }
   }
-  // wings with bone fingers + membrane
-  const wingGeo = new THREE.PlaneGeometry(1.6, 0.85, 4, 2);
-  for (const side of [-1, 1]) {
-    const wing = new THREE.Group();
-    wing.position.set(side * 0.25, 0.5, -0.7);
-    const membrane = new THREE.Mesh(wingGeo, colorMat(0x2e3a26, 0.9));
-    membrane.material.side = THREE.DoubleSide;
-    membrane.position.x = side * 0.8;
-    wing.add(membrane);
-    for (const a of [-0.3, 0, 0.35]) {
-      const bone = mesh(new THREE.CylinderGeometry(0.022, 0.014, 1.5, 5), mats.scaleDark);
-      bone.rotation.z = side * (Math.PI / 2);
-      bone.rotation.y = a;
-      bone.position.x = side * 0.75;
-      wing.add(bone);
+  // Azhdaha reads better as a grounded serpent-dragon at tower-defense scale:
+  // small folded side fins, whiskers and ridge detail instead of broad blocky wings.
+  const finMat = colorMat(0x344226, 0.9);
+  const finGeo = new THREE.PlaneGeometry(0.46, 0.3, 2, 1);
+  for (const idx of [1, 3, 5]) {
+    const seg = s.rig.segments[idx];
+    const k = 1 - idx * 0.08;
+    for (const side of [-1, 1]) {
+      const fin = new THREE.Mesh(finGeo, finMat);
+      fin.material.side = THREE.DoubleSide;
+      fin.name = 'dragon-folded-side-fin';
+      fin.position.set(side * (0.34 + idx * 0.018), 0.24, 0.02);
+      fin.rotation.z = side * 0.72;
+      fin.rotation.y = side * 0.3;
+      fin.scale.setScalar(k);
+      seg.add(fin);
     }
-    s.group.add(wing);
-    s.rig[side === -1 ? 'wingL' : 'wingR'] = wing;
+  }
+  for (const side of [-1, 1]) {
+    const whisker = mesh(new THREE.CylinderGeometry(0.01, 0.006, 0.72, 5), mats.scaleDark);
+    whisker.name = 'dragon-head-whisker';
+    whisker.position.set(side * 0.22, 0.08, 0.56);
+    whisker.rotation.z = side * 1.12;
+    whisker.rotation.x = 1.2;
+    s.rig.head.add(whisker);
+    const jawPlate = mesh(new THREE.BoxGeometry(0.16, 0.035, 0.2), mats.scaleDark);
+    jawPlate.name = 'dragon-jaw-plate';
+    jawPlate.position.set(side * 0.22, -0.2, 0.38);
+    jawPlate.rotation.z = -side * 0.18;
+    s.rig.head.add(jawPlate);
   }
   return { ...s, animType: 'serpent', headH: 1.3 * scale };
 }
@@ -800,8 +812,23 @@ const ASSET_ENEMIES = {
   serpent: { asset: 'q_snake_angry', tint: 0x4a5a36, weapon: null, height: 0.85 },
 };
 
-export function buildEnemyModel(modelKey) {
-  const upgrade = ASSET_ENEMIES[modelKey];
+const BOSS_ASSET_ENEMIES = {
+  turanianKing: { asset: 'a_afrasiab', weapon: 'sword', height: 2.34, weaponScale: 1.2 },
+  warKing: { asset: 'a_arjasp', weapon: 'axe', height: 2.28, weaponScale: 1.22 },
+  warlord: { asset: 'a_kamus', weapon: 'lance', height: 2.32, weaponScale: 1.22 },
+  turanianChampion: { asset: 'a_soldier_heavy', tint: 0xc4683c, weapon: 'sword', height: 2.12, weaponScale: 1.22 },
+  darkChampion: { asset: 'a_soldier_heavy', tint: 0x6a5668, weapon: 'banner', height: 2.16, weaponScale: 1.28 },
+  steelChampion: { asset: 'a_soldier_heavy', tint: 0xb6bec8, weapon: 'mace', height: 2.18, weaponScale: 1.2 },
+  turanianPrince2: { asset: 'a_soldier_heavy', tint: 0xa84a6a, weapon: 'sword', height: 2.08, weaponScale: 1.18 },
+  turPrince: { asset: 'a_soldier_heavy', tint: 0xb45a34, weapon: 'axe', height: 2.1, weaponScale: 1.2 },
+  westernPrince: { asset: 'a_soldier_heavy', tint: 0xb8943d, weapon: 'sword', height: 2.08, weaponScale: 1.18 },
+  shadowedIranian: { asset: 'a_soldier_heavy', tint: 0x607b8c, weapon: 'bow', height: 2.02, weaponScale: 1.16 },
+  traitor: { asset: 'a_soldier_heavy', tint: 0x766a58, weapon: 'dagger', height: 2.0, weaponScale: 1.12 },
+  courtier: { asset: 'a_soldier_heavy', tint: 0x9a6e9a, weapon: 'dagger', height: 2.0, weaponScale: 1.12 },
+};
+
+export function buildEnemyModel(modelKey, options = {}) {
+  const upgrade = (options.boss && BOSS_ASSET_ENEMIES[modelKey]) || ASSET_ENEMIES[modelKey];
   if (upgrade) {
     const m = assetCharacter(upgrade.asset, upgrade);
     if (m) return m;
@@ -809,9 +836,10 @@ export function buildEnemyModel(modelKey) {
   const mats = MATS();
   switch (modelKey) {
     case 'zahhak': {
-      const za = assetCharacter('a_zahhak', { height: 2.3, weapon: 'sword' });
-      if (za) return { ...za, headH: 2.3 }; // GLB has the shoulder serpents baked into the mesh
-      const h = buildHumanoid({ armor: 'royal', clothColor: 0x2a1f3a, crown: true, cloak: true, cloakColor: 0x1c1428, weapon: 'sword', beard: 'full', scale: 1.35 });
+      const height = options.boss ? 2.68 : 2.3;
+      const za = assetCharacter('a_zahhak', { height, weapon: 'sword', weaponScale: options.boss ? 1.18 : 1.1 });
+      if (za) return { ...za, headH: height }; // GLB has the shoulder serpents baked into the mesh
+      const h = buildHumanoid({ armor: 'royal', clothColor: 0x2a1f3a, crown: true, cloak: true, cloakColor: 0x1c1428, weapon: 'sword', beard: 'full', scale: options.boss ? 1.58 : 1.35 });
       const serpents = [];
       for (const side of [-1, 1]) {
         const sg = new THREE.Group();
@@ -844,7 +872,7 @@ export function buildEnemyModel(modelKey) {
       return { ...h, animType: 'biped', headH: 2.3 };
     }
     case 'serpent': return { ...buildSerpentBody({ mat: mats.scaleDark, ridgeMat: colorMat(0x2a3324, 0.7), segs: 7, r0: 0.18, len: 2.0, scale: 1 }), animType: 'serpent', headH: 0.6 };
-    case 'divSepid': return assetCharacter('a_divsepid', { height: 3.4 }) || buildDiv({ hide: 'divHideWhite', scale: 2.1, horns: 4, hunch: 0.3, spikes: true });
+    case 'divSepid': return assetCharacter('a_divsepid', { height: options.boss ? 3.85 : 3.4 }) || buildDiv({ hide: 'divHideWhite', scale: options.boss ? 2.38 : 2.1, horns: 4, hunch: 0.3, spikes: true });
     case 'divCommander': {
       const arz = assetCharacter('a_arzhang', { height: 2.6, weapon: 'banner' });
       if (arz) return arz;
@@ -867,16 +895,18 @@ export function buildEnemyModel(modelKey) {
     case 'divBrute': return assetCharacter('a_kharvazan', { height: 3.0 }) || buildDiv({ hide: 'divHide', scale: 1.85, horns: 2, hunch: 0.4, spikes: true });
     case 'divScout': return assetCharacter('a_olad', { height: 2.0 }) || buildDiv({ hide: 'divHideDark', scale: 1.25, horns: 1, club: false, hunch: 0.35 });
     case 'dragon': {
-      const d = assetCharacter('a_dragon', { height: 1.5, walkStride: 1.0 });
-      if (!d) return buildDragon(1.7);
+      const actor = assetCharacter('a_azhdaha_actor', { height: options.boss ? 1.62 : 1.34, walkStride: 1.55 });
+      if (actor?.anim?.actions && Object.keys(actor.anim.actions).length > 0) return actor;
+      const d = assetCharacter('a_dragon', { height: options.boss ? 1.85 : 1.5, walkStride: 1.0 });
+      if (!d) return buildDragon(options.boss ? 2.05 : 1.7);
       const hasClips = d.anim?.actions && Object.keys(d.anim.actions).length > 0;
-      return hasClips ? d : buildDragon(1.7);
+      return hasClips ? d : buildDragon(options.boss ? 2.05 : 1.7);
     }
     case 'worm': {
-      const w = assetCharacter('a_worm', { height: 1.5, walkStride: 0.9 });
-      if (!w) return buildWorm(2.0);
+      const w = assetCharacter('a_worm', { height: options.boss ? 1.82 : 1.5, walkStride: 0.9 });
+      if (!w) return buildWorm(options.boss ? 2.2 : 2.0);
       const hasClips = w.anim?.actions && Object.keys(w.anim.actions).length > 0;
-      return hasClips ? w : buildWorm(2.0);
+      return hasClips ? w : buildWorm(options.boss ? 2.2 : 2.0);
     }
     // White War Elephant (پیل سپید). walkStride 2.6 calibrated by min planted-paw
     // drift at speed 1.0 (slow ponderous plod ~0.38 cycles/s); faces +Z, no rotFix.
@@ -896,7 +926,7 @@ export function buildEnemyModel(modelKey) {
     }
     default: {
       const spec = HUMAN_SPECS[modelKey] || HUMAN_SPECS.turanianWarrior;
-      const h = buildHumanoid(spec);
+      const h = buildHumanoid({ ...spec, scale: (spec.scale || 1) * (options.boss ? 1.18 : 1) });
       if (spec.mounted) {
         const horse = buildHorse({ coat: 'horseBrown', scale: 1.0, armored: true });
         h.group.position.y = 1.2;

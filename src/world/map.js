@@ -13,89 +13,27 @@ import { getProp, instanceProp, propReady, propBase, propRotFix, placeM4, KIT_UN
 import { makeFlame } from '../models/towerkit.js';
 import { makeRng } from './noise.js';
 import { buildZabulistanVisualKit, rebuildZabulistanVisualKit } from './zabulistanVisualKit.js';
+import { zabulistanVisualProfile } from '../data/zabulistanVisualProfile.js';
 
 export class GameMap {
   constructor(mapDef, scene) {
     this.def = mapDef;
     this.place = PLACES_BY_ID[mapDef.id];
     const baseBiome = BIOMES[this.place?.biome || 'plains'];
-    this.biome = mapDef.id === 'zabulistan'
+    const visualProfile = zabulistanVisualProfile(mapDef.id);
+    const visualBiome = visualProfile?.biome;
+    this.biome = visualBiome
       ? {
         ...baseBiome,
-        hills: Math.max(baseBiome.hills || 4.5, 6.2),
-        ground: [0x4e5548, 0x70684f],
-        rock: 0x5f625f,
-        high: 0x9b9588,
-        mood: {
-          ...baseBiome.mood,
-          background: 0x6b6870,
-          skyTop: 0x303746,
-          fogColor: 0x9b9084,
-          fogNear: 72,
-          fogFar: 220,
-          sunColor: 0xffaa63,
-          sunIntensity: 1.58,
-          hemiSky: 0xbac8d4,
-          hemiGround: 0x4c4038,
-          hemiIntensity: 1.02,
-          exposure: 0.96,
-          bloom: { strength: 0.28, threshold: 0.88, radius: 0.5 },
-          grade: { vignette: 0.4, contrast: 1.1, saturation: 1.06, lift: 0x120f12 },
-        },
-        props: {
-          ...baseBiome.props,
-          cypress: 0,
-          tree: 0,
-          rock: 42,
-          reeds: 7,
-          bush: 0,
-          grass: 0,
-          treePlan: false,
-          dryGrass: true,
-          snow: false,
-        },
+        ...visualBiome,
+        mood: { ...baseBiome.mood, ...(visualBiome.mood || {}) },
+        props: { ...baseBiome.props, ...(visualBiome.props || {}) },
       }
       : baseBiome;
     // per-map prop overrides win over the biome defaults (e.g. Mazandaran zeroes cypress while
     // Manijeh Garden — same forest biome — keeps the garden sarv).
     this.effectiveProps = { ...this.biome.props, ...this.place?.props };
-    this.visualBoard = mapDef.id === 'zabulistan'
-      ? {
-        shape: 'circle',
-        radius: 86,
-        edgeStart: 62,
-        edgeTintFogMix: 0.34,
-        edgeTintStrength: 0.36,
-        apronFar: 286,
-        apronGroundColor: 0x686d58,
-        apronGroundFogMix: 0.08,
-        apronNearColor: 0x7a7762,
-        apronNearFogMix: 0.18,
-        apronFarColor: 0x8d8172,
-        apronFarFogMix: 0.34,
-        apronFogStart: 0.3,
-        apronFogEnd: 0.96,
-        apronFogMax: 0.76,
-        apronFogLinear: 0.06,
-        veilInner: 178,
-        veilOuter: 306,
-        veilOpacity: 0.072,
-        veilGroundColor: 0x777663,
-        veilGroundFogMix: 0.24,
-        edgeBlendInner: 70,
-        edgeBlendOuter: 152,
-        edgeBlendOpacity: 0.28,
-        edgeBlendGroundColor: 0x5e6753,
-        edgeBlendMidColor: 0x72735f,
-        edgeBlendOuterColor: 0x897b6e,
-        edgeBlendFogMix: 0.09,
-        edgeBlendFogStart: 0.8,
-        edgeBlendFogEnd: 1,
-        edgeBlendGroundMix: 0.54,
-        edgeBlendGroundMixRange: 0.16,
-        skipMountainRing: true,
-      }
-      : null;
+    this.visualBoard = visualProfile?.board ? { ...visualProfile.board } : null;
     this.scene = scene;
     this.group = new THREE.Group();
     scene.add(this.group);

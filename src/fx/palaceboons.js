@@ -397,10 +397,13 @@ export class PalaceBoonField {
     const front = targets.front || keep;
     const radius = cfg?.radius || 30;
     const visualRadius = Math.max(8, Math.min(radius, cfg?.visualRadius ?? radius));
-    const visualIntensity = Math.max(0.18, Math.min(1, cfg?.visualIntensity ?? 1));
+    const visualIntensity = Math.max(0.08, Math.min(1, cfg?.visualIntensity ?? 1));
     const groundWaveIntensity = Math.max(0, Math.min(1, cfg?.groundWaveIntensity ?? visualIntensity));
     const targetVisualLimit = Math.max(0, Math.min(12, cfg?.targetVisualLimit ?? 12));
     const anchorVisualLimit = Math.max(0, Math.min(12, cfg?.anchorVisualLimit ?? targetVisualLimit));
+    const commandIntensity = Math.max(0, Math.min(1, cfg?.commandIntensity ?? Math.max(0.42, visualIntensity)));
+    const threadIntensity = Math.max(0, Math.min(1, cfg?.threadIntensity ?? 1));
+    const rayIntensity = Math.max(0, Math.min(1.65, cfg?.rayIntensity ?? (type === 'rangeVision' ? 1.65 : 1) * visualIntensity));
     const keepY = this.map.heightAt(keep.x, keep.z) + 0.24;
     const frontY = this.map.heightAt(front.x, front.z) + 0.2;
     if (groundWaveIntensity > 0.02) {
@@ -409,7 +412,6 @@ export class PalaceBoonField {
     }
     this._addRing(front.x, frontY, front.z, { max: visualRadius, life: 1.2, color, delay: 0, intensity: visualIntensity });
     this._addRing(keep.x, keepY + 0.05, keep.z, { max: Math.min(22, visualRadius * 0.62), life: 1.05, color: COLORS.rallyDamage, delay: 0.08, intensity: visualIntensity * 0.82 });
-    const commandIntensity = Math.max(0.52, visualIntensity);
     this._addSigil(keep.x, keep.y + (citadel?.height || 18) * 0.72, keep.z, { type, color, life: 1.45, scale: 1.15, delay: 0.02, intensity: commandIntensity });
     this._addStandard(keep.x, keep.y + (citadel?.height || 18) * 0.86, keep.z, { type, color, life: 1.9, scale: 1.12, delay: 0.04, intensity: commandIntensity });
     this._addStandard(front.x, frontY + 6.6, front.z, { type, color, life: 1.35, scale: 0.72, delay: 0.12, intensity: commandIntensity });
@@ -440,17 +442,25 @@ export class PalaceBoonField {
       this._addTargetLock(enemyTargets[i], color, { life: 1.18, delay: 0.02 + i * 0.024, scale: 1.18, intensity: visualIntensity });
       this._addStatusRead(enemyTargets[i], { type, color, life: 2.35, delay: 0.08 + i * 0.035, intensity: visualIntensity });
     });
-    const threadAnchors = (enemyAnchors.length ? enemyAnchors : anchors).slice(0, 12);
+    const subtleThreads = visualIntensity <= 0.2 || threadIntensity <= 0.18;
+    const threadAnchors = (enemyAnchors.length ? enemyAnchors : anchors).slice(0, subtleThreads ? 2 : 12);
     if (threadAnchors.length) {
       const start = new THREE.Vector3(keep.x, keepY + 4.2, keep.z);
       const gate = new THREE.Vector3(front.x, frontY + 2.3, front.z);
       const points = threadAnchors
         .slice()
         .sort((a, b) => a.distanceToSquared(front) - b.distanceToSquared(front))
-        .map((p) => new THREE.Vector3(p.x, (p.y || this.map.heightAt(p.x, p.z)) + 2.1, p.z));
-      this._addCommandThread([start, gate, ...points], color, { life: 1.32, delay: 0.05 });
+        .map((p) => new THREE.Vector3(p.x, (p.y || this.map.heightAt(p.x, p.z)) + (subtleThreads ? 0.92 : 2.1), p.z));
+      const threadStart = subtleThreads ? gate : start;
+      const threadPoints = subtleThreads ? [threadStart, ...points] : [start, gate, ...points];
+      this._addCommandThread(threadPoints, color, {
+        life: subtleThreads ? 0.82 : 1.32,
+        delay: 0.05,
+        intensity: subtleThreads ? Math.min(threadIntensity, 0.1) : threadIntensity,
+        lowProfile: subtleThreads,
+      });
       if (type === 'goldProvision' || type === 'repairFortifications' || type === 'heal') {
-        this._addCommandThread([start, ...points.slice().reverse()], COLORS.rallyDamage, { life: 1.14, delay: 0.16 });
+        this._addCommandThread([start, ...points.slice().reverse()], COLORS.rallyDamage, { life: 1.14, delay: 0.16, intensity: threadIntensity });
       }
     }
 
@@ -464,14 +474,17 @@ export class PalaceBoonField {
       burnRing: 6,
       bindChains: 6,
     };
-    const n = rayCounts[type] || 6;
-    const rayLen = type === 'stunPulse'
+    const baseRayCount = rayCounts[type] || 6;
+    const subtleRays = visualIntensity <= 0.2 || rayIntensity <= 0.18;
+    const n = subtleRays ? Math.min(3, baseRayCount) : baseRayCount;
+    const rayLenBase = type === 'stunPulse'
       ? Math.min(visualRadius * 0.72, 22)
       : Math.min(visualRadius * 0.95, type === 'rangeVision' ? 48 : 42);
+    const rayLen = rayLenBase * (subtleRays ? 0.58 : 1);
     const spin = type === 'rangeVision' ? 0.14 : type === 'goldProvision' ? 0.24 : type === 'repairFortifications' ? -0.12 : 0;
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + spin;
-      this._addRay(front, a, rayLen, color, 0.85 + i * 0.03, (type === 'rangeVision' ? 1.65 : 1) * visualIntensity);
+      this._addRay(front, a, rayLen, color, 0.85 + i * 0.03, rayIntensity);
     }
   }
 
@@ -635,20 +648,25 @@ export class PalaceBoonField {
   }
 
   _addRay(origin, angle, len, color, life, strength = 1) {
-    const start = new THREE.Vector3(origin.x, this.map.heightAt(origin.x, origin.z) + 0.42, origin.z);
+    const subtle = strength <= 0.18;
+    const start = new THREE.Vector3(origin.x, this.map.heightAt(origin.x, origin.z) + (subtle ? 0.24 : 0.42), origin.z);
     const endX = origin.x + Math.cos(angle) * len;
     const endZ = origin.z + Math.sin(angle) * len;
-    const end = new THREE.Vector3(endX, this.map.heightAt(endX, endZ) + 0.72, endZ);
+    const end = new THREE.Vector3(endX, this.map.heightAt(endX, endZ) + (subtle ? 0.34 : 0.72), endZ);
     const mid = start.clone().lerp(end, 0.5);
-    mid.y += Math.min(12, 3.0 + len * 0.08);
+    mid.y += subtle ? Math.min(3.2, 0.85 + len * 0.035) : Math.min(12, 3.0 + len * 0.08);
     const points = [];
     for (let i = 0; i <= 22; i++) points.push(arcPoint(start, mid, end, i / 22));
 
-    const mat = glowLineMaterial(color, 0.52);
+    const mat = glowLineMaterial(color, subtle ? 0.24 : 0.52);
+    if (subtle) {
+      mat.depthTest = true;
+      mat.blending = THREE.NormalBlending;
+    }
     const geom = new THREE.BufferGeometry().setFromPoints(points);
     const mesh = new THREE.Line(geom, mat);
     mesh.frustumCulled = false;
-    mesh.renderOrder = 39;
+    mesh.renderOrder = subtle ? 38 : 39;
     this.group.add(mesh);
 
     const sparkMat = glowMaterial(color, 0);
@@ -657,29 +675,47 @@ export class PalaceBoonField {
     spark.frustumCulled = false;
     spark.renderOrder = 42;
     this.group.add(spark);
-    this.rays.push({ mesh, mat, geom, spark, sparkMat, points, life, t: 0, strength });
+    this.rays.push({ mesh, mat, geom, spark, sparkMat, points, life, t: 0, strength, subtle });
   }
 
-  _addCommandThread(points, color, { life, delay }) {
+  _addCommandThread(points, color, { life, delay, intensity = 1, lowProfile = false }) {
     if (!points || points.length < 2) return;
     const curve = [];
+    const steps = lowProfile ? 5 : 9;
     for (let i = 0; i < points.length - 1; i++) {
       const a = points[i];
       const c = points[i + 1];
       const mid = a.clone().lerp(c, 0.5);
-      mid.y += Math.min(8.5, 2.8 + a.distanceTo(c) * 0.06);
-      for (let s = 0; s <= 9; s++) {
+      mid.y += lowProfile ? Math.min(2.3, 0.5 + a.distanceTo(c) * 0.02) : Math.min(8.5, 2.8 + a.distanceTo(c) * 0.06);
+      for (let s = 0; s <= steps; s++) {
         if (i > 0 && s === 0) continue;
-        curve.push(arcPoint(a, mid, c, s / 9));
+        curve.push(arcPoint(a, mid, c, s / steps));
       }
     }
     const mat = glowLineMaterial(color, 0);
+    if (lowProfile) {
+      mat.depthTest = true;
+      mat.blending = THREE.NormalBlending;
+    }
     const geom = new THREE.BufferGeometry().setFromPoints(curve);
     const mesh = new THREE.Line(geom, mat);
     mesh.frustumCulled = false;
-    mesh.renderOrder = 46;
+    mesh.renderOrder = lowProfile ? 38 : 46;
     this.group.add(mesh);
-    this.commandThreads.push({ mesh, mat, geom, life, t: -delay, phase: Math.random() * Math.PI * 2 });
+    this.commandThreads.push({
+      mesh,
+      mat,
+      geom,
+      life,
+      t: -delay,
+      phase: Math.random() * Math.PI * 2,
+      intensity,
+      lowProfile,
+      baseAlpha: lowProfile ? 0.24 : 0.5,
+      tailAlpha: lowProfile ? 0.04 : 0.18,
+      lift: lowProfile ? 0.12 : 0.46,
+      drift: lowProfile ? 0.035 : 0.1,
+    });
   }
 
   _addVisionSweep(keep, front, radius, color, { life, delay }) {
@@ -877,9 +913,9 @@ export class PalaceBoonField {
       const head = Math.min(1, Math.max(0, k * 1.1));
       const idx = Math.min(r.points.length - 1, Math.floor(head * (r.points.length - 1)));
       r.spark.position.copy(r.points[idx]);
-      r.spark.scale.setScalar(0.8 + swell * 1.65);
-      r.mat.opacity = ((1 - k) * 0.34 + swell * 0.18) * (r.strength || 1);
-      r.sparkMat.opacity = swell * 0.88 * (r.strength || 1);
+      r.spark.scale.setScalar((r.subtle ? 0.42 : 0.8) + swell * (r.subtle ? 0.72 : 1.65));
+      r.mat.opacity = ((1 - k) * (r.subtle ? 0.18 : 0.34) + swell * (r.subtle ? 0.07 : 0.18)) * (r.strength || 1);
+      r.sparkMat.opacity = swell * (r.subtle ? 0.36 : 0.88) * (r.strength || 1);
     }
     for (let i = this.commandThreads.length - 1; i >= 0; i--) {
       const th = this.commandThreads[i];
@@ -888,8 +924,8 @@ export class PalaceBoonField {
       const k = Math.min(1, th.t / th.life);
       if (k >= 1) { this._removeCommandThread(i); continue; }
       const swell = Math.sin(Math.PI * k);
-      th.mesh.position.y = Math.sin(time * 4.9 + th.phase) * 0.1 + k * 0.46;
-      th.mat.opacity = swell * (0.5 + (1 - k) * 0.18);
+      th.mesh.position.y = Math.sin(time * 4.9 + th.phase) * (th.drift ?? 0.1) + k * (th.lift ?? 0.46);
+      th.mat.opacity = swell * ((th.baseAlpha ?? 0.5) + (1 - k) * (th.tailAlpha ?? 0.18)) * (th.intensity ?? 1);
     }
     for (let i = this.visionSweeps.length - 1; i >= 0; i--) {
       const sweep = this.visionSweeps[i];

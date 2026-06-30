@@ -42,6 +42,7 @@ const PALACE_ACTION_ICONS = {
   rally: 'assets/ui/palace-actions/rally.svg',
   gate: 'assets/ui/palace-actions/gate.svg',
 };
+const EMPTY_IMG_SRC = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
 
 const HERO_TONES = {
   heal: new Set(['featherCall', 'simurghAegis', 'secretProvision', 'simurghBirthright', 'steadfastPrayer', 'royalContinuity', 'courtGrace']),
@@ -86,6 +87,9 @@ export class HUD {
     this.root = $('#ui');
     this._heroCommandTimer = null;
     this._gateOmenAcc = 0;
+    this._combatFlowAcc = 0;
+    this._combatKills = 0;
+    this._combatWaveTotal = 0;
     this._bossArrivalUntil = 0;
     this._pendingBossChallenge = null;
     this._challengeRevealTimer = null;
@@ -98,6 +102,7 @@ export class HUD {
       document.body.classList.add('panel-hidden');
       this._autoCollapsedPanel = true;
     }
+    this._syncHudState();
     this._wire();
     this._initHeroMarkers();
     this._gateOmenOff = this.game.engine.onUpdate((dt) => {
@@ -106,12 +111,28 @@ export class HUD {
       this._gateOmenAcc = 0;
       this.updateGateOmen();
     });
+    this._combatFlowOff = this.game.engine.onUpdate((dt) => {
+      this._combatFlowAcc += dt;
+      if (this._combatFlowAcc < 0.25) return;
+      this._combatFlowAcc = 0;
+      this.updateCombatFlow();
+    });
     if (!game.waveActive) this._updateWaveBtn(game.waveCountdown, game.earlyBonus());
     this._langOff = onLangChange(() => {
       if (!this.root?.isConnected || !$('#tabTowers')) return;
       this.refreshAll();
       this._syncToggle();
     });
+  }
+
+  _syncHudState() {
+    if (!this._lowChrome) return;
+    const rightVisible = !!$('#rightPanel')?.classList.contains('visible');
+    const palaceSelected = !!this.selectedEntity?.isPalace;
+    document.body.classList.toggle('hud-combat-mode', !!this.game.waveActive);
+    document.body.classList.toggle('hud-build-mode', this.mode?.kind === 'build');
+    document.body.classList.toggle('hud-palace-selected', palaceSelected);
+    document.body.classList.toggle('hud-drawer-open', rightVisible);
   }
 
   // ---- floating hero medallions: a portrait badge above every hero-assigned tower, click → tower command panel ----
@@ -203,7 +224,7 @@ export class HUD {
     for (const id of ids) {
       const button = el('button', { class: 'palace-action-btn', type: 'button', 'data-action': id },
         el('span', { class: 'palace-action-icon', 'aria-hidden': 'true' },
-          el('img', { class: 'palace-action-img', alt: '', decoding: 'async', draggable: 'false' }),
+          el('img', { class: 'palace-action-img', src: EMPTY_IMG_SRC, alt: '', decoding: 'async', draggable: 'false' }),
         ),
         el('span', { class: 'palace-action-label' }),
         el('span', { class: 'palace-action-state', 'aria-hidden': 'true' }),
@@ -213,6 +234,12 @@ export class HUD {
         audio.ui();
         this._runPalaceQuickAction(id);
       };
+      const showPreview = () => this._previewPalaceQuickAction(id, button);
+      const clearPreview = () => this.game.clearPalaceCommandPreview?.();
+      button.addEventListener('pointerenter', showPreview);
+      button.addEventListener('focusin', showPreview);
+      button.addEventListener('pointerleave', clearPreview);
+      button.addEventListener('focusout', clearPreview);
       this._palaceActionButtons.set(id, button);
       this.palaceActionRail.append(button);
     }
@@ -346,8 +373,8 @@ export class HUD {
     const actions = this._palaceQuickActions(palace);
     const compact = window.matchMedia?.('(max-width: 700px)').matches;
     const mid = (actions.length - 1) / 2;
-    const stepX = compact ? 46 : 58;
-    const stepY = compact ? 9 : 14;
+    const stepX = compact ? 36 : 58;
+    const stepY = compact ? 6 : 14;
     const readyText = tOpt('palace.command.ready', 'Ready');
     for (let i = 0; i < actions.length; i++) {
       const def = actions[i];
@@ -371,7 +398,7 @@ export class HUD {
       button.querySelector('.palace-action-state').textContent = hideState ? '' : def.state;
     }
     const rect = rail.getBoundingClientRect();
-    const margin = 12;
+    const margin = compact ? 8 : 12;
     const safeTop = window.matchMedia?.('(max-width: 700px)').matches ? 122 : 84;
     let minX = margin + rect.width * 0.5;
     let maxX = window.innerWidth - margin - rect.width * 0.5;
@@ -392,6 +419,14 @@ export class HUD {
     screenY = Math.max(safeTop + rect.height * 1.18, Math.min(window.innerHeight - margin, screenY));
     rail.style.left = `${screenX.toFixed(1)}px`;
     rail.style.top = `${screenY.toFixed(1)}px`;
+  }
+
+  _previewPalaceQuickAction(id, button = null) {
+    if (button?.disabled || id === 'oath') return false;
+    const palace = this.game.map?.citadel;
+    if (this.selectedEntity !== palace || !palace?.isPalace) return false;
+    const kind = id === 'gate' ? 'gate' : id;
+    return this.game.previewPalaceCommand?.(palace, kind);
   }
 
   _runPalaceGateCommand(palace) {
@@ -476,6 +511,12 @@ export class HUD {
           el('b', { id: 'gateOmenState' }, ''),
           el('span', { id: 'gateOmenDetail', class: 'gate-omen-detail' }, ''),
           el('span', { class: 'gate-omen-bar' }, el('i', { id: 'gateOmenFill' })),
+        ),
+        el('span', { class: 'statchip combat-flow', id: 'combatFlow', style: { display: 'none' }, title: tOpt('hud.combatFlowTip', 'Wave contact') },
+          el('span', { class: 'ico' }, '⚔'),
+          el('b', { id: 'combatFlowLive' }, '0'),
+          el('span', { id: 'combatFlowKills', class: 'combat-flow-kills' }, '0/0'),
+          el('span', { class: 'combat-flow-bar' }, el('i', { id: 'combatFlowFill' })),
         ),
         el('div', { class: 'sep' }),
         el('button', { class: 'iconbtn', id: 'pauseBtn', title: t('hud.pause'), 'aria-label': t('hud.pause') }, '⏸'),
@@ -568,7 +609,10 @@ export class HUD {
     g.on('goldChanged', () => { this.updateTop(); this.refreshAffordability(); });
     g.on('livesChanged', () => this.updateTop());
     g.on('waveStarted', ({ wave, boss, mod }) => {
+      this._combatKills = 0;
+      this._combatWaveTotal = Math.max(0, (this.game.spawnQueue || []).length + this.game.enemies.filter((e) => e.alive).length);
       this.updateTop();
+      this.updateCombatFlow();
       this.toast(t('hud.waveIncoming', { n: tNum(wave) }));
       this._setWaveMod(mod);
       if (mod) this.toast(mod.icon + ' ' + t('wavemod.' + mod.id));
@@ -579,9 +623,13 @@ export class HUD {
       btn.classList.add('wave-active');
       $('#bottomBar')?.classList.add('wave-active');
       btn.textContent = t('hud.waveInProgress');
+      this._syncHudState();
     });
     g.on('waveEnded', () => {
       this.updateTop();
+      this._combatKills = 0;
+      this._combatWaveTotal = 0;
+      this.updateCombatFlow();
       this._setWaveMod(null);
       const btn = $('#waveBtn');
       btn.disabled = false;
@@ -589,8 +637,13 @@ export class HUD {
       btn.classList.remove('wave-active');
       $('#bottomBar')?.classList.remove('wave-active');
       if (this.selectedEntity?.def && this.selectedEntity.alive) this.showTower(this.selectedEntity);
+      this._syncHudState();
     });
     g.on('countdownTick', ({ remaining, bonus }) => this._updateWaveBtn(remaining, bonus));
+    g.on('enemyKilled', () => {
+      this._combatKills++;
+      this.updateCombatFlow();
+    });
     g.on('earlyBonus', (gold) => this.toast(t('hud.earlyBonus', { gold: tNum(gold) })));
     g.on('bossSpawned', (def) => this.bossBanner(tName(def), null, bossChallengeDef(def.id).saga));
     g.on('bossChallengeStarted', (ch) => {
@@ -690,6 +743,7 @@ export class HUD {
     else if (mode.kind === 'fuse') { hint.textContent = t('hud.fuseHint'); hint.classList.add('visible'); }
     else hint.classList.remove('visible');
     this._syncModeSelection();
+    this._syncHudState();
   }
 
   updateTop() {
@@ -702,6 +756,44 @@ export class HUD {
     $('#waveLbl').textContent = t('hud.wave');
     const tools = $('#sandboxTools');
     if (tools) tools.style.display = this.game.sandbox ? '' : 'none';
+  }
+
+  updateCombatFlow() {
+    const box = $('#combatFlow');
+    if (!box) return;
+    const g = this.game;
+    const active = this._lowChrome && g.mapDef?.id === 'zabulistan' && g.waveActive && g.phase === 'combat';
+    if (!active) {
+      box.style.display = 'none';
+      box.classList.remove('steady', 'pressure', 'clear');
+      return;
+    }
+    const alive = g.enemies.filter((e) => e.alive);
+    const queued = (g.spawnQueue || []).length;
+    const total = Math.max(this._combatWaveTotal || 0, alive.length + queued + this._combatKills);
+    this._combatWaveTotal = total;
+    const liveCount = alive.length + queued;
+    let pressure = 0;
+    for (const e of alive) {
+      if (!e.path?.length) continue;
+      const pathLeft = e.path.length - (e.dist || 0);
+      const urgency = Math.max(0, Math.min(1, 1 - pathLeft / 72));
+      const weight = e.boss ? 0.24 : (e.def?.bounty || 0) >= 80 ? 0.12 : 0;
+      pressure = Math.max(pressure, Math.max(0, Math.min(1, urgency + weight)));
+    }
+    const progress = total > 0 ? Math.max(0, Math.min(1, this._combatKills / total)) : 0;
+    const liveNode = $('#combatFlowLive');
+    const killNode = $('#combatFlowKills');
+    const fill = $('#combatFlowFill');
+    if (liveNode) liveNode.textContent = tNum(liveCount);
+    if (killNode) killNode.textContent = `${tNum(this._combatKills)}/${tNum(total || liveCount || 0)}`;
+    if (fill) fill.style.width = `${Math.round(progress * 100)}%`;
+    box.style.display = '';
+    box.classList.toggle('pressure', pressure >= 0.62);
+    box.classList.toggle('clear', liveCount <= 0 || progress >= 0.92);
+    box.classList.toggle('steady', pressure < 0.62 && liveCount > 0 && progress < 0.92);
+    box.title = `${tOpt('hud.combatFlowTip', 'Wave contact')} · ${tNum(liveCount)} ⚔ · ${tNum(this._combatKills)}/${tNum(total || liveCount || 0)}`;
+    box.setAttribute('aria-label', box.title);
   }
 
   _runSandboxAssault(options = {}) {
@@ -820,6 +912,7 @@ export class HUD {
     this.updateTop();
     this.updateFarr();
     this.updateGateOmen();
+    this.updateCombatFlow();
     this.updateBossChallenge(this.game._bossChallengeView?.());
     this.renderCards();
     if (this.selectedEntity?.def) this.showTower(this.selectedEntity);
@@ -968,6 +1061,7 @@ export class HUD {
       this._syncToggle();
     }
     $('#rightPanel').classList.add('visible');
+    this._syncHudState();
   }
   closePanel() {
     this._clearHeroCommandTimer();
@@ -977,6 +1071,7 @@ export class HUD {
     this._hidePalaceContextChip();
     this.selectedEntity = null;
     this.cb.onSelectionCleared?.();
+    this._syncHudState();
   }
 
   _hidePalaceContextChip() {
@@ -997,9 +1092,12 @@ export class HUD {
     const state = `${tNum(ready)}/${tNum(actions.length)} ${tOpt('palace.command.readyShort', 'ready')} · ${gateTiming.label}`;
     const nameEl = chip.querySelector('.palace-context-name');
     const stateEl = chip.querySelector('.palace-context-state');
-    if (nameEl) nameEl.textContent = tName(place);
+    const fullName = tName(place);
+    const compactName = fullName.replace(/^Zabulistan\s+/i, '').trim() || fullName;
+    const useCompactName = document.body.classList.contains('hud-low-chrome') && window.innerWidth < 520;
+    if (nameEl) nameEl.textContent = useCompactName ? compactName : fullName;
     if (stateEl) stateEl.textContent = state;
-    const label = `${tName(place)}: ${state}. ${tOpt('hud.showPanel', 'Show panel')}`;
+    const label = `${fullName}: ${state}. ${tOpt('hud.showPanel', 'Show panel')}`;
     chip.title = label;
     chip.setAttribute('aria-label', label);
     chip.onclick = () => {
@@ -1386,6 +1484,7 @@ export class HUD {
   showTowerDef(def) {
     this._clearHeroCommandTimer();
     this.selectedEntity = null;
+    this._syncHudState();
     const c = clear($('#rpContent'));
     const stats = [
       [t('panel.role'), t('role.' + def.role)],
@@ -1430,6 +1529,7 @@ export class HUD {
     this.game.clearPalaceCommandPreview?.();
     this._hidePalaceContextChip();
     this.selectedEntity = tower;
+    this._syncHudState();
     const def = tower.def;
     const stats = tower.getStats();
     const c = clear($('#rpContent'));
@@ -1606,6 +1706,7 @@ export class HUD {
     this.game.clearPalaceCommandPreview?.();
     const wasPalaceDrawer = this.selectedEntity === palace && $('#rightPanel')?.classList.contains('visible');
     this.selectedEntity = palace;
+    this._syncHudState();
     const placeId = palace.placeId || this.game.mapDef.id;
     const place = PLACES_BY_ID[placeId] || {};
     if (this._lowChrome && !this._forcePalaceDrawer && !wasPalaceDrawer) {
@@ -1615,6 +1716,7 @@ export class HUD {
       this._showPalaceContextChip(palace);
       this.updatePalaceQuickActions();
       requestAnimationFrame(() => this.updatePalaceQuickActions());
+      this._syncHudState();
       return;
     }
     this._hidePalaceContextChip();
@@ -1853,6 +1955,7 @@ export class HUD {
     this._bindPalaceCommandRefresh(palace);
     this.updatePalaceQuickActions();
     requestAnimationFrame(() => this.updatePalaceQuickActions());
+    this._syncHudState();
   }
 
   showHero(hero, unlocked = true) {
@@ -1860,6 +1963,7 @@ export class HUD {
     this.game.clearPalaceCommandPreview?.();
     this._hidePalaceContextChip();
     this.selectedEntity = null;
+    this._syncHudState();
     if (this._lowChrome) {
       $('#rightPanel')?.classList.remove('visible');
       document.body.classList.add('panel-hidden');
@@ -1910,6 +2014,7 @@ export class HUD {
     this._clearHeroCommandTimer();
     const def = enemy.def || enemy;
     this.selectedEntity = enemy.def ? enemy : null;
+    this._syncHudState();
     const c = clear($('#rpContent'));
     put(c, 
       this._portrait('enemy', def),
@@ -2281,11 +2386,12 @@ export class HUD {
     if (this._langOff) { this._langOff(); this._langOff = null; }
     if (this._markerOff) { this._markerOff(); this._markerOff = null; }
     if (this._gateOmenOff) { this._gateOmenOff(); this._gateOmenOff = null; }
+    if (this._combatFlowOff) { this._combatFlowOff(); this._combatFlowOff = null; }
     if (this.heroMarkerLayer) { this.heroMarkerLayer.remove(); this.heroMarkerLayer = null; }
     if (this.palaceActionLayer) { this.palaceActionLayer.remove(); this.palaceActionLayer = null; }
     this._heroMarkers = null;
     if (this._autoCollapsedPanel) document.body.classList.remove('panel-hidden');
-    document.body.classList.remove('boss-challenge-active', 'boss-arrival-active', 'hud-low-chrome', 'wave-active', 'visual-qa-capture');
+    document.body.classList.remove('boss-challenge-active', 'boss-arrival-active', 'hud-low-chrome', 'wave-active', 'visual-qa-capture', 'hud-combat-mode', 'hud-build-mode', 'hud-palace-selected', 'hud-drawer-open');
     clear(this.root);
   }
 }

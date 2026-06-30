@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { sanitizeVisualArtifacts } from './visualguards.js';
+import { zabulistanVisualProfile } from '../data/zabulistanVisualProfile.js';
 
 const MODEL_FILES = {
   // KayKit (CC0) — chibi proportions; kept as deep fallbacks only
@@ -57,6 +58,10 @@ const MODEL_FILES = {
   a_afrasiab: 'assets/models/Afrasiab.glb',     // King of Turān → turanianKing branch
   a_arjasp: 'assets/models/Arjasp.glb',         // invading war-king → warKing branch
   a_kamus: 'assets/models/Kamus.glb',           // Kushani warlord → warlord branch
+  // Optional static boss attachments. These sit over the animated rig and can fail
+  // independently; the runtime procedural boss kit remains the fallback.
+  boss_human_regalia: 'assets/bosses/boss-human-regalia.glb',
+  boss_div_crown: 'assets/bosses/boss-div-crown.glb',
   // Batch B divs (rigged + animated) — replace procedural buildDiv/sorceress branches
   a_divsepid: 'assets/animals/DivSepid.glb',      // White Div → divSepid
   a_arzhang: 'assets/animals/ArzhangDiv.glb',     // div-commander → divCommander
@@ -66,6 +71,7 @@ const MODEL_FILES = {
   a_sorceress: 'assets/models/Sorceress.glb',     // Māzandarān witch → sorceress
   // Batch C crawlers — source/reference GLBs until rigged. Runtime refuses to use them as
   // primary enemies unless real animation clips are present; no static-asset fake crawling.
+  a_azhdaha_actor: 'assets/animals/AzhdahaActor.glb',
   a_dragon: 'assets/animals/Azhdaha.glb',         // Azhdahā dragon → dragon
   a_worm: 'assets/animals/Worm.glb',              // Kerm-e Haftvād → worm
   // Heroes — rigged commanders that stand on the tower they lead (key Hero_<id>, hyphens → underscores)
@@ -252,11 +258,20 @@ const PALACE_FILES = {
 };
 const palaceCache = new Map();   // placeId -> 'loading' | 'failed' | { scene }
 const palaceWaiters = new Map(); // placeId -> [onReady...]
+const palaceErrors = new Map();
 
 export function hasPalace(placeId) { return !!PALACE_FILES[placeId]; }
 export function palaceReady(placeId) {
   const c = palaceCache.get(placeId);
   return !!c && c !== 'loading' && c !== 'failed';
+}
+export function palaceStatus(placeId) {
+  const c = palaceCache.get(placeId);
+  return {
+    available: !!PALACE_FILES[placeId],
+    status: !PALACE_FILES[placeId] ? 'missing' : !c ? 'idle' : c === 'loading' ? 'loading' : c === 'failed' ? 'failed' : 'ready',
+    error: palaceErrors.get(placeId) || null,
+  };
 }
 
 export function sanitizePalaceShadows(root) {
@@ -278,13 +293,26 @@ export function sanitizePalaceShadows(root) {
 
 function palaceMaterialProfile(root, placeId) {
   if (placeId !== 'zabulistan' || !root?.traverse) return root;
+  const profile = zabulistanVisualProfile(placeId)?.palace?.material || {};
   const toned = new Map();
-  const colorMul = new THREE.Color(0x9a8664);
+  const colorMul = new THREE.Color(profile.colorMul ?? 0xe2c28d);
+  const lightStone = new THREE.Color(profile.lightStone ?? 0xc6a36f);
+  const midStone = new THREE.Color(profile.midStone ?? 0xa0774d);
+  const darkStone = new THREE.Color(profile.darkStone ?? 0x604431);
   const toneMaterial = (mat) => {
     if (!mat?.isMaterial) return mat;
     if (toned.has(mat)) return toned.get(mat);
     const m = mat.clone();
-    if (m.color?.isColor) m.color.multiply(colorMul);
+    if (m.color?.isColor) {
+      const luminance = m.color.r * 0.2126 + m.color.g * 0.7152 + m.color.b * 0.0722;
+      if (luminance > 0.66) {
+        m.color.lerp(lightStone, 0.52);
+      } else if (luminance < 0.14) {
+        m.color.lerp(darkStone, 0.68);
+      } else {
+        m.color.multiply(colorMul).lerp(midStone, 0.16);
+      }
+    }
     if (m.emissive?.isColor) m.emissive.setHex(0x000000);
     if ('emissiveIntensity' in m) m.emissiveIntensity = 0;
     if ('metalness' in m) m.metalness = Math.min(Number.isFinite(m.metalness) ? m.metalness : 0, 0.06);
@@ -307,6 +335,10 @@ function palaceMaterialProfile(root, placeId) {
 // kick a lazy load (idempotent); onReady fires once the GLB is parsed (or immediately if already ready).
 export function loadPalace(placeId, onReady) {
   if (!PALACE_FILES[placeId]) return;
+  if (palaceCache.get(placeId) === 'failed') {
+    palaceCache.delete(placeId);
+    palaceErrors.delete(placeId);
+  }
   if (palaceReady(placeId)) { onReady && onReady(); return; }
   if (onReady) palaceWaiters.set(placeId, [...(palaceWaiters.get(placeId) || []), onReady]);
   if (palaceCache.has(placeId)) return; // already loading / failed
@@ -316,11 +348,18 @@ export function loadPalace(placeId, onReady) {
     (gltf) => {
       sanitizePalaceShadows(gltf.scene);
       palaceCache.set(placeId, { scene: gltf.scene });
+      palaceErrors.delete(placeId);
       (palaceWaiters.get(placeId) || []).forEach((fn) => fn());
       palaceWaiters.delete(placeId);
     },
     undefined,
-    () => { palaceCache.set(placeId, 'failed'); palaceWaiters.delete(placeId); }, // missing → procedural citadel
+    (err) => {
+      const message = err?.message || err?.target?.src || String(err || 'unknown palace asset load error');
+      palaceErrors.set(placeId, message);
+      console.warn('Palace asset failed to load', placeId, message);
+      palaceCache.set(placeId, 'failed');
+      palaceWaiters.delete(placeId);
+    }, // missing → procedural citadel
   );
 }
 export function clonePalaceScene(placeId) {
