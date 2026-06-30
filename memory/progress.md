@@ -2671,3 +2671,15 @@ and Shahnameh-only language.
 - Harmony regression held: all five Zabulistan backdrop image layers loaded, the authored
   `zabulistan-palace-facade-dressing` was present, `zabulistan-palace-facade-fallback` was absent, and the hard tan board
   ring did not return.
+
+## 2026-06-30 - Zabulistan PR 11 merged and deployed
+
+- Merged PR #11, `Tune Zabulistan combat readability`, into `main` with merge commit `a6ebc94`. This publishes the full
+  stacked Zabulistan stage/readability work plus the final Harmony and Combined Combat Readability handoff.
+- The static site deploy workflow run `28454511550` completed successfully for `a6ebc94`. The run emitted only runtime
+  deprecation annotations, not a build or deploy failure.
+- Post-merge cleanup removed the merged feature branch `work/zabulistan-combat-readability` locally and from `origin`
+  after confirming it was contained in `origin/main`.
+- Current project state: Harmony plus Combined Combat Readability are now the shipped `main` baseline. The next separate
+  Zabulistan implementation frontier is boss actor quality only if the user explicitly shifts focus there; avoid
+  re-opening stage harmony, HUD chrome, combat balance, or generated asset retuning as part of this closeout state.
