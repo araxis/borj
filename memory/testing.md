@@ -752,7 +752,8 @@ for (let i = 0; i < 3600; i++) g.update(1/60, i/60);   // simulate 60 s instantl
   `zabulistanCombatVisualBudget()`. Selected-target and palace gate-hold cues remain primary under combined focus, while
   road pressure, contact, and palace command feedback are capped/subdued. Preserve this as visual-only presentation
   behavior; do not change gameplay data paths, combat balance, HUD structure, assets, stage lighting, board colors,
-  palace assets, or ridge geometry when using this baseline.
+  palace assets, or ridge geometry when using this baseline. This baseline is merged on `main` through PR #11
+  (`a6ebc94`) and deployed by static site run `28454511550`.
 - **Accepted QA routes:**
   - `?qa=combined-combat-readability`
   - `?qa=combined-combat-readability-rtl`
@@ -773,5 +774,6 @@ for (let i = 0; i < 3600; i++) g.update(1/60, i/60);   // simulate 60 s instantl
 - **Harmony regression metrics:** all five Zabulistan backdrop image layers loaded, 0 missing/failed layers, no overflow,
   no document scroll overflow, 0 broken images, 0 visual artifact findings, `zabulistan-palace-facade-dressing` present,
   `zabulistan-palace-facade-fallback` absent, and no return of the hard tan board ring.
-- **Static checks:** for memory-only packaging, `git diff --check` is enough. If source files are touched again, rerun
-  `node --check src/main.js`, `npm run build`, `npm run audit:assets`, and `git diff --check`.
+- **Static checks:** current shipped validation is `node --check src/main.js`, `npm run build`, `npm run audit:assets`,
+  and `git diff --check`. For memory-only closeout updates, `git diff --check` is enough. If source files are touched
+  again, rerun the full static set.

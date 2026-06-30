@@ -449,13 +449,15 @@ Important current guardrails:
   `Worm.glb` are currently source-only, so dragon/worm enemies intentionally use the segmented animated fallback until
   those assets are repaired with real clips. Do not add static-GLB bob/weave animation branches for primary actors.
 
-## Updated 2026-06-29 - Current Zabulistan stage-one resume point
+## Updated 2026-06-30 - Current Zabulistan mainline resume point
 
-- **Current local head:** `3a97e1d Improve Zabulistan ridge assets`. The work is committed locally only. Do not merge or
-  push unless the user explicitly asks.
-- **Recent local visual baseline:** keep commits `c7a10bf`, `618a955`, `468bed1`, `094543e`, and `3a97e1d` as the
-  active Zabulistan visual direction. These cover foreground dressing, softer gate dressing, palace texture retune,
-  authored palace facade dressing, and warmer ridge/siege assets.
+- **Current main baseline:** PR #11 (`Tune Zabulistan combat readability`) is merged into `main` at merge commit
+  `a6ebc94`. The static site deploy run `28454511550` completed successfully. The merged feature branch
+  `work/zabulistan-combat-readability` was deleted locally and on `origin`.
+- **Recent main visual baseline:** keep commits `c7a10bf`, `618a955`, `468bed1`, `094543e`, `3a97e1d`, and the PR #11
+  merge commit as the active Zabulistan visual/readability direction. These cover foreground dressing, softer gate
+  dressing, palace texture retune, authored palace facade dressing, warmer ridge/siege assets, Harmony, and Combined
+  Combat Readability.
 - **Do not revert:** the authored `zv_palace_facade_dressing` path in `src/world/zabulistanVisualKit.js`. It is now the
   preferred palace gate/front facade; the procedural fallback is still present for asset failure.
 - **Do not re-grey:** `zv_cliff_shoulder_set`, `zv_outer_ridge_wall_set`, and `zv_gate_cliff_siege_set`. They are now
@@ -471,8 +473,8 @@ Important current guardrails:
 - **Latest verification:** `npm run build` and `npm run audit:assets` pass. Browser QA for opening build, palace
   selected, gate hold/combat, and mobile RTL reported no overflow and no broken images. Automated audio autoplay
   warnings are expected.
-- **Current harmony baseline:** the Zabulistan board/backdrop/lighting pass is now implemented locally. The map-specific
-  biome and mood values live in `src/data/zabulistanVisualProfile.js` under `biome`, and `src/world/map.js` consumes that
+- **Current harmony baseline:** the Zabulistan board/backdrop/lighting pass is merged on `main`. The map-specific biome
+  and mood values live in `src/data/zabulistanVisualProfile.js` under `biome`, and `src/world/map.js` consumes that
   profile instead of keeping a hardcoded Zabulistan override. Preserve this shape for future Zabulistan tuning.
 - **Harmony visual state:** terrain, apron, fog, and panorama tones now read as one warmer dry highland fortress scene.
   The board/apron colors are closer, the circular edge blend is wider and softer, and the distant highlands are more
@@ -482,16 +484,15 @@ Important current guardrails:
   `window.__dbg.visualQa.state('backdropSweep', { mapId: 'zabulistan' })`. Wait for `qa-state-recorded`; require all
   five Zabulistan backdrop image layers loaded, no missing/failed layers, no overflow, no broken images, no artifact
   findings, authored facade present, fallback absent, and readable mobile RTL palace/forecourt.
-- **Current combined-combat baseline:** the Zabulistan real-wave playability/readability pass is implemented locally.
+- **Current combined-combat baseline:** the Zabulistan real-wave playability/readability pass is merged on `main`.
   `src/main.js` keeps selected-target and palace gate-hold cues as the dominant read under stacked combat, while capping
   road pressure, contact, and palace command feedback. The accepted routes are `?qa=combined-combat-readability`,
   `?qa=combined-combat-readability-rtl`, and `?qa=combined-combat-readability-reduced`; wait for `qa-state-recorded` and
   require active budget, visible selected-target thread, active gate-hold state/pressure/defender metadata, subdued
   road/contact/command cues, compact `combatFlow`, no overflow, no broken images, artifacts 0, five backdrop layers,
   authored facade present, and fallback absent.
-- **Known local noise:** `memory/`, `output/`, `.playwright-cli/`, and `scripts/asset-tools/__pycache__/` may be dirty or
-  untracked. Keep those out of code commits unless the user specifically asks to update memory.
-- **Recommended next implementation step:** package or commit the combined-combat readability pass only if requested.
-  Otherwise treat Harmony plus combined-combat readability as the active Zabulistan baseline. The next separate
-  implementation frontier is boss actor quality only if the user explicitly shifts focus there; do not retune stage
-  harmony, HUD chrome, combat balance, or generated assets as part of this packaging state.
+- **Known local noise:** `output/`, `.playwright-cli/`, and `scripts/asset-tools/__pycache__/` may be untracked. Keep
+  those out of code commits unless the user explicitly asks to clean or archive local artifacts.
+- **Recommended next implementation step:** treat Harmony plus Combined Combat Readability as the shipped Zabulistan
+  baseline. The next separate implementation frontier is boss actor quality only if the user explicitly shifts focus
+  there; do not retune stage harmony, HUD chrome, combat balance, or generated assets as part of this closeout state.
