@@ -2686,7 +2686,7 @@ and Shahnameh-only language.
 
 ## 2026-06-30 - Runtime boss actor quality packaged
 
-- Completed the runtime-only boss actor readability pass as local source changes in `src/models/creature.js`,
+- Completed the runtime-only boss actor readability pass in `src/models/creature.js`,
   `src/entities/bossvisuals.js`, and debug metadata in `src/main.js`. This pass does not generate or replace GLBs and
   does not change gameplay stats, targeting, waves, pathing, saves, HUD structure, Zabulistan terrain/backdrop/fog, or
   palace/ridge assets.
@@ -2712,6 +2712,17 @@ and Shahnameh-only language.
 - Regression smoke held because `src/main.js` was touched: `?qa=opening-build` kept all five Zabulistan backdrop layers
   loaded with no overflow or artifact findings, and `?qa=combined-combat-readability` kept active budget, selected
   target, gate-hold cue, compact `combatFlow`, five backdrop layers, no overflow, and no artifact findings.
-- Current project state: Harmony plus Combined Combat Readability remain the shipped `main` baseline. Runtime Boss Actor
-  Quality is verified local source work and the next packaging decision is whether to commit/PR it; animated worm or
-  dragon asset repair remains a separate future asset-pipeline pass only if requested.
+- Current project state: Harmony plus Combined Combat Readability remain the shipped `main` baseline, and Runtime Boss
+  Actor Quality is verified source work. Animated worm or dragon asset repair remains a separate future asset-pipeline
+  pass only if requested.
+
+## 2026-06-30 - Runtime boss actor quality PR 13 merged and deployed
+
+- Merged PR #13, `Tune boss actor readability`, into `main` with merge commit `fe5ccbf`. This publishes the runtime-only
+  boss actor readability work plus the memory handoff for the accepted boss QA baseline.
+- The static site deploy workflow run `28459861505` completed successfully for `fe5ccbf`.
+- Post-merge cleanup removed the merged feature branch `work/boss-actor-quality` locally and from `origin` after
+  confirming it was contained in `origin/main`.
+- Current project state: Harmony, Combined Combat Readability, and Runtime Boss Actor Quality are now the shipped `main`
+  baseline. The next separate implementation target is animated worm/dragon asset repair only if requested; do not
+  start a new gameplay, HUD, Zabulistan stage, or asset-generation pass as part of this closeout state.
