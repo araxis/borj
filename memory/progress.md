@@ -2683,3 +2683,35 @@ and Shahnameh-only language.
 - Current project state: Harmony plus Combined Combat Readability are now the shipped `main` baseline. The next separate
   Zabulistan implementation frontier is boss actor quality only if the user explicitly shifts focus there; avoid
   re-opening stage harmony, HUD chrome, combat balance, or generated asset retuning as part of this closeout state.
+
+## 2026-06-30 - Runtime boss actor quality packaged
+
+- Completed the runtime-only boss actor readability pass as local source changes in `src/models/creature.js`,
+  `src/entities/bossvisuals.js`, and debug metadata in `src/main.js`. This pass does not generate or replace GLBs and
+  does not change gameplay stats, targeting, waves, pathing, saves, HUD structure, Zabulistan terrain/backdrop/fog, or
+  palace/ridge assets.
+- Actor baseline: dragon closeup now uses the animated `a_azhdaha_actor` path when available, reporting
+  `animType: "gltf"`, `glb: true`, `visualSource: "asset:a_azhdaha_actor"`, `assetKey: "a_azhdaha_actor"`,
+  `actionNames: ["idle","walk","attack"]`, and `actorProfile: "animated-crawler"`. `a_dragon` and `a_worm` remain
+  guarded source/reference assets when they have no clips.
+- Procedural fallback baseline: `haftvad-worm` remains an intentional runtime serpent fallback until a real animated
+  worm asset exists, reporting `animType: "serpent"`, `glb: false`, `visualSource: "procedural:worm"`,
+  `fallbackReason: "source-only-no-clips"`, `sourceAsset: "a_worm"`, and `actorProfile: "procedural-worm"`.
+- Boss overlay baseline: crawler and humanoid/div detail overlays now clarify scale and identity without broad glow
+  discs, banners, HUD-like chrome, or animation-dependent reduced-motion reads.
+- Verification passed before packaging:
+  - `node --check src/models/creature.js`
+  - `node --check src/entities/bossvisuals.js`
+  - `node --check src/main.js`
+  - `npm run audit:assets` with 0 blockers; `a_dragon` and `a_worm` still listed as source-only
+  - `npm run build` with the existing runtime splash, mixed import placement, and large bundle warnings
+  - `git diff --check` with only existing LF-to-CRLF warnings
+- Accepted browser QA: `?qa=boss-closeup-dragon`, `?qa=boss-arrival-dragon`, `?qa=boss-closeup-zahhak`,
+  `?qa=boss-arrival-zahhak`, `window.__dbg.visualQa.state('bossCloseup', { mapId: 'makran', defId: 'haftvad-worm' })`,
+  `window.__dbg.enemyTest('dragon', 'walk')`, and `window.__dbg.enemyTest('worm', 'walk')`.
+- Regression smoke held because `src/main.js` was touched: `?qa=opening-build` kept all five Zabulistan backdrop layers
+  loaded with no overflow or artifact findings, and `?qa=combined-combat-readability` kept active budget, selected
+  target, gate-hold cue, compact `combatFlow`, five backdrop layers, no overflow, and no artifact findings.
+- Current project state: Harmony plus Combined Combat Readability remain the shipped `main` baseline. Runtime Boss Actor
+  Quality is verified local source work and the next packaging decision is whether to commit/PR it; animated worm or
+  dragon asset repair remains a separate future asset-pipeline pass only if requested.
