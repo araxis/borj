@@ -2892,7 +2892,8 @@ body.rtl .gbtn.launch { letter-spacing: 0; }
   }
   body.hud-low-chrome #topbar {
     top: max(5px, env(safe-area-inset-top));
-    width: min(360px, calc(100vw - 18px));
+    max-width: min(380px, calc(100vw - 8px));
+    width: min(380px, calc(100vw - 8px));
     padding: 4px 6px;
     gap: 3px 5px;
   }

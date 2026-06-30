@@ -541,6 +541,8 @@ function zabulistanCombatVisualBudget() {
       contactSecondaryOpacity: 1,
       commandOpacity: 1,
       commandMax: PALACE_COMMAND_CUE_MAX,
+      selectionRangeOpacity: 0.32,
+      selectionFootprintBase: 0.42,
       selectedTargetId: null,
     };
   }
@@ -555,6 +557,7 @@ function zabulistanCombatVisualBudget() {
   const buildMode = hud?.mode?.kind === 'build';
 
   const combinedFocus = gateFocus && selectedFocus;
+  const pressureFocus = gateFocus || commandActive;
   return {
     active: true,
     gatePressure: Number(gatePressure.toFixed(2)),
@@ -562,13 +565,15 @@ function zabulistanCombatVisualBudget() {
     commandActive,
     selectedFocus,
     selectedTargetId,
-    roadMax: buildMode ? ROAD_PRESSURE_CUE_MAX : (combinedFocus ? 4 : gateFocus || commandActive ? 6 : 8),
-    roadOpacity: combinedFocus ? 0.52 : gateFocus || commandActive ? 0.66 : 1,
-    contactMax: combinedFocus ? 4 : selectedFocus ? 5 : (gateFocus ? 6 : CONTACT_CUE_MAX),
-    contactOpacity: combinedFocus ? 0.68 : gateFocus ? 0.78 : 1,
-    contactSecondaryOpacity: combinedFocus ? 0.42 : selectedFocus ? 0.58 : 1,
-    commandOpacity: combinedFocus ? 0.5 : gateFocus ? 0.72 : 1,
+    roadMax: buildMode ? ROAD_PRESSURE_CUE_MAX : (combinedFocus ? 3 : pressureFocus ? 5 : 8),
+    roadOpacity: combinedFocus ? 0.42 : pressureFocus ? 0.6 : 1,
+    contactMax: combinedFocus ? 3 : selectedFocus ? 5 : (gateFocus ? 5 : CONTACT_CUE_MAX),
+    contactOpacity: combinedFocus ? 0.58 : gateFocus ? 0.72 : 1,
+    contactSecondaryOpacity: combinedFocus ? 0.32 : selectedFocus ? 0.54 : 1,
+    commandOpacity: combinedFocus ? 0.38 : gateFocus ? 0.64 : 1,
     commandMax: combinedFocus ? 1 : commandActive ? 2 : PALACE_COMMAND_CUE_MAX,
+    selectionRangeOpacity: combinedFocus ? 0.1 : pressureFocus || selectedFocus ? 0.22 : 0.32,
+    selectionFootprintBase: combinedFocus ? 0.18 : pressureFocus || selectedFocus ? 0.32 : 0.42,
   };
 }
 
@@ -1463,7 +1468,9 @@ function setRangeRingZabulistanCombatStyle(budget = zabulistanCombatVisualBudget
   rangeRing.material.depthTest = true;
   rangeRing.material.depthWrite = false;
   rangeRing.material.blending = THREE.NormalBlending;
-  rangeRing.material.opacity = focus ? 0.24 : 0.32;
+  rangeRing.material.opacity = Number.isFinite(budget.selectionRangeOpacity)
+    ? budget.selectionRangeOpacity
+    : focus ? 0.24 : 0.32;
   rangeRing.renderOrder = 22;
   rangeRing.userData.style = 'zabulistan-combat';
   rangeRing.material.needsUpdate = true;
@@ -1500,7 +1507,9 @@ function syncZabulistanSelectionFocus() {
   selRing.material.depthWrite = false;
   selRing.material.blending = THREE.NormalBlending;
   selRing.renderOrder = 24;
-  selRing.userData.pulseBase = focus ? 0.34 : 0.42;
+  selRing.userData.pulseBase = Number.isFinite(budget.selectionFootprintBase)
+    ? budget.selectionFootprintBase
+    : focus ? 0.34 : 0.42;
   selRing.userData.pulseAmp = settings.get('reducedMotion') ? 0 : 0.06;
   selRing.userData.style = 'zabulistan-combat';
   selRing.material.needsUpdate = true;

@@ -21,41 +21,13 @@ export class GameMap {
     this.place = PLACES_BY_ID[mapDef.id];
     const baseBiome = BIOMES[this.place?.biome || 'plains'];
     const visualProfile = zabulistanVisualProfile(mapDef.id);
-    this.biome = mapDef.id === 'zabulistan'
+    const visualBiome = visualProfile?.biome;
+    this.biome = visualBiome
       ? {
         ...baseBiome,
-        hills: Math.max(baseBiome.hills || 4.5, 6.2),
-        ground: [0x5e5b49, 0x7c7056],
-        rock: 0x68665e,
-        high: 0xa69b84,
-        mood: {
-          ...baseBiome.mood,
-          background: 0x6b6870,
-          skyTop: 0x303746,
-          fogColor: 0xa09685,
-          fogNear: 72,
-          fogFar: 220,
-          sunColor: 0xffaa63,
-          sunIntensity: 1.58,
-          hemiSky: 0xbac8d4,
-          hemiGround: 0x554a3f,
-          hemiIntensity: 1.02,
-          exposure: 0.96,
-          bloom: { strength: 0.28, threshold: 0.88, radius: 0.5 },
-          grade: { vignette: 0.4, contrast: 1.1, saturation: 1.06, lift: 0x120f12 },
-        },
-        props: {
-          ...baseBiome.props,
-          cypress: 0,
-          tree: 0,
-          rock: 42,
-          reeds: 7,
-          bush: 0,
-          grass: 0,
-          treePlan: false,
-          dryGrass: true,
-          snow: false,
-        },
+        ...visualBiome,
+        mood: { ...baseBiome.mood, ...(visualBiome.mood || {}) },
+        props: { ...baseBiome.props, ...(visualBiome.props || {}) },
       }
       : baseBiome;
     // per-map prop overrides win over the biome defaults (e.g. Mazandaran zeroes cypress while

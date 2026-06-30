@@ -215,12 +215,16 @@ Important current guardrails:
   `artifacts/visual-qa/zabulistan-palace-tone-desktop.png`,
   `artifacts/visual-qa/zabulistan-palace-tone-mobile-rtl.png`, and
   `artifacts/visual-qa/zabulistan-palace-tone-selected.png`.
-- Current Zabulistan gate contact baseline: `src/world/zabulistanVisualKit.js` adds
-  `zabulistan-gate-contact-grit` inside the Zabulistan-only forecourt pass. It should stay opaque, local to the palace
-  threshold, and small enough to ground the gate without returning to broad transparent blobs. Current evidence:
-  `artifacts/visual-qa/zabulistan-gate-contact-desktop.png`,
-  `artifacts/visual-qa/zabulistan-gate-contact-mobile-rtl.png`, and
-  `artifacts/visual-qa/zabulistan-gate-contact-selected.png`.
+- Current Zabulistan gate threshold baseline: `zv_gate_threshold_transition` is exported by
+  `scripts/asset-tools/build-zabulistan-stage-assets.py` to
+  `public/assets/scenery/zabulistan/gate-threshold-transition.glb`, registered as a neutral Zabulistan prop, and placed
+  by `src/world/zabulistanVisualKit.js` in the normal forecourt path. Expected QA is
+  `zabulistan-gate-threshold-transition` present, `zabulistan-forecourt-threshold` absent,
+  `zabulistan-gate-contact-grit` absent, fallback false, artifacts 0, overflow false, and no broad authored
+  causeway/threshold ground plates at the lower gate. The old forecourt threshold and contact grit are fallback-only.
+  Current local evidence:
+  `output/playwright/zabulistan-gate-threshold-transition-desktop-final-v2.png` and
+  `output/playwright/zabulistan-gate-threshold-transition-mobile-rtl-final.png`.
 - Current Zabulistan gate combat baseline: `window.__dbg.visualQa.state('zabulistanGateCombat', { mode: 'royal' })`
   frames the palace forecourt, opens the compact command rail, and spawns a royal gate assault. The accepted state keeps
   gameplay radius unchanged but uses compact visual radius/intensity and `groundWaveIntensity: 0` so broad filled
@@ -238,15 +242,194 @@ Important current guardrails:
   `artifacts/visual-qa/zabulistan-gate-depth-final-desktop.png`,
   `artifacts/visual-qa/zabulistan-gate-depth-final-combat.png`, and
   `artifacts/visual-qa/zabulistan-gate-depth-final-mobile-rtl.png`.
+- Current Zabulistan palace foreground terrace-wall baseline: `zv_palace_foreground_terrace_wall` is exported by
+  `scripts/asset-tools/build-zabulistan-stage-assets.py` to
+  `public/assets/scenery/zabulistan/palace-foreground-terrace-wall.glb`, registered as a neutral Zabulistan prop, and
+  placed only by `src/world/zabulistanVisualKit.js` after `buildForecourt()` and before the palace cliff/gate-depth
+  dressing. Expected QA is one `zabulistan-palace-foreground-terrace-wall-main` object, no
+  `zabulistan-palace-foreground-terrace-wall-fallback`, four `zabulistan-gate-cliff-siege-*` objects, artifacts 0,
+  overflow 0, and no broad pale ground-plate slabs around the lower gate. Current local evidence:
+  `output/playwright/zabulistan-palace-foreground-terrace-desktop-final-v2.png` and
+  `output/playwright/zabulistan-palace-foreground-terrace-mobile-rtl.png`.
+- Current Zabulistan staging cleanup baseline: `zv_cavalry_staging_set` and `zv_gate_cliff_siege_set` should not contain
+  the old broad plate meshes named `cavalry_staging_dust_wash`, `cavalry_staging_packed_earth`,
+  `cavalry_staging_trodden_center`, `gate_depth_shadow_wash`, or `gate_depth_trampled_shelf`. The expected scene names
+  in `zabulistanForecourt` are `zabulistan-cavalry-staging-left`, `zabulistan-cavalry-staging-right`,
+  `zabulistan-camp-ground-props-left`, `zabulistan-camp-ground-props-right`,
+  `zabulistan-palace-foreground-terrace-wall-main`, and four `zabulistan-gate-cliff-siege-*` objects. Current browser
+  QA baseline is fallback false, artifacts 0, overflow false, and no old broad plate mesh names in desktop or mobile RTL.
+- Current Zabulistan palace slope terrace baseline: `zv_palace_slope_terrace_set` is exported by
+  `scripts/asset-tools/build-zabulistan-stage-assets.py` to
+  `public/assets/scenery/zabulistan/palace-slope-terrace-set.glb`, registered as a neutral Zabulistan prop, and placed
+  only by `src/world/zabulistanVisualKit.js` as four authored slope terrace clusters around the palace foreground.
+  Expected QA is four `zabulistan-palace-slope-terrace-*` objects, no
+  `zabulistan-palace-slope-terrace-fallback`, no `zabulistan-palace-foreground-terrace-wall-fallback`,
+  `zabulistan-gate-threshold-transition` present, artifacts 0, and overflow 0. Current local evidence:
+  `output/playwright/zabulistan-palace-slope-terrace-desktop.png` and
+  `output/playwright/zabulistan-palace-slope-terrace-mobile-rtl.png`.
+- Next Zabulistan visual target: the close lower forecourt approach edge still reads too dark in mobile framing. Solve it
+  in the lower approach dressing (`zv_forecourt_approach_edges` placement/asset or equivalent), not by further changing
+  the palace slope terrace rocks. The Zabulistan road ribbon is intentionally trimmed away from the palace forecourt.
+- Current Zabulistan lower forecourt/base cleanup baseline: `forecourt-approach-edges.glb` no longer contains the old
+  `forecourt_approach_packed_core`, `forecourt_approach_left_shelf`, or `forecourt_approach_right_shelf` plates. The
+  Zabulistan forecourt now has a low warm palace base terrace/lip, a warm foreground apron, five shallow warm sill bands,
+  lighter causeway/retaining/scree tints, and a cleaned source palette for the Zabulistan palace GLB. Expected QA is
+  artifacts 0, overflow false/0, warm apron/sill/threshold-cover scene objects present, and no old approach plate names.
+  Current evidence:
+  `output/playwright/zabulistan-forecourt-final-close-desktop.png` and
+  `output/playwright/zabulistan-forecourt-final-mobile-rtl.png`.
+- Current Zabulistan palace source cleanup baseline: `scripts/asset-tools/clean-zabulistan-palace.py` regenerates
+  `public/assets/palaces/ZabulistanKeepPolished.glb` from a baseline source, warms the base-color palette, disables
+  active emission color, exports browser-ready textures, and is repeat-safe through the cleaned image marker. Runtime
+  no longer rewrites the palace texture map on load; `src/core/assets.js` keeps only the light warm tint and emission
+  suppression. Current evidence:
+  `output/playwright/zabulistan-palace-source-cleanup-desktop-final.png` and
+  `output/playwright/zabulistan-palace-source-cleanup-mobile-rtl-final.png`.
+- Current Zabulistan palace command rail baseline: selected citadel uses a smaller depth-tested low-intensity footprint
+  ring while towers keep the brighter readability ring. The low-chrome palace quick action rail is compact on mobile RTL,
+  the context chip stays separated from the rail, and enabled quick actions preview the existing command footprint on
+  hover/focus before clearing it on leave/blur. Expected QA is all five Zabulistan backdrop layers loaded, artifacts 0,
+  overflow 0/false, compact palace rail/chip visible, and command preview create/clear working.
+- Current Zabulistan palace contact terrain baseline: `zv_palace_contact_terrain_set` is exported by
+  `scripts/asset-tools/build-zabulistan-stage-assets.py` to
+  `public/assets/scenery/zabulistan/palace-contact-terrain-set.glb`, registered as a neutral Zabulistan prop, and placed
+  in `src/world/zabulistanVisualKit.js` with a named fallback. The same pass adds
+  `zabulistan-palace-contact-threshold-mask` and `zabulistan-palace-contact-threshold-stones`, breaks the old long sill
+  bars into short staggered stones, and shortens the compact mobile palace chip name. Expected QA is contact terrain
+  present, fallback absent, threshold mask/stones present, terrace wall and gate threshold present, artifacts 0, overflow
+  0/false, all five Zabulistan backdrop layers loaded, and mobile RTL `visualQa.overflow()` empty. Current local
+  evidence: `output/playwright/zabulistan-palace-contact-terrain-desktop-final.png` and
+  `output/playwright/zabulistan-palace-contact-terrain-mobile-rtl-final.png`.
 - Current Zabulistan cavalry close-combat baseline:
   `window.__dbg.visualQa.state('zabulistanCavalryCloseCombat', { mode: 'royal' })` starts a royal sandbox assault, keeps
   the palace drawer closed, and frames mounted defenders at the gate. Expected QA is Zabulistan props ready, horse ready,
   3 mounted GLB defenders, one `zabulistan-cavalry-close-combat-fx` group, artifacts 0, overflow 0, no page errors, and
-  no sandbox helper chrome/toast covering the playfield. The low-chrome active-wave button now collapses to a compact
-  status chip during combat. Current evidence:
-  `artifacts/visual-qa/zabulistan-cavalry-close-combat-final-desktop.png`,
-  `artifacts/visual-qa/zabulistan-cavalry-close-combat-final-mobile-rtl.png`, and
-  `artifacts/visual-qa/zabulistan-cavalry-close-combat-final-reduced-motion.png`.
+  no sandbox helper chrome/toast covering the playfield. The accepted low-chrome gate combat pass adds defender ground
+  shadows/crest cues, smaller hoof/enemy marks, a smaller lifted gate banner, dimmer hit-line feedback, debounced palace
+  danger markers, and low-intensity palace command rays. Current accepted sample reduced command-field rays from 23 to 9
+  and duplicate gate marker/shield-line counts to about 3/2 after a short combat window. Current local evidence:
+  `output/playwright/zabulistan-cavalry-close-combat-desktop-lowray.png` and
+  `output/playwright/zabulistan-cavalry-close-combat-mobile-rtl-reduced-lowray.png`.
+- Current Zabulistan projectile/overlay readability baseline: route and assault-column helper lines now keep low
+  `routeAlpha` values instead of being reset to the old bright route opacity; low-intensity palace command fields create
+  one low-profile, depth-tested command thread and 9 subtle rays; defender hold, cavalry close-combat, and gate-pressure
+  omen line families are lower opacity/normal-blended where possible. Expected QA is artifacts 0, overflow 0/false, no
+  page errors, low-profile command thread count 1, subtle command rays 9, and no long white scratch fan across the
+  lower-left fight. Current evidence:
+  `output/playwright/zabulistan-cavalry-close-combat-desktop-overlay-tuned.png` and
+  `output/playwright/zabulistan-cavalry-close-combat-mobile-rtl-reduced-overlay-tuned.png`.
+- Current Zabulistan palace facade/body baseline: `zv_palace_facade_dressing` is exported by
+  `scripts/asset-tools/build-zabulistan-stage-assets.py` to
+  `public/assets/scenery/zabulistan/palace-facade-dressing.glb`, registered as a neutral Zabulistan prop, and placed by
+  `src/world/zabulistanVisualKit.js` at the visible gate surface rather than near the palace center. Accepted source
+  placement is 11.5 units along the approach from `map.exitPos`, `targetW: 13.45`, `yOffset: 0.12`, with the named
+  `zabulistan-palace-facade-fallback` reserved for missing GLB cases. Expected close-combat QA is authored facade count
+  1, fallback count 0, combat active, overflow 0/false, and no return to the old white cylinder plus oversized black
+  gate rectangle. Current evidence:
+  `output/playwright/zabulistan-palace-facade-final-desktop.png` and
+  `output/playwright/zabulistan-palace-facade-final-mobile-rtl-reduced.png`.
+- Current Zabulistan build-pad affordance baseline: `src/main.js` owns a build-mode layer named
+  `build-pad-affordance` with one warm ground-painted `build-pad-affordance-pad` mesh per available pad. The layer hides
+  outside build mode, skips occupied/rubble pads, refreshes after shift-build placement, and uses reduced-motion-safe
+  static scale/opacity when `reducedMotion` is enabled. Direct QA routes are `?qa=build-pad-affordance` and
+  `?qa=build-pad-affordance-rtl`; accepted QA is one affordance group, 16 visible pad markers, artifacts 0, overflow 0,
+  all five Zabulistan backdrop layers loaded, and stable reduced-motion marker samples at scale `1`/opacity `0.5`.
+  Current evidence:
+  `output/playwright/zabulistan-build-pad-affordance-url-desktop-final.png` and
+  `output/playwright/zabulistan-build-pad-affordance-url-mobile-rtl-final.png`.
+- Current Zabulistan active road pressure baseline: `src/main.js` owns a Zabulistan-only combat layer named
+  `zabulistan-road-pressure-cues`. It pools 12 road-pressure cue groups and shows the leading live road enemies during
+  active combat, with urgency based on remaining path distance. Build-pad strips also receive a subtle warm pressure tint
+  when active enemies are close. Direct QA routes are `?qa=active-road-pressure` and `?qa=active-road-pressure-rtl`;
+  accepted QA is one pressure-cue pool, 12 pooled cues/rings/dashes, 6-7 visible pressure cues in the current sandbox
+  gate sample, 16 build-pad markers, artifacts 0, overflow 0, all five Zabulistan backdrop layers loaded, and isolated
+  route smoke with 0 console errors. Current evidence:
+  `output/playwright/zabulistan-active-road-pressure-desktop.png` and
+  `output/playwright/zabulistan-active-road-pressure-mobile-rtl.png`.
+- Current Zabulistan real-wave contact baseline: `src/main.js` owns a Zabulistan-only contact layer named
+  `zabulistan-contact-feedback-cues`. It pools 10 cue groups and passively watches live enemy HP changes during active
+  Zabulistan combat, showing small ground rings, billboard health ticks, and short impact slashes for recent hits,
+  low-health pressure, and kills. Direct QA routes are `?qa=real-wave-contact` and `?qa=real-wave-contact-rtl`; they
+  build existing Zabulistan Watchtowers in sandbox, start the real wave roster, position spawned wave enemies near the
+  contact camera, fast-forward normal combat, and write `qa-state-json`. Route timing is now hardened at 58 settle
+  frames with a visual-only cue prime if the real contact beat falls between report samples. Build, asset audit, syntax
+  check, and `git diff --check` pass. Browser screenshot/JSON verification is still pending because the Playwright
+  browser runtime was missing, install timed out, and installed Chrome/Edge launch hung in the implementation session.
+- Current Zabulistan compact combat-flow HUD baseline: `src/ui/hud.js` adds a low-chrome `combatFlow` chip that appears
+  only during active Zabulistan combat. It shows live/queued enemy count, kills versus wave total, and a small progress
+  bar, with pressure tone derived from enemy path progress/boss/elite weight. `src/ui/style.css` keeps it in the same
+  visual family as the gate omen chip, with mobile wave-active size limits and reduced-motion-safe progress changes.
+  Build, asset audit, syntax checks, and `git diff --check` pass.
+- Current Zabulistan selected target-thread baseline: `src/entities/tower.js` records each tower's most recent fired-at
+  target as presentation metadata, and `src/main.js` renders one pooled `zabulistan-selected-target-thread` only while a
+  tower is selected during active Zabulistan combat. The layer draws a thin tower-to-enemy line and small ground reticle,
+  fades quickly, resets on selection/palace/combat cleanup, and removes shimmer/pulse for reduced motion. Direct QA
+  routes are `?qa=selected-target-thread` and `?qa=selected-target-thread-rtl`; desktop and 390x720 mobile RTL browser
+  QA now pass with target thread visible, contact cues visible, artifacts 0, overflow false, no visible overlays, and no
+  console warnings/errors. Current evidence:
+  `output/playwright/zabulistan-selected-target-thread-zabul-watchtower-warm.png` and
+  `output/playwright/zabulistan-selected-target-thread-mobile-rtl-warm.png`.
+- Current Zabulistan direct-route QA freeze baseline: `src/main.js` suppresses delayed victory/defeat end screens for
+  sandbox visual QA and pauses the engine immediately after non-end direct-route `qa-state-json` is written. Accepted
+  combat QA routes should add `qa-state-recorded` and stay on the combat evidence frame, not drift into end overlays.
+- Current Zabulistan watchtower baseline: `src/data/towers.js` points `zabul-watch` at the neutral procedural
+  `zabulWatchtower` recipe in `src/models/towerkit.js`. It replaces the old white/black blocky Watchtower silhouette
+  with warm brick/sandstone/cedar, roof staging, spear racks, and pahlavan standards. This is visual-only; no tower
+  stats, costs, target choice, projectile behavior, wave timing, saves, or balance changed.
+- Current Zabulistan opening-build baseline: `src/main.js` scores available pads only during first-wave Zabulistan build
+  mode and uses the existing `build-pad-affordance` markers to make the top three `zabul-watch` opening pads warmer and
+  brighter while secondary pads recede. Direct QA routes are `?qa=opening-build` and `?qa=opening-build-rtl`; accepted
+  reports show 16 visible pads, 3 opening picks, no overflow, correct LTR/RTL direction, and no console warnings/errors.
+  Current evidence:
+  `output/playwright/zabulistan-opening-build-desktop.png` and
+  `output/playwright/zabulistan-opening-build-mobile-rtl.png`.
+- Current Zabulistan active-placement baseline: `src/main.js` scores available pads only during live Zabulistan combat
+  build mode, using current enemies plus short path-ahead samples and selected tower range. Strong response pads reuse
+  the existing `build-pad-affordance` markers with warmer/brighter styling; no labels, arrows, new HUD panels, build
+  automation, or balance changes are involved. Direct QA routes are `?qa=active-placement` and
+  `?qa=active-placement-rtl`; accepted reports show 16 visible pads, active placement mode true, 2 strong response picks
+  for the current pressure setup, visible road pressure cues, no overflow, correct LTR/RTL direction, and no console
+  warnings/errors. Current evidence:
+  `output/playwright/zabulistan-active-placement-desktop.png` and
+  `output/playwright/zabulistan-active-placement-mobile-rtl.png`.
+- Current Zabulistan contact-confirm baseline: `src/main.js` adds a pooled `zabulistan-contact-confirm` terrain mark
+  inside the existing `zabulistan-contact-feedback-cues` pool for confirmed kills and heavy hits. Direct QA routes are
+  `?qa=contact-confirm` and `?qa=contact-confirm-rtl`; accepted reports show custom palace ready
+  (`styleId: palace-zabulistan`), 10 pooled confirm meshes, `killConfirms >= 1`, `recentHeavyHits >= 1`, no overflow,
+  artifacts 0, correct LTR/RTL direction, and no console warnings/errors. Current evidence:
+  `output/playwright/zabulistan-contact-confirm-desktop.png` and
+  `output/playwright/zabulistan-contact-confirm-mobile-rtl.png`.
+- Current Zabulistan palace-load baseline: direct-route QA now prioritizes loading the Zabulistan palace before broad
+  actor preloads, exposes neutral palace loader status through QA metadata, and `_swapToPalace()` only accepts true
+  custom palaces. Accepted Zabulistan captures must not freeze on procedural `zabul-keep` unless explicitly testing
+  fallback behavior.
+- Current Zabulistan palace command-feedback baseline: `src/main.js` owns a pooled
+  `zabulistan-palace-command-feedback-cues` layer for transient terrain-bound palace command pulses. It is wired to
+  existing `palaceCommand` events plus a neutral `palaceCommandFx` visual event from gate-command pressure paths in
+  `src/game/game.js`. Direct QA routes are `?qa=palace-command-feedback`, `?qa=palace-command-feedback-rtl`, and
+  `?qa=palace-command-feedback-reduced`; accepted cue reports show `feedback.visible === 1`, `recentKind: "gate"`,
+  no overflow, artifacts 0, and no console warnings/errors. In-app browser JSON can keep stale palace/backdrop loading
+  metadata on this heavy route even when the screenshot has rendered the polished palace, so use screenshots as the
+  palace visual source of truth. Current evidence:
+  `output/playwright/zabulistan-palace-command-feedback-desktop.png`,
+  `output/playwright/zabulistan-palace-command-feedback-mobile-rtl.png`, and
+  `output/playwright/zabulistan-palace-command-feedback-reduced.png`.
+- Current Zabulistan palace gate-hold baseline: `src/main.js` owns a pooled
+  `zabulistan-gate-hold-cue` terrain layer at the palace threshold. It derives hold/ready/peak state from existing
+  `palaceGateCommandPressure`, `palaceAssaultStatus`, and palace defender squad metadata, then renders a low-chrome
+  threshold band, hold ring, brace line, and three pressure ticks without adding a HUD panel or changing balance.
+  Direct QA routes are `?qa=gate-hold-state`, `?qa=gate-hold-state-rtl`, and `?qa=gate-hold-state-reduced`; these now
+  default to a breach-pressure sandbox assault with full FX and command pulse disabled so the cue can be judged cleanly.
+  The QA route also suppresses the floating gate text banner, leaving the terrain cue readable without text boxes over
+  the melee cluster. Build, asset audit, syntax check, and `git diff --check` pass. Accepted browser evidence:
+  `output/playwright/zabulistan-gate-hold-state-desktop-no-banner.png`.
+- Current Zabulistan combined-combat readability baseline: enemy pressure, tower selection, palace command feedback, and
+  palace gate hold now read together through `src/main.js` presentation-layer budgeting. Selected-target and gate-hold
+  cues stay primary when stacked; road pressure, contact, and command cues are capped/subdued instead of brightened.
+  Direct QA routes are `?qa=combined-combat-readability`, `?qa=combined-combat-readability-rtl`, and
+  `?qa=combined-combat-readability-reduced`. Accepted combined metrics include active budget, visible selected target
+  thread, active gate-hold metadata, capped road/contact cues, one subdued palace command cue, compact `combatFlow`, no
+  overflow, no broken images, artifacts 0, and Harmony backdrop/facade regression checks passing.
 - Current Zabulistan mobile HUD baseline: mobile low-chrome hides secondary Codex/settings/language controls from the
   topbar, uses `wave-active` to compact combat HUD, collapses the combat quick-build rail to one edge catalog button,
   and keeps the build-phase wave call button compact instead of full-width. Current accepted metrics are about 64px
@@ -265,3 +448,50 @@ Important current guardrails:
   have real clips; zero-clip actor GLBs are source/reference only unless explicitly static scenery. `Azhdaha.glb` and
   `Worm.glb` are currently source-only, so dragon/worm enemies intentionally use the segmented animated fallback until
   those assets are repaired with real clips. Do not add static-GLB bob/weave animation branches for primary actors.
+
+## Updated 2026-06-29 - Current Zabulistan stage-one resume point
+
+- **Current local head:** `3a97e1d Improve Zabulistan ridge assets`. The work is committed locally only. Do not merge or
+  push unless the user explicitly asks.
+- **Recent local visual baseline:** keep commits `c7a10bf`, `618a955`, `468bed1`, `094543e`, and `3a97e1d` as the
+  active Zabulistan visual direction. These cover foreground dressing, softer gate dressing, palace texture retune,
+  authored palace facade dressing, and warmer ridge/siege assets.
+- **Do not revert:** the authored `zv_palace_facade_dressing` path in `src/world/zabulistanVisualKit.js`. It is now the
+  preferred palace gate/front facade; the procedural fallback is still present for asset failure.
+- **Do not re-grey:** `zv_cliff_shoulder_set`, `zv_outer_ridge_wall_set`, and `zv_gate_cliff_siege_set`. They are now
+  placed with `tint: null` so their local warm material palette survives. Reintroducing the old grey tints makes the
+  environment read as blocky placeholder stone again.
+- **Current authored asset scripts:**
+  - `scripts/asset-tools/build-zabulistan-palace-facade.mjs` rebuilds `palace-facade-dressing.glb`.
+  - `scripts/asset-tools/build-zabulistan-ridge-assets.mjs` rebuilds `cliff-shoulder-set.glb`,
+    `outer-ridge-wall-set.glb`, and `gate-cliff-siege-set.glb`.
+- **Current accepted visual QA evidence:**
+  - `output/visual-qa/zabulistan-palace-facade-asset/`
+  - `output/visual-qa/zabulistan-ridge-assets-final/`
+- **Latest verification:** `npm run build` and `npm run audit:assets` pass. Browser QA for opening build, palace
+  selected, gate hold/combat, and mobile RTL reported no overflow and no broken images. Automated audio autoplay
+  warnings are expected.
+- **Current harmony baseline:** the Zabulistan board/backdrop/lighting pass is now implemented locally. The map-specific
+  biome and mood values live in `src/data/zabulistanVisualProfile.js` under `biome`, and `src/world/map.js` consumes that
+  profile instead of keeping a hardcoded Zabulistan override. Preserve this shape for future Zabulistan tuning.
+- **Harmony visual state:** terrain, apron, fog, and panorama tones now read as one warmer dry highland fortress scene.
+  The board/apron colors are closer, the circular edge blend is wider and softer, and the distant highlands are more
+  visible with reduced wash while still staying below roads, pads, enemies, palace gate, and HUD contrast.
+- **Harmony QA baseline:** accepted checks are `?qa=opening-build`, `?qa=palace-contact-terrain`,
+  `?qa=gate-hold-state`, `?qa=palace-contact-terrain-rtl`, and
+  `window.__dbg.visualQa.state('backdropSweep', { mapId: 'zabulistan' })`. Wait for `qa-state-recorded`; require all
+  five Zabulistan backdrop image layers loaded, no missing/failed layers, no overflow, no broken images, no artifact
+  findings, authored facade present, fallback absent, and readable mobile RTL palace/forecourt.
+- **Current combined-combat baseline:** the Zabulistan real-wave playability/readability pass is implemented locally.
+  `src/main.js` keeps selected-target and palace gate-hold cues as the dominant read under stacked combat, while capping
+  road pressure, contact, and palace command feedback. The accepted routes are `?qa=combined-combat-readability`,
+  `?qa=combined-combat-readability-rtl`, and `?qa=combined-combat-readability-reduced`; wait for `qa-state-recorded` and
+  require active budget, visible selected-target thread, active gate-hold state/pressure/defender metadata, subdued
+  road/contact/command cues, compact `combatFlow`, no overflow, no broken images, artifacts 0, five backdrop layers,
+  authored facade present, and fallback absent.
+- **Known local noise:** `memory/`, `output/`, `.playwright-cli/`, and `scripts/asset-tools/__pycache__/` may be dirty or
+  untracked. Keep those out of code commits unless the user specifically asks to update memory.
+- **Recommended next implementation step:** package or commit the combined-combat readability pass only if requested.
+  Otherwise treat Harmony plus combined-combat readability as the active Zabulistan baseline. The next separate
+  implementation frontier is boss actor quality only if the user explicitly shifts focus there; do not retune stage
+  harmony, HUD chrome, combat balance, or generated assets as part of this packaging state.
