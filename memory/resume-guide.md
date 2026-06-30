@@ -452,8 +452,9 @@ Important current guardrails:
 ## Updated 2026-06-30 - Current Zabulistan mainline resume point
 
 - **Current main baseline:** PR #11 (`Tune Zabulistan combat readability`) is merged into `main` at merge commit
-  `a6ebc94`. The static site deploy run `28454511550` completed successfully. The merged feature branch
-  `work/zabulistan-combat-readability` was deleted locally and on `origin`.
+  `a6ebc94`, and PR #13 (`Tune boss actor readability`) is merged into `main` at merge commit `fe5ccbf`. Static site
+  deploy runs `28454511550` and `28459861505` completed successfully. The merged feature branches
+  `work/zabulistan-combat-readability` and `work/boss-actor-quality` were deleted locally and on `origin`.
 - **Recent main visual baseline:** keep commits `c7a10bf`, `618a955`, `468bed1`, `094543e`, `3a97e1d`, and the PR #11
   merge commit as the active Zabulistan visual/readability direction. These cover foreground dressing, softer gate
   dressing, palace texture retune, authored palace facade dressing, warmer ridge/siege assets, Harmony, and Combined
@@ -491,9 +492,8 @@ Important current guardrails:
   require active budget, visible selected-target thread, active gate-hold state/pressure/defender metadata, subdued
   road/contact/command cues, compact `combatFlow`, no overflow, no broken images, artifacts 0, five backdrop layers,
   authored facade present, and fallback absent.
-- **Current local boss actor baseline:** Runtime Boss Actor Quality is verified as local source work in
-  `src/models/creature.js`, `src/entities/bossvisuals.js`, and debug metadata in `src/main.js`, but is not yet committed.
-  Dragon closeup should use animated `a_azhdaha_actor` with `animType: "gltf"`, `glb: true`,
+- **Current boss actor baseline:** Runtime Boss Actor Quality is merged on `main` through PR #13. Dragon closeup should
+  use animated `a_azhdaha_actor` with `animType: "gltf"`, `glb: true`,
   `visualSource: "asset:a_azhdaha_actor"`, `assetKey: "a_azhdaha_actor"`, `actionNames: ["idle","walk","attack"]`, and
   `actorProfile: "animated-crawler"`. `haftvad-worm` should remain `animType: "serpent"`, `glb: false`,
   `visualSource: "procedural:worm"`, `fallbackReason: "source-only-no-clips"`, `sourceAsset: "a_worm"`, and
@@ -506,7 +506,6 @@ Important current guardrails:
   `npm run audit:assets`, `npm run build`, and `git diff --check`.
 - **Known local noise:** `output/`, `.playwright-cli/`, and `scripts/asset-tools/__pycache__/` may be untracked. Keep
   those out of code commits unless the user explicitly asks to clean or archive local artifacts.
-- **Recommended next implementation step:** keep Harmony plus Combined Combat Readability as the shipped Zabulistan
-  baseline and treat Runtime Boss Actor Quality as the current verified local source pass. The next narrow step is
-  optional commit/PR packaging for boss actor quality; animated worm or dragon asset repair is a separate future
-  asset-pipeline pass only if requested.
+- **Recommended next implementation step:** treat Harmony, Combined Combat Readability, and Runtime Boss Actor Quality as
+  the shipped `main` baseline. Animated worm or dragon asset repair is a separate future asset-pipeline pass only if
+  requested; do not retune gameplay, HUD, Zabulistan stage visuals, or generated assets as part of this closeout state.

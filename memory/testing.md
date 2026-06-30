@@ -325,10 +325,11 @@ for (let i = 0; i < 3600; i++) g.update(1/60, i/60);   // simulate 60 s instantl
   asset has no clips, either fix it in the asset pipeline or use a deliberately rigged fallback model.
 
 ## Updated 2026-06-30 - runtime boss actor quality QA
-- **Implementation baseline:** Runtime Boss Actor Quality is a presentation-only source pass. It may tune boss model
-  scale/facing/head height/cadence, procedural fallback silhouette, boss detail overlays, and debug-only QA metadata, but
-  must not change gameplay stats, targeting, waves, pathing, saves, HUD structure, Zabulistan terrain/backdrop/fog, or
-  palace/ridge assets.
+- **Implementation baseline:** Runtime Boss Actor Quality is a presentation-only source pass merged on `main` through
+  PR #13 (`fe5ccbf`) and deployed by static site run `28459861505`. It may tune boss model scale/facing/head
+  height/cadence, procedural fallback silhouette, boss detail overlays, and debug-only QA metadata, but must not change
+  gameplay stats, targeting, waves, pathing, saves, HUD structure, Zabulistan terrain/backdrop/fog, or palace/ridge
+  assets.
 - **Accepted QA routes:**
   - `?qa=boss-closeup-dragon`
   - `?qa=boss-arrival-dragon`
