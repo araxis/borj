@@ -491,8 +491,22 @@ Important current guardrails:
   require active budget, visible selected-target thread, active gate-hold state/pressure/defender metadata, subdued
   road/contact/command cues, compact `combatFlow`, no overflow, no broken images, artifacts 0, five backdrop layers,
   authored facade present, and fallback absent.
+- **Current local boss actor baseline:** Runtime Boss Actor Quality is verified as local source work in
+  `src/models/creature.js`, `src/entities/bossvisuals.js`, and debug metadata in `src/main.js`, but is not yet committed.
+  Dragon closeup should use animated `a_azhdaha_actor` with `animType: "gltf"`, `glb: true`,
+  `visualSource: "asset:a_azhdaha_actor"`, `assetKey: "a_azhdaha_actor"`, `actionNames: ["idle","walk","attack"]`, and
+  `actorProfile: "animated-crawler"`. `haftvad-worm` should remain `animType: "serpent"`, `glb: false`,
+  `visualSource: "procedural:worm"`, `fallbackReason: "source-only-no-clips"`, `sourceAsset: "a_worm"`, and
+  `actorProfile: "procedural-worm"` until a real animated worm asset exists.
+- **Boss actor QA baseline:** accepted routes are `?qa=boss-closeup-dragon`, `?qa=boss-arrival-dragon`,
+  `?qa=boss-closeup-zahhak`, `?qa=boss-arrival-zahhak`,
+  `window.__dbg.visualQa.state('bossCloseup', { mapId: 'makran', defId: 'haftvad-worm' })`,
+  `window.__dbg.enemyTest('dragon', 'walk')`, and `window.__dbg.enemyTest('worm', 'walk')`. Static validation passed for
+  `node --check src/models/creature.js`, `node --check src/entities/bossvisuals.js`, `node --check src/main.js`,
+  `npm run audit:assets`, `npm run build`, and `git diff --check`.
 - **Known local noise:** `output/`, `.playwright-cli/`, and `scripts/asset-tools/__pycache__/` may be untracked. Keep
   those out of code commits unless the user explicitly asks to clean or archive local artifacts.
-- **Recommended next implementation step:** treat Harmony plus Combined Combat Readability as the shipped Zabulistan
-  baseline. The next separate implementation frontier is boss actor quality only if the user explicitly shifts focus
-  there; do not retune stage harmony, HUD chrome, combat balance, or generated assets as part of this closeout state.
+- **Recommended next implementation step:** keep Harmony plus Combined Combat Readability as the shipped Zabulistan
+  baseline and treat Runtime Boss Actor Quality as the current verified local source pass. The next narrow step is
+  optional commit/PR packaging for boss actor quality; animated worm or dragon asset repair is a separate future
+  asset-pipeline pass only if requested.

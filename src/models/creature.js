@@ -73,7 +73,16 @@ function assetCharacter(assetKey, { tint = null, height = 1.7, weapon = null, we
     }
   }
   inst.play('idle');
-  return { group, rig: {}, anim: inst, animType: 'gltf', headH: height };
+  return {
+    group,
+    rig: {},
+    anim: inst,
+    animType: 'gltf',
+    headH: height,
+    assetKey,
+    visualSource: `asset:${assetKey}`,
+    actionNames: Object.keys(inst.actions || {}),
+  };
 }
 
 // dev-only: build a rigged soldier holding any weapon kind, for hand-angle calibration.
@@ -602,6 +611,7 @@ function buildSerpentBody({ mat, ridgeMat = null, segs = 8, r0 = 0.22, len = 2.6
 function buildDragon(scale = 1.7) {
   const mats = MATS();
   const s = buildSerpentBody({ mat: mats.scale, ridgeMat: mats.scaleDark, segs: 9, r0: 0.3, len: 3.4, headScale: 1.7, scale, plates: true });
+  s.group.userData.actorProfile = 'procedural-dragon';
   // horns
   for (const side of [-1, 1]) {
     const horn = mesh(new THREE.ConeGeometry(0.05, 0.34, 5), mats.stoneWhite);
@@ -665,24 +675,50 @@ function buildDragon(scale = 1.7) {
     jawPlate.rotation.z = -side * 0.18;
     s.rig.head.add(jawPlate);
   }
-  return { ...s, animType: 'serpent', headH: 1.3 * scale };
+  return { ...s, animType: 'serpent', headH: 1.3 * scale, visualSource: 'procedural:dragon' };
 }
 
 function buildWorm(scale = 2.0) {
   const mats = MATS();
   const s = buildSerpentBody({ mat: mats.wormFlesh, ridgeMat: colorMat(0x97816c, 0.95), segs: 10, r0: 0.4, len: 3.8, headScale: 1.1, scale });
+  s.group.userData.actorProfile = 'procedural-worm';
+  const bandMat = colorMat(0x7d6654, 0.96);
+  const wetDark = colorMat(0x3d241d, 0.95);
+  const mandibleMat = colorMat(0x71523e, 0.9);
   // segment rings (annelid look)
   s.rig.segments.forEach((seg, i) => {
+    const taper = 1 - i / Math.max(14, s.rig.segments.length + 4);
     if (i % 2 === 0) {
-      const ring = mesh(new THREE.TorusGeometry(0.36 * (1 - i / 14), 0.045, 6, 12), colorMat(0x9c8872, 0.95));
+      const ring = mesh(new THREE.TorusGeometry(0.36 * taper, 0.045, 6, 12), colorMat(0x9c8872, 0.95));
       ring.rotation.x = 0;
       seg.add(ring);
+    }
+    if (i > 0 && i < s.rig.segments.length - 1) {
+      const saddle = mesh(new THREE.BoxGeometry(0.36 * taper, 0.055, 0.18), bandMat);
+      saddle.name = 'worm-dorsal-saddle-plate';
+      saddle.position.set(0, 0.32 * taper, -0.02);
+      saddle.rotation.x = -0.12;
+      seg.add(saddle);
+    }
+    if (i % 2 === 1 && i < s.rig.segments.length - 2) {
+      for (const side of [-1, 1]) {
+        const spur = mesh(new THREE.ConeGeometry(0.045 * taper, 0.26 * taper, 5), mandibleMat);
+        spur.name = 'worm-side-grasping-spur';
+        spur.position.set(side * 0.34 * taper, 0.08, 0.02);
+        spur.rotation.z = -side * Math.PI / 2;
+        spur.rotation.x = 0.32;
+        seg.add(spur);
+      }
     }
   });
   // ringed maw with teeth + inner glow at the FRONT
   const maw = mesh(new THREE.TorusGeometry(0.3, 0.1, 7, 12), colorMat(0x6e4338, 0.9));
   maw.position.set(0, 0, 0.5);
   s.rig.head.add(maw);
+  const innerMaw = mesh(new THREE.TorusGeometry(0.19, 0.035, 7, 12), wetDark);
+  innerMaw.name = 'worm-inner-maw-ring';
+  innerMaw.position.set(0, 0, 0.565);
+  s.rig.head.add(innerMaw);
   const gullet = new THREE.Mesh(new THREE.CircleGeometry(0.26, 10), colorMat(0x33150f, 1));
   gullet.position.set(0, 0, 0.52);
   s.rig.head.add(gullet);
@@ -694,14 +730,29 @@ function buildWorm(scale = 2.0) {
     tooth.rotation.x = Math.PI / 2.4;
     s.rig.head.add(tooth);
   }
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+    const tooth = mesh(new THREE.ConeGeometry(0.026, 0.12, 4), mats.stoneWhite);
+    tooth.name = 'worm-inner-maw-tooth';
+    tooth.position.set(Math.cos(a) * 0.18, Math.sin(a) * 0.18, 0.61);
+    tooth.rotation.z = a + Math.PI / 2;
+    tooth.rotation.x = Math.PI / 2.2;
+    s.rig.head.add(tooth);
+  }
   // mandibles
   for (const side of [-1, 1]) {
     const mand = mesh(new THREE.ConeGeometry(0.06, 0.34, 5), colorMat(0x7a5a44, 0.85));
     mand.position.set(side * 0.34, -0.08, 0.48);
     mand.rotation.z = side * 1.9;
     s.rig.head.add(mand);
+    const feeler = mesh(new THREE.CylinderGeometry(0.016, 0.01, 0.54, 5), mandibleMat);
+    feeler.name = 'worm-front-feeler';
+    feeler.position.set(side * 0.24, 0.16, 0.5);
+    feeler.rotation.z = side * 0.95;
+    feeler.rotation.x = 1.08;
+    s.rig.head.add(feeler);
   }
-  return { ...s, animType: 'serpent', headH: 1.5 * scale };
+  return { ...s, animType: 'serpent', headH: 1.5 * scale, visualSource: 'procedural:worm' };
 }
 
 // ---- div: oversized humanoid + horns, tusks, hide, war-trophies ----
@@ -896,17 +947,19 @@ export function buildEnemyModel(modelKey, options = {}) {
     case 'divScout': return assetCharacter('a_olad', { height: 2.0 }) || buildDiv({ hide: 'divHideDark', scale: 1.25, horns: 1, club: false, hunch: 0.35 });
     case 'dragon': {
       const actor = assetCharacter('a_azhdaha_actor', { height: options.boss ? 1.62 : 1.34, walkStride: 1.55 });
-      if (actor?.anim?.actions && Object.keys(actor.anim.actions).length > 0) return actor;
+      if (actor?.anim?.actions && Object.keys(actor.anim.actions).length > 0) {
+        return { ...actor, visualSource: 'asset:a_azhdaha_actor', actorProfile: 'animated-crawler' };
+      }
       const d = assetCharacter('a_dragon', { height: options.boss ? 1.85 : 1.5, walkStride: 1.0 });
-      if (!d) return buildDragon(options.boss ? 2.05 : 1.7);
+      if (!d) return { ...buildDragon(options.boss ? 2.05 : 1.7), fallbackReason: 'asset-not-ready', sourceAsset: 'a_dragon' };
       const hasClips = d.anim?.actions && Object.keys(d.anim.actions).length > 0;
-      return hasClips ? d : buildDragon(options.boss ? 2.05 : 1.7);
+      return hasClips ? d : { ...buildDragon(options.boss ? 2.05 : 1.7), fallbackReason: 'source-only-no-clips', sourceAsset: 'a_dragon' };
     }
     case 'worm': {
       const w = assetCharacter('a_worm', { height: options.boss ? 1.82 : 1.5, walkStride: 0.9 });
-      if (!w) return buildWorm(options.boss ? 2.2 : 2.0);
+      if (!w) return { ...buildWorm(options.boss ? 2.2 : 2.0), fallbackReason: 'asset-not-ready', sourceAsset: 'a_worm' };
       const hasClips = w.anim?.actions && Object.keys(w.anim.actions).length > 0;
-      return hasClips ? w : buildWorm(options.boss ? 2.2 : 2.0);
+      return hasClips ? w : { ...buildWorm(options.boss ? 2.2 : 2.0), fallbackReason: 'source-only-no-clips', sourceAsset: 'a_worm' };
     }
     // White War Elephant (پیل سپید). walkStride 2.6 calibrated by min planted-paw
     // drift at speed 1.0 (slow ponderous plod ~0.38 cycles/s); faces +Z, no rotFix.

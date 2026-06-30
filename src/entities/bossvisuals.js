@@ -75,15 +75,15 @@ function addAuthoredDetail(group, key, name, height, baseHeight, animated, scale
 }
 
 function addGroundOmen(group, height, palette, animated) {
-  const ring = mesh(new THREE.RingGeometry(1.1, 1.26, 96), glowMat(palette.glow, 0.32));
+  const ring = mesh(new THREE.RingGeometry(1.08, 1.2, 96), glowMat(palette.glow, 0.24));
   ring.name = 'boss-ground-omen-ring';
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.055;
-  ring.scale.setScalar(Math.max(1.05, height * 0.52));
+  ring.scale.setScalar(Math.max(1.02, height * 0.48));
   ring.renderOrder = 38;
   group.add(ring);
 
-  const inner = mesh(new THREE.RingGeometry(0.56, 0.62, 72), glowMat(palette.accent, 0.18));
+  const inner = mesh(new THREE.RingGeometry(0.58, 0.63, 72), glowMat(palette.accent, 0.12));
   inner.name = 'boss-ground-omen-inner';
   inner.rotation.x = -Math.PI / 2;
   inner.position.y = 0.06;
@@ -92,17 +92,17 @@ function addGroundOmen(group, height, palette, animated) {
   group.add(inner);
 
   const tickMat = stdMat(palette.metal, { metalness: 0.42, roughness: 0.5 });
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * TAU;
-    const tick = mesh(new THREE.BoxGeometry(0.055, 0.035, 0.34), tickMat);
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * TAU;
+    const tick = mesh(new THREE.BoxGeometry(0.045, 0.032, 0.28), tickMat);
     tick.name = 'boss-ground-omen-tick';
-    tick.position.set(Math.cos(a) * height * 0.64, 0.075, Math.sin(a) * height * 0.64);
+    tick.position.set(Math.cos(a) * height * 0.58, 0.075, Math.sin(a) * height * 0.58);
     tick.rotation.y = -a;
     group.add(tick);
   }
 
-  animated.push({ kind: 'ring', obj: ring, base: 0.32, phase: 0 });
-  animated.push({ kind: 'ring', obj: inner, base: 0.18, phase: Math.PI * 0.6 });
+  animated.push({ kind: 'ring', obj: ring, base: 0.24, phase: 0 });
+  animated.push({ kind: 'ring', obj: inner, base: 0.12, phase: Math.PI * 0.6 });
 }
 
 function addHumanBossKit(group, height, palette, animated) {
@@ -164,26 +164,39 @@ function addHumanBossKit(group, height, palette, animated) {
   }
 }
 
-function addCrawlerBossKit(group, height, palette, animated) {
+function addCrawlerBossKit(group, height, palette, animated, { assetBacked = false } = {}) {
   const spineMat = stdMat(palette.accent, { metalness: 0.38, roughness: 0.48 });
   const glow = glowMat(palette.glow, 0.38);
+  const shadow = stdMat(palette.shadow, { roughness: 0.92 });
   const s = Math.max(0.85, height / 2.4);
-  for (let i = 0; i < 9; i++) {
-    const t = i / 8;
+  const spineCount = assetBacked ? 5 : 9;
+  for (let i = 0; i < spineCount; i++) {
+    const t = spineCount <= 1 ? 0 : i / (spineCount - 1);
     const z = 0.6 * s - t * 3.2 * s;
-    const r = (0.16 - t * 0.05) * s;
-    const plate = mesh(new THREE.ConeGeometry(Math.max(0.06, r), 0.34 * s, 5), spineMat);
-    plate.name = 'boss-dorsal-spine';
-    plate.position.set(0, height * (0.32 + (1 - t) * 0.04), z);
-    plate.rotation.x = -0.38;
+    const r = (assetBacked ? 0.08 : 0.16) * (1 - t * 0.32) * s;
+    const plate = mesh(new THREE.ConeGeometry(Math.max(0.045, r), (assetBacked ? 0.18 : 0.34) * s, 5), spineMat);
+    plate.name = assetBacked ? 'boss-crawler-scale-ridge' : 'boss-dorsal-spine';
+    plate.position.set(0, assetBacked ? 0.16 : height * (0.32 + (1 - t) * 0.04), z);
+    plate.rotation.x = assetBacked ? -Math.PI / 2 : -0.38;
     group.add(plate);
   }
   for (const side of [-1, 1]) {
-    const eye = mesh(new THREE.SphereGeometry(0.1 * s, 12, 8), glow);
-    eye.name = 'boss-creature-eye-glow';
-    eye.position.set(side * 0.32 * s, height * 0.54, 0.82 * s);
-    group.add(eye);
-    animated.push({ kind: 'glow', obj: eye, base: 0.38, phase: side > 0 ? 0 : 1.1 });
+    for (let i = 0; i < 4; i++) {
+      const t = i / 3;
+      const claw = mesh(new THREE.ConeGeometry((assetBacked ? 0.045 : 0.065) * s, (assetBacked ? 0.18 : 0.26) * s, 5), shadow);
+      claw.name = 'boss-crawler-ground-claw';
+      claw.position.set(side * (0.52 + t * 0.18) * s, 0.08, (0.44 - t * 0.9) * s);
+      claw.rotation.z = -side * Math.PI / 2;
+      claw.rotation.x = 0.2;
+      group.add(claw);
+    }
+    if (!assetBacked) {
+      const eye = mesh(new THREE.SphereGeometry(0.1 * s, 12, 8), glow);
+      eye.name = 'boss-creature-eye-glow';
+      eye.position.set(side * 0.32 * s, height * 0.54, 0.82 * s);
+      group.add(eye);
+      animated.push({ kind: 'glow', obj: eye, base: 0.38, phase: side > 0 ? 0 : 1.1 });
+    }
   }
 }
 
@@ -223,7 +236,7 @@ export function createBossVisualKit(def, model) {
 
   addGroundOmen(group, height, palette, animated);
   if (def.class === 'beast' || def.class === 'serpent') {
-    if (!model.anim?.isAsset) addCrawlerBossKit(group, height, palette, animated);
+    addCrawlerBossKit(group, height, palette, animated, { assetBacked: !!model.anim?.isAsset });
   } else if (def.class === 'div') {
     if (!addAuthoredDetail(group, 'boss_div_crown', 'boss-div-crown-detail', height, 3.2, animated, 1.1)) {
       addDivBossKit(group, height, palette, animated);

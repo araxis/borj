@@ -324,6 +324,34 @@ for (let i = 0; i < 3600; i++) g.update(1/60, i/60);   // simulate 60 s instantl
 - **No fake static motion:** do not reintroduce a generic static-GLB bob/weave/crawl branch for production actors. If an
   asset has no clips, either fix it in the asset pipeline or use a deliberately rigged fallback model.
 
+## Updated 2026-06-30 - runtime boss actor quality QA
+- **Implementation baseline:** Runtime Boss Actor Quality is a presentation-only source pass. It may tune boss model
+  scale/facing/head height/cadence, procedural fallback silhouette, boss detail overlays, and debug-only QA metadata, but
+  must not change gameplay stats, targeting, waves, pathing, saves, HUD structure, Zabulistan terrain/backdrop/fog, or
+  palace/ridge assets.
+- **Accepted QA routes:**
+  - `?qa=boss-closeup-dragon`
+  - `?qa=boss-arrival-dragon`
+  - `?qa=boss-closeup-zahhak`
+  - `?qa=boss-arrival-zahhak`
+  - `window.__dbg.visualQa.state('bossCloseup', { mapId: 'makran', defId: 'haftvad-worm' })`
+  - `window.__dbg.enemyTest('dragon', 'walk')`
+  - `window.__dbg.enemyTest('worm', 'walk')`
+- **Acceptance metrics:** wait for `qa-state-recorded` before visual assertions. Dragon closeup should report
+  `animType: 'gltf'`, `glb: true`, `visualSource: 'asset:a_azhdaha_actor'`, `assetKey: 'a_azhdaha_actor'`, action names
+  including `idle`, `walk`, and `attack`, and `actorProfile: 'animated-crawler'`. `haftvad-worm` should report
+  `animType: 'serpent'`, `glb: false`, `visualSource: 'procedural:worm'`, `fallbackReason: 'source-only-no-clips'`,
+  `sourceAsset: 'a_worm'`, and `actorProfile: 'procedural-worm'`.
+- **Visual guardrails:** crawler and humanoid/div boss overlays should clarify scale and identity without broad glow
+  discs, banners, HUD-like chrome, or reduced-motion dependence. The procedural worm should read as an intentional boss
+  actor fallback until a real animated worm asset exists.
+- **Static checks:** run `node --check src/models/creature.js`, `node --check src/entities/bossvisuals.js`,
+  `node --check src/main.js` if debug metadata changes, `npm run audit:assets`, `npm run build`, and
+  `git diff --check`. `a_dragon` and `a_worm` may remain source-only with 0 audit blockers.
+- **Regression smoke:** if `src/main.js` changes, run `?qa=opening-build` and `?qa=combined-combat-readability`; require
+  all five Zabulistan backdrop layers loaded, active combined-combat budget, selected-target and gate-hold cues readable,
+  compact `combatFlow`, no overflow, no broken images, and 0 visual artifact findings.
+
 ## Updated 2026-06-22 - Zabulistan palace foreground terrace-wall QA
 - **Asset presence:** browser QA for `zabulistanForecourt` should find one
   `zabulistan-palace-foreground-terrace-wall-main` object and no
