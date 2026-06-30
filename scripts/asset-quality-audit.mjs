@@ -3,7 +3,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 const root = process.cwd();
-const sourceOnly = new Set(['a_dragon', 'a_worm']);
+const sourceOnly = new Set(['a_dragon']);
 const staticOk = new Set(['Hero_simurgh']);
 
 function extractModelFiles() {
