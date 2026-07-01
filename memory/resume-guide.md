@@ -445,9 +445,9 @@ Important current guardrails:
   keeps slender front hoof/lower-leg islands animated, and exports `public/assets/animals/ZabulWarHorse.glb`. If the
   source file moves, set `ZABUL_HORSE_SOURCE_GLB` before running the script.
 - Actor quality gate: run `npm run audit:assets` before accepting new visible actor GLBs. Production actor assets should
-  have real clips; zero-clip actor GLBs are source/reference only unless explicitly static scenery. `Azhdaha.glb` and
-  `Worm.glb` are currently source-only, so dragon/worm enemies intentionally use the segmented animated fallback until
-  those assets are repaired with real clips. Do not add static-GLB bob/weave animation branches for primary actors.
+  have real clips; zero-clip actor GLBs are source/reference only unless explicitly static scenery. `Azhdaha.glb`
+  remains source-only, while the local animated worm repair makes `Worm.glb` animation-ready with idle/walk/attack
+  clips. Do not add static-GLB bob/weave animation branches for primary actors.
 
 ## Updated 2026-06-30 - Current Zabulistan mainline resume point
 
@@ -492,12 +492,12 @@ Important current guardrails:
   require active budget, visible selected-target thread, active gate-hold state/pressure/defender metadata, subdued
   road/contact/command cues, compact `combatFlow`, no overflow, no broken images, artifacts 0, five backdrop layers,
   authored facade present, and fallback absent.
-- **Current boss actor baseline:** Runtime Boss Actor Quality is merged on `main` through PR #13. Dragon closeup should
-  use animated `a_azhdaha_actor` with `animType: "gltf"`, `glb: true`,
-  `visualSource: "asset:a_azhdaha_actor"`, `assetKey: "a_azhdaha_actor"`, `actionNames: ["idle","walk","attack"]`, and
-  `actorProfile: "animated-crawler"`. `haftvad-worm` should remain `animType: "serpent"`, `glb: false`,
-  `visualSource: "procedural:worm"`, `fallbackReason: "source-only-no-clips"`, `sourceAsset: "a_worm"`, and
-  `actorProfile: "procedural-worm"` until a real animated worm asset exists.
+- **Current boss actor baseline:** Runtime Boss Actor Quality is merged on `main` through PR #13, and local animated worm
+  asset repair is verified on top of it. Dragon closeup should use animated `a_azhdaha_actor` with
+  `animType: "gltf"`, `glb: true`, `visualSource: "asset:a_azhdaha_actor"`, `assetKey: "a_azhdaha_actor"`,
+  `actionNames: ["idle","walk","attack"]`, and `actorProfile: "animated-crawler"`. `haftvad-worm` should now use
+  `asset:a_worm` with `animType: "gltf"`, `glb: true`, `visualSource: "asset:a_worm"`, `assetKey: "a_worm"`,
+  `actionNames: ["idle","walk","attack"]`, `fallbackReason: null`, and `sourceAsset: null`.
 - **Boss actor QA baseline:** accepted routes are `?qa=boss-closeup-dragon`, `?qa=boss-arrival-dragon`,
   `?qa=boss-closeup-zahhak`, `?qa=boss-arrival-zahhak`,
   `window.__dbg.visualQa.state('bossCloseup', { mapId: 'makran', defId: 'haftvad-worm' })`,
@@ -506,6 +506,7 @@ Important current guardrails:
   `npm run audit:assets`, `npm run build`, and `git diff --check`.
 - **Known local noise:** `output/`, `.playwright-cli/`, and `scripts/asset-tools/__pycache__/` may be untracked. Keep
   those out of code commits unless the user explicitly asks to clean or archive local artifacts.
-- **Recommended next implementation step:** treat Harmony, Combined Combat Readability, and Runtime Boss Actor Quality as
-  the shipped `main` baseline. Animated worm or dragon asset repair is a separate future asset-pipeline pass only if
-  requested; do not retune gameplay, HUD, Zabulistan stage visuals, or generated assets as part of this closeout state.
+- **Recommended next implementation step:** treat Harmony, Combined Combat Readability, Runtime Boss Actor Quality, and
+  the verified local animated worm repair as the current baseline. The next separate handoff target is an optional
+  commit/PR for the worm asset repair; `a_dragon` asset repair remains a separate future asset-pipeline pass only if
+  requested.
