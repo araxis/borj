@@ -350,7 +350,7 @@ for (let i = 0; i < 3600; i++) g.update(1/60, i/60);   // simulate 60 s instantl
   actor; the procedural worm remains only an asset-failure fallback.
 - **Static checks:** run `node --check src/models/creature.js`, `node --check src/entities/bossvisuals.js`,
   `node --check src/main.js` if debug metadata changes, `npm run audit:assets`, `npm run build`, and
-  `git diff --check`. `a_dragon` may remain source-only with 0 audit blockers; `a_worm` should be animation-ready.
+  `git diff --check`. `a_dragon` and `a_worm` should both be animation-ready and absent from `sourceOnly`.
 - **Regression smoke:** if `src/main.js` changes, run `?qa=opening-build` and `?qa=combined-combat-readability`; require
   all five Zabulistan backdrop layers loaded, active combined-combat budget, selected-target and gate-hold cues readable,
   compact `combatFlow`, no overflow, no broken images, and 0 visual artifact findings.
@@ -362,7 +362,7 @@ for (let i = 0; i < 3600; i++) g.update(1/60, i/60);   // simulate 60 s instantl
   126 KB, and stay out of the `sourceOnly` audit list.
 - **Accepted QA checks:**
   - GLB inspection for `Worm.glb` shows clips `Idle`, `Walking`, and `Attack`.
-  - `npm run audit:assets` reports `blockers: []`, `readyActors: 51`, and only `a_dragon` in `sourceOnly`.
+  - `npm run audit:assets` reports `blockers: []`, `readyActors: 52`, and an empty `sourceOnly` list after the dragon repair.
   - `window.__dbg.visualQa.state('bossCloseup', { mapId: 'makran', defId: 'haftvad-worm' })` reports
     `visualSource: 'asset:a_worm'`, `assetKey: 'a_worm'`, `actionNames` including `idle`, `walk`, and `attack`,
     `fallbackReason: null`, and `sourceAsset: null`.
@@ -371,6 +371,21 @@ for (let i = 0; i < 3600; i++) g.update(1/60, i/60);   // simulate 60 s instantl
     `actorProfile: 'animated-crawler'`, no overflow, no artifacts, and all Mazandaran backdrop layers loaded.
 - **Static checks:** for post-merge memory-only closeout, `git diff --check` is enough. If asset/source files are touched again,
   rerun GLB inspection, `node --check scripts/asset-tools/build-animated-worm.mjs`,
+  `node --check scripts/asset-quality-audit.mjs`, `npm run audit:assets`, `npm run build`, and `git diff --check`.
+
+## Updated 2026-07-01 - animated dragon asset repair QA
+- **Implementation baseline:** local Animated Dragon Asset Repair rebuilds `public/assets/animals/Azhdaha.glb` with
+  `scripts/asset-tools/build-animated-dragon.mjs`. The asset should contain `Idle`, `Walking`, and `Attack`, remain about
+  120 KB, and stay out of the `sourceOnly` audit list.
+- **Accepted QA checks:**
+  - GLB inspection for `Azhdaha.glb` shows clips `Idle`, `Walking`, and `Attack`.
+  - `npm run audit:assets` reports `blockers: []`, `readyActors: 52`, and `sourceOnly: []`.
+  - `?qa=boss-closeup-dragon`, `?qa=boss-arrival-dragon`, and `window.__dbg.enemyTest('dragon', 'walk')` still report
+    the preferred `visualSource: 'asset:a_azhdaha_actor'` path with action names including `idle`, `walk`, and `attack`.
+  - `window.__dbg.visualQa.state('bossCloseup', { mapId: 'makran', defId: 'haftvad-worm' })` still reports
+    `visualSource: 'asset:a_worm'`, `assetKey: 'a_worm'`, action names including `idle`, `walk`, and `attack`,
+    `fallbackReason: null`, and `sourceAsset: null`.
+- **Static checks:** before packaging, run `node --check scripts/asset-tools/build-animated-dragon.mjs`,
   `node --check scripts/asset-quality-audit.mjs`, `npm run audit:assets`, `npm run build`, and `git diff --check`.
 
 ## Updated 2026-06-22 - Zabulistan palace foreground terrace-wall QA
