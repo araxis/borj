@@ -2777,3 +2777,15 @@ and Shahnameh-only language.
   passed. Browser/debug QA confirmed `?qa=boss-closeup-dragon`, `?qa=boss-arrival-dragon`,
   `window.__dbg.enemyTest('dragon', 'walk')`, and the Makran worm closeup state keep GLB-backed dragon/worm reads with
   no overflow, no broken images, and no artifact findings.
+
+## 2026-07-01 - Animated dragon asset repair PR 17 merged and deployed
+
+- Merged PR #17, `Repair animated dragon asset`, into `main` with merge commit `f96924c`. This publishes the repaired
+  `Azhdaha.glb`, the reproducible builder script, the asset audit gate update, and the memory handoff.
+- The static site deploy run `28492906102` completed successfully for `f96924c`.
+- Post-merge cleanup removed the merged feature branch `work/animated-dragon-asset` locally and from `origin` after
+  confirming it was contained in `origin/main`.
+- Current project state: Harmony, Combined Combat Readability, Runtime Boss Actor Quality, Animated Worm Asset Repair,
+  and Animated Dragon Asset Repair are now the shipped `main` baseline. `a_azhdaha_actor` remains the preferred runtime
+  dragon actor, while `a_dragon` is animation-ready fallback/source material. Asset audit should report
+  `readyActors: 52`, `blockers: []`, and `sourceOnly: []`.

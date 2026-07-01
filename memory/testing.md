@@ -374,9 +374,10 @@ for (let i = 0; i < 3600; i++) g.update(1/60, i/60);   // simulate 60 s instantl
   `node --check scripts/asset-quality-audit.mjs`, `npm run audit:assets`, `npm run build`, and `git diff --check`.
 
 ## Updated 2026-07-01 - animated dragon asset repair QA
-- **Implementation baseline:** local Animated Dragon Asset Repair rebuilds `public/assets/animals/Azhdaha.glb` with
-  `scripts/asset-tools/build-animated-dragon.mjs`. The asset should contain `Idle`, `Walking`, and `Attack`, remain about
-  120 KB, and stay out of the `sourceOnly` audit list.
+- **Implementation baseline:** Animated Dragon Asset Repair is merged on `main` through PR #17 (`f96924c`) and deployed
+  by static site run `28492906102`. `public/assets/animals/Azhdaha.glb` is rebuilt with
+  `scripts/asset-tools/build-animated-dragon.mjs`; it should contain `Idle`, `Walking`, and `Attack`, remain about 120 KB,
+  and stay out of the `sourceOnly` audit list.
 - **Accepted QA checks:**
   - GLB inspection for `Azhdaha.glb` shows clips `Idle`, `Walking`, and `Attack`.
   - `npm run audit:assets` reports `blockers: []`, `readyActors: 52`, and `sourceOnly: []`.
@@ -385,7 +386,8 @@ for (let i = 0; i < 3600; i++) g.update(1/60, i/60);   // simulate 60 s instantl
   - `window.__dbg.visualQa.state('bossCloseup', { mapId: 'makran', defId: 'haftvad-worm' })` still reports
     `visualSource: 'asset:a_worm'`, `assetKey: 'a_worm'`, action names including `idle`, `walk`, and `attack`,
     `fallbackReason: null`, and `sourceAsset: null`.
-- **Static checks:** before packaging, run `node --check scripts/asset-tools/build-animated-dragon.mjs`,
+- **Static checks:** for post-merge memory-only closeout, `git diff --check` is enough. If asset/source files are touched
+  again, rerun GLB inspection, `node --check scripts/asset-tools/build-animated-dragon.mjs`,
   `node --check scripts/asset-quality-audit.mjs`, `npm run audit:assets`, `npm run build`, and `git diff --check`.
 
 ## Updated 2026-06-22 - Zabulistan palace foreground terrace-wall QA
