@@ -446,7 +446,7 @@ Important current guardrails:
   source file moves, set `ZABUL_HORSE_SOURCE_GLB` before running the script.
 - Actor quality gate: run `npm run audit:assets` before accepting new visible actor GLBs. Production actor assets should
   have real clips; zero-clip actor GLBs are source/reference only unless explicitly static scenery. `Azhdaha.glb`
-  remains source-only, while the local animated worm repair makes `Worm.glb` animation-ready with idle/walk/attack
+  remains source-only, while the merged animated worm repair makes `Worm.glb` animation-ready with idle/walk/attack
   clips. Do not add static-GLB bob/weave animation branches for primary actors.
 
 ## Updated 2026-06-30 - Current Zabulistan mainline resume point
@@ -492,8 +492,8 @@ Important current guardrails:
   require active budget, visible selected-target thread, active gate-hold state/pressure/defender metadata, subdued
   road/contact/command cues, compact `combatFlow`, no overflow, no broken images, artifacts 0, five backdrop layers,
   authored facade present, and fallback absent.
-- **Current boss actor baseline:** Runtime Boss Actor Quality is merged on `main` through PR #13, and local animated worm
-  asset repair is verified on top of it. Dragon closeup should use animated `a_azhdaha_actor` with
+- **Current boss actor baseline:** Runtime Boss Actor Quality is merged on `main` through PR #13, and Animated Worm Asset
+  Repair is merged on `main` through PR #15. Dragon closeup should use animated `a_azhdaha_actor` with
   `animType: "gltf"`, `glb: true`, `visualSource: "asset:a_azhdaha_actor"`, `assetKey: "a_azhdaha_actor"`,
   `actionNames: ["idle","walk","attack"]`, and `actorProfile: "animated-crawler"`. `haftvad-worm` should now use
   `asset:a_worm` with `animType: "gltf"`, `glb: true`, `visualSource: "asset:a_worm"`, `assetKey: "a_worm"`,
@@ -507,6 +507,5 @@ Important current guardrails:
 - **Known local noise:** `output/`, `.playwright-cli/`, and `scripts/asset-tools/__pycache__/` may be untracked. Keep
   those out of code commits unless the user explicitly asks to clean or archive local artifacts.
 - **Recommended next implementation step:** treat Harmony, Combined Combat Readability, Runtime Boss Actor Quality, and
-  the verified local animated worm repair as the current baseline. The next separate handoff target is an optional
-  commit/PR for the worm asset repair; `a_dragon` asset repair remains a separate future asset-pipeline pass only if
-  requested.
+  Animated Worm Asset Repair as the shipped `main` baseline. `a_dragon` asset repair remains a separate future
+  asset-pipeline pass only if requested; do not start another asset pass as part of this closeout state.
