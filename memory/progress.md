@@ -2746,6 +2746,17 @@ and Shahnameh-only language.
   metrics settled with 8 loaded layers, no failed/missing layers, no overflow, and no artifacts, and
   `?qa=boss-closeup-dragon` still used `asset:a_azhdaha_actor` with no overflow, no artifacts, and all 8 Mazandaran
   backdrop layers loaded.
-- Current project state: the animated worm asset repair is verified local work on top of the shipped boss actor baseline.
-  Dragon still uses `a_azhdaha_actor`; `a_dragon` remains source-only until a separate asset repair is explicitly
-  requested.
+- Current project state at packaging time: the animated worm asset repair was verified local work on top of the shipped
+  boss actor baseline. Dragon still uses `a_azhdaha_actor`; `a_dragon` remains source-only until a separate asset repair
+  is explicitly requested.
+
+## 2026-07-01 - Animated worm asset repair PR 15 merged and deployed
+
+- Merged PR #15, `Repair animated worm asset`, into `main` with merge commit `e7239ba`. This publishes the repaired
+  `Worm.glb`, the reproducible builder script, the asset audit gate update, and the memory handoff.
+- The Pages deploy workflow run `28492115069` completed successfully for `e7239ba`.
+- Post-merge cleanup removed the merged feature branch `work/animated-worm-asset` locally and from `origin` after
+  confirming it was contained in `origin/main`.
+- Current project state: Harmony, Combined Combat Readability, Runtime Boss Actor Quality, and Animated Worm Asset
+  Repair are now the shipped `main` baseline. `haftvad-worm` should use `asset:a_worm`; `a_dragon` remains source-only
+  until a separate asset-pipeline pass is explicitly requested.
