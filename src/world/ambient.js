@@ -150,6 +150,79 @@ export function buildRiverMesh(river, group) {
   return mat; // caller scrolls map.offset for flow
 }
 
+// Round-2 sky-life: a proper bird — two-segment wings on pivots (inner + outer with a
+// dihedral break) so flapping bends the wing instead of see-sawing a flat plank.
+function makeBird(scale = 1, color = 0x2e2a26) {
+  const mat = colorMat(color, 0.9);
+  mat.side = THREE.DoubleSide;
+  const g = new THREE.Group();
+  const mkWing = (side) => {
+    const pivotI = new THREE.Group();
+    const inner = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.26), mat);
+    inner.position.x = side * 0.21;
+    const pivotO = new THREE.Group();
+    pivotO.position.x = side * 0.42;
+    const outer = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.19), mat);
+    outer.position.x = side * 0.26;
+    pivotO.add(outer);
+    pivotI.add(inner, pivotO);
+    g.add(pivotI);
+    return { pivotI, pivotO, side };
+  };
+  const wl = mkWing(-1), wr = mkWing(1);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), mat);
+  body.scale.set(1, 0.75, 2.0);
+  const tail = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.24), mat);
+  tail.position.z = -0.24;
+  tail.rotation.x = 0.3;
+  g.add(body, tail);
+  g.scale.setScalar(scale);
+  return { g, wl, wr };
+}
+
+// flap with glide phases: birds beat their wings in bursts, then lock into a shallow
+// V-glide — the alternation is what makes them read as alive rather than metronomes
+function flapBird(bird, time, rate = 9) {
+  const glide = Math.sin(time * 0.21 + (bird.phase || 0) * 1.7);
+  const amp = 0.42 - 0.34 * Math.tanh((glide - 0.2) * 3.5); // ~0.76 flapping → ~0.1 gliding
+  const f = Math.sin(time * rate + (bird.phase || 0) * 7) * amp + 0.14;
+  bird.wl.pivotI.rotation.z = f;
+  bird.wl.pivotO.rotation.z = f * 0.85;
+  bird.wr.pivotI.rotation.z = -f;
+  bird.wr.pivotO.rotation.z = -f * 0.85;
+}
+
+// a white wading crane for the river banks: thin legs, egg body, S-neck, dark crest
+function makeCrane() {
+  const white = colorMat(0xeceae2, 0.85);
+  const dark = colorMat(0x3a3632, 0.9);
+  const g = new THREE.Group();
+  for (const lx of [-0.09, 0.09]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.56, 4), dark);
+    leg.position.set(lx, 0.28, 0);
+    g.add(leg);
+  }
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 6), white);
+  body.scale.set(0.85, 0.8, 1.35);
+  body.position.y = 0.68;
+  const neckPivot = new THREE.Group();
+  neckPivot.position.set(0, 0.78, 0.22);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.5, 5), white);
+  neck.position.y = 0.24;
+  neck.rotation.x = 0.35;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), white);
+  head.position.set(0, 0.5, 0.14);
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.22, 4), dark);
+  beak.rotation.x = Math.PI / 2;
+  beak.position.set(0, 0.5, 0.3);
+  neckPivot.add(neck, head, beak);
+  const tailPlume = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.3, 5), dark);
+  tailPlume.rotation.x = -Math.PI / 2.4;
+  tailPlume.position.set(0, 0.72, -0.32);
+  g.add(body, neckPivot, tailPlume);
+  return { g, neckPivot };
+}
+
 // Round-2 rivers: foam edges, wet banks, stones and reeds. The foam strips are the
 // strongest "this water FLOWS" cue — thin scrolling white streaks hugging both shores;
 // the wet strip darkens the bank so the water sits IN the land instead of on it.
@@ -636,26 +709,68 @@ export class Ambient {
       }
     }
 
-    // circling birds above the citadel
-    const nBirds = 6;
+    // circling birds above the citadel — 2-segment wings with flap/glide phases
+    const birdColor = biomeId === 'snowpeak' ? 0xe8eef2 : 0x2e2a26;
+    const nBirds = 4;
     for (let i = 0; i < nBirds; i++) {
-      const bird = new THREE.Group();
-      const wingMat = colorMat(biomeId === 'snowpeak' ? 0xe8eef2 : 0x2e2a26, 0.9);
-      const wL = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.22), wingMat);
-      wL.material.side = THREE.DoubleSide;
-      wL.position.x = -0.33;
-      const wR = wL.clone(); wR.position.x = 0.33;
-      const body = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), wingMat);
-      body.scale.set(1, 0.8, 1.8);
-      bird.add(wL, wR, body);
-      this.group.add(bird);
+      const bird = makeBird(1, birdColor);
+      this.group.add(bird.g);
       this.birds.push({
-        g: bird, wL, wR,
+        ...bird,
         phase: rng() * Math.PI * 2,
         r: 7 + rng() * 8,
         h: (map.citadel?.height || 10) + 5 + rng() * 6,
         speed: 0.25 + rng() * 0.2,
       });
+    }
+
+    // crossing flock: a V-formation sweeps the whole expanded board every so often
+    this.flock = { birds: [], t: 8 + rng() * 14, active: false, dir: new THREE.Vector3(), pos: new THREE.Vector3(), speed: 9 };
+    for (let i = 0; i < 7; i++) {
+      const b = makeBird(0.85, birdColor);
+      b.g.visible = false;
+      this.group.add(b.g);
+      // V offsets: leader at 0, wings staggered back-and-out
+      const row = Math.ceil(i / 2), side = i === 0 ? 0 : (i % 2 ? -1 : 1);
+      this.flock.birds.push({ ...b, off: new THREE.Vector3(side * row * 1.7, (rng() - 0.5) * 0.8, -row * 2.1), phase: rng() * 6.28 });
+    }
+
+    // river cranes: white waders standing at the banks; they flee when enemies come near
+    this.cranes = [];
+    if (map.river) {
+      const S = map.river.samples;
+      for (const f of [0.22, 0.52, 0.8]) {
+        const s = S[Math.floor(S.length * f)];
+        if (!s) continue;
+        const side = f > 0.5 ? 1 : -1;
+        const nx = -s.tangent.z * side, nz = s.tangent.x * side;
+        const x = s.pos.x + nx * (RIVER_WIDTH / 2 + 1.1), z = s.pos.z + nz * (RIVER_WIDTH / 2 + 1.1);
+        const crane = makeCrane();
+        crane.g.position.set(x, map.heightAt(x, z), z);
+        crane.g.rotation.y = rng() * 6.28;
+        this.group.add(crane.g);
+        this.cranes.push({ ...crane, state: 'idle', seed: rng() * 10, home: new THREE.Vector3(x, map.heightAt(x, z), z) });
+      }
+    }
+
+    // the Simurgh: a rare, huge, distant silhouette crossing high over the mountain lands
+    this.simurgh = null;
+    if (['mountain', 'snowpeak'].includes(biomeId) || map.def?.id === 'alborz') {
+      const b = makeBird(6.5, 0x43324e);
+      // long gold-tinged tail streamers — the Simurgh's signature
+      const streamMat = colorMat(0xb98a4e, 0.85);
+      streamMat.side = THREE.DoubleSide;
+      const streamers = [];
+      for (const sx of [-0.12, 0.12]) {
+        const st = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 2.6, 1, 6), streamMat);
+        st.position.set(sx, 0, -1.5);
+        st.rotation.x = Math.PI / 2;
+        b.g.add(st);
+        streamers.push(st);
+      }
+      b.g.visible = false;
+      this.group.add(b.g);
+      this.simurgh = { ...b, streamers, t: 45 + rng() * 60, active: false, dir: new THREE.Vector3(), pos: new THREE.Vector3() };
     }
 
     // fireflies (moody lands) / butterflies (bright lands) — wandering points of color
@@ -830,8 +945,82 @@ export class Ambient {
       const z = cit.z + Math.sin(b.phase) * b.r;
       b.g.position.set(x, cit.y + b.h + Math.sin(time * 1.3 + b.phase) * 0.8, z);
       b.g.rotation.y = -b.phase;
-      const flap = Math.sin(time * 9 + b.phase * 7) * 0.7;
-      b.wL.rotation.z = flap; b.wR.rotation.z = -flap;
+      flapBird(b, time);
+    }
+
+    // crossing flock: V-formation sweeps the board, then rests until the next pass
+    if (this.flock) {
+      const F = this.flock;
+      if (!F.active) {
+        F.t -= dt;
+        if (F.t <= 0) {
+          const a = Math.random() * Math.PI * 2;
+          F.pos.set(Math.cos(a) * 170, 30 + Math.random() * 16, Math.sin(a) * 170);
+          F.dir.set(-Math.cos(a + (Math.random() - 0.5) * 0.6), 0, -Math.sin(a + (Math.random() - 0.5) * 0.6)).normalize();
+          F.active = true;
+          for (const b of F.birds) b.g.visible = true;
+        }
+      } else {
+        F.pos.addScaledVector(F.dir, F.speed * dt);
+        const yaw = Math.atan2(F.dir.x, F.dir.z);
+        for (const b of F.birds) {
+          const ox = b.off.x * Math.cos(yaw) + b.off.z * Math.sin(yaw);
+          const oz = -b.off.x * Math.sin(yaw) + b.off.z * Math.cos(yaw);
+          b.g.position.set(F.pos.x + ox, F.pos.y + b.off.y + Math.sin(time * 1.1 + b.phase) * 0.5, F.pos.z + oz);
+          b.g.rotation.y = yaw;
+          flapBird(b, time, 8);
+        }
+        if (Math.hypot(F.pos.x, F.pos.z) > 200) {
+          F.active = false;
+          F.t = 22 + Math.random() * 26;
+          for (const b of F.birds) b.g.visible = false;
+        }
+      }
+    }
+
+    // cranes: head-bob while wading; when a wave presses close they take wing and are gone
+    for (const c of this.cranes || []) {
+      if (c.state === 'idle') {
+        c.neckPivot.rotation.x = Math.sin(time * 0.7 + c.seed) * 0.28 + (Math.sin(time * 0.13 + c.seed) > 0.6 ? 0.5 : 0);
+        if (game?.enemies) {
+          for (const e of game.enemies) {
+            if (e.alive && e.group.position.distanceToSquared(c.g.position) < 144) { c.state = 'fly'; c.vel = new THREE.Vector3((Math.random() - 0.5), 1.4, (Math.random() - 0.5)).normalize(); break; }
+          }
+        }
+      } else if (c.state === 'fly') {
+        c.g.position.addScaledVector(c.vel, dt * 7);
+        c.g.rotation.y = Math.atan2(c.vel.x, c.vel.z);
+        c.neckPivot.rotation.x = -0.5; // neck stretched in flight
+        if (c.g.position.y > 40) { c.g.visible = false; c.state = 'gone'; }
+      }
+    }
+
+    // the Simurgh crosses high and slow, streamers rippling — blink and you miss her
+    if (this.simurgh) {
+      const S = this.simurgh;
+      if (!S.active) {
+        S.t -= dt;
+        if (S.t <= 0) {
+          const a = Math.random() * Math.PI * 2;
+          S.pos.set(Math.cos(a) * 190, 55 + Math.random() * 12, Math.sin(a) * 190);
+          S.dir.set(-Math.cos(a), 0, -Math.sin(a)).normalize();
+          S.active = true;
+          S.g.visible = true;
+        }
+      } else {
+        S.pos.addScaledVector(S.dir, 5.5 * dt);
+        S.g.position.copy(S.pos);
+        S.g.rotation.y = Math.atan2(S.dir.x, S.dir.z);
+        flapBird(S, time, 2.2); // vast slow wingbeats
+        for (let i = 0; i < S.streamers.length; i++) {
+          S.streamers[i].rotation.z = Math.sin(time * 1.6 + i * 2.1) * 0.35;
+        }
+        if (Math.hypot(S.pos.x, S.pos.z) > 220) {
+          S.active = false;
+          S.t = 90 + Math.random() * 90;
+          S.g.visible = false;
+        }
+      }
     }
     // flutterers: wandering sin-walk with bobbing; fireflies pulse
     for (const f of this.flutterers) {
