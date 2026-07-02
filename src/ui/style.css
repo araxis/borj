@@ -3764,3 +3764,78 @@ body.hud-low-chrome .quick-build-more:active { transform: translateY(1px); }
 @media (prefers-reduced-motion: reduce) {
   .map-node.frontier .map-node-medallion { animation: none; box-shadow: 0 2px 6px rgba(46, 30, 10, 0.55), 0 0 14px rgba(244, 205, 110, 0.7); }
 }
+
+/* ============================================================
+   C4 — Codex 2.0, the Book of Kings.
+   Chapter tabs carry chronicle progress; unchronicled entries sit
+   sepia with a gold pip until first read; entries gain an "In
+   Battle" stats folio and related-entry cross-links.
+   ============================================================ */
+
+.tabcount {
+  margin-inline-start: 7px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 169, 62, 0.3);
+  background: rgba(20, 14, 8, 0.55);
+  font-size: 0.68rem;
+  color: #b09668;
+}
+.tabbtn.active .tabcount { color: var(--gold-bright); border-color: rgba(244, 205, 110, 0.5); }
+.tabcount.complete { color: #ffe9a8; border-color: var(--gold); background: rgba(122, 90, 29, 0.5); }
+
+.codexcard { position: relative; }
+.codexcard.unread .cimg { filter: sepia(0.75) saturate(0.5) brightness(0.82); }
+.codexcard.unread:hover .cimg { filter: sepia(0.35) saturate(0.75) brightness(0.95); }
+.unread-pip {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffe9a8, var(--gold) 70%);
+  box-shadow: 0 0 7px rgba(244, 205, 110, 0.8), 0 1px 2px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+body.rtl .unread-pip { right: auto; left: 6px; }
+
+.codex-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 7px;
+}
+.codex-stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 9px;
+  border: 1px solid rgba(160, 107, 46, 0.35);
+  border-radius: 7px;
+  background: linear-gradient(160deg, rgba(46, 36, 23, 0.7), rgba(28, 21, 13, 0.75));
+}
+.codex-stat .cs-label { font-size: 0.72rem; color: #b09668; }
+.codex-stat .cs-val { font-size: 0.85rem; color: var(--gold-bright); text-align: end; }
+
+.related-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.related-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid rgba(216, 169, 62, 0.4);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(58, 43, 20, 0.85), rgba(34, 26, 14, 0.9));
+  color: var(--parchment);
+  font-size: 0.78rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.related-chip:hover { border-color: var(--gold-bright); color: #ffe9b0; box-shadow: 0 0 10px rgba(216, 169, 62, 0.3); }
+.related-chip .rc-kind {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9d8a64;
+  border-inline-end: 1px solid rgba(160, 107, 46, 0.4);
+  padding-inline-end: 6px;
+}
+body.rtl .related-chip .rc-kind { letter-spacing: 0; }

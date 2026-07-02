@@ -513,6 +513,9 @@ export const FA = {
   'codex.towers': 'برج‌ها',
   'codex.soldiers': 'سربازان',
   'codex.lockedEntry': 'برای باز شدن این صفحه، از بخش‌های بیشتری از سرزمین دفاع کن.',
+  'codex.related': 'پیوندهای هم‌داستان',
+  'codex.cost': 'بها',
+  'codex.hp': 'توان',
 
   'settings.title': 'تنظیمات',
   'settings.audio': 'صدا',

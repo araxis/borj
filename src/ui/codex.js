@@ -9,6 +9,7 @@ import { PLACES, PLACE_ATLAS, PLACES_BY_ID } from '../data/places.js';
 import { TOWERS } from '../data/towers.js';
 import { SOLDIERS } from '../data/soldiers.js';
 import { BOSS_CHALLENGES, bossChallengeDef } from '../data/bosschallenges.js';
+import { MAPS } from '../data/campaign.js';
 import { loadProfile, markCodexSeen } from '../core/save.js';
 import { audio } from '../core/audio.js';
 
@@ -39,15 +40,24 @@ export class Codex {
 
   hide() { this.overlay.classList.remove('visible'); }
 
+  static ITEMS = { heroes: HEROES, enemies: ENEMIES, places: PLACES, towers: TOWERS, soldiers: SOLDIERS };
+
   _renderTabs() {
     const tabs = clear($('#codexTabs'));
     $('#codexTitle').textContent = t('codex.title');
+    const profile = loadProfile();
     const defs = [
       ['heroes', t('codex.heroes')], ['enemies', t('codex.enemies')], ['places', t('codex.places')],
       ['towers', t('codex.towers')], ['soldiers', t('codex.soldiers')],
     ];
     for (const [id, label] of defs) {
-      const b = el('button', { class: 'tabbtn' + (this.tab === id ? ' active' : '') }, label);
+      // per-chapter chronicle progress: entries read at least once
+      const items = Codex.ITEMS[id];
+      const seen = items.filter((it) => profile.codexSeen.includes(`${id}:${it.id}`)).length;
+      const b = el('button', { class: 'tabbtn' + (this.tab === id ? ' active' : '') },
+        label,
+        el('span', { class: 'tabcount' + (seen >= items.length ? ' complete' : '') }, `${tNum(seen)}/${tNum(items.length)}`),
+      );
       b.onclick = () => { this.tab = id; audio.ui(); this._renderTabs(); this._renderGrid(); };
       tabs.append(b);
     }
@@ -72,7 +82,13 @@ export class Codex {
         if (place) applyAtlasCell(img, PLACE_ATLAS, place.atlas);
         else img.append(el('div', { class: 'emblem' }, roleIconEl(item.role, 'role-icon-img emblem-img')));
       } else img.append(el('div', { class: 'emblem' }, roleIconEl('barracks', 'role-icon-img emblem-img')));
-      const card = el('div', { class: 'codexcard', 'aria-label': tName(item) }, img, el('div', { class: 'cname' }, tName(item)));
+      // unread entries wear the sepia "not yet chronicled" treatment + a gold pip
+      const unread = !profile.codexSeen.includes(`${this.tab}:${item.id}`);
+      const card = el('div', { class: 'codexcard' + (unread ? ' unread' : ''), 'aria-label': tName(item) },
+        img,
+        el('div', { class: 'cname' }, tName(item)),
+        unread ? el('span', { class: 'unread-pip', 'aria-hidden': 'true' }) : null,
+      );
       wireAction(card, () => { audio.codex(); this._renderDetail(item); });
       grid.append(card);
     }
@@ -113,16 +129,107 @@ export class Codex {
             el('p', { style: { marginTop: '8px' } }, tf(item, 'detail') || tf(item, 'lore')),
             item.ledgerNote ? el('p', { class: 'ledgernote' }, `${t('panel.ledgerNote')}: ${tOpt('ledgernote.' + item.id, item.ledgerNote)}`) : null,
           ),
+          this._gameplaySection(item),
           item.abilityDesc ? el('div', { class: 'rp-section' }, el('h4', {}, t('panel.abilities')), el('p', {}, tOpt('ability.' + item.id, item.abilityDesc))) : null,
           this.tab === 'enemies' && BOSS_CHALLENGES[item.id] ? this._bossSagaRecordSection(item) : null,
           item.special ? el('div', { class: 'rp-section' }, el('h4', {}, t('panel.special')), el('p', {}, tOpt('special.' + item.id, item.special.desc))) : null,
           item.ability?.desc ? el('div', { class: 'rp-section' }, el('h4', {}, t('panel.abilities')), el('p', {}, tOpt('sability.' + item.id, item.ability.desc))) : null,
+          this._relatedSection(item),
           this.tab === 'places' && item.campaign ? el('div', { class: 'rp-section' },
             el('h4', {}, t('panel.campaignContext')),
             el('p', {}, t('intro.' + item.id) !== 'intro.' + item.id ? t('intro.' + item.id) : '—'),
             t('intro2.' + item.id) !== 'intro2.' + item.id ? el('p', { style: { marginTop: '8px', fontStyle: 'italic', color: '#bfae88' } }, t('intro2.' + item.id)) : null,
           ) : null,
         ),
+      ),
+    );
+  }
+
+  // "In Battle" folio panel: the entry's gameplay numbers, data-driven per chapter
+  _gameplaySection(item) {
+    const rows = [];
+    const add = (label, val) => { if (val !== undefined && val !== null && val !== '') rows.push([label, val]); };
+    const pct = (v) => `${tNum(Math.round(v * 100))}%`;
+    if (this.tab === 'towers') {
+      add(t('codex.cost'), tNum(item.cost));
+      if (item.damage) add(t('panel.damage'), tNum(item.damage));
+      if (item.range) add(t('panel.range'), tNum(item.range));
+      if (item.rate) add(t('panel.rate'), tNum(item.rate));
+      if (item.garrison) {
+        const s = SOLDIERS.find((x) => x.id === item.garrison.soldier);
+        add(t('panel.garrison'), `${tNum(item.garrison.count)}× ${s ? tName(s) : item.garrison.soldier}`);
+      }
+    } else if (this.tab === 'enemies') {
+      add(t('codex.hp'), tNum(item.hp));
+      add(t('panel.speedStat'), tNum(item.speed));
+      if (item.armor) add(t('panel.armor'), pct(item.armor));
+      if (item.resist) add(t('panel.resist'), pct(item.resist));
+      add(t('panel.bounty'), tNum(item.bounty));
+    } else if (this.tab === 'soldiers') {
+      add(t('codex.hp'), tNum(item.hp));
+      add(t('panel.damage'), tNum(item.damage));
+      add(t('panel.speedStat'), tNum(item.speed));
+      if (item.squad) add(t('panel.garrison'), `${tNum(item.squad)}×`);
+    } else if (this.tab === 'heroes') {
+      if (item.role) add(t('panel.role'), tOpt('role.' + item.role, item.role));
+      if (item.ageTier) add(t('panel.age'), tOpt('age.' + item.ageTier, item.ageTier));
+      if (item.mods) {
+        const parts = [];
+        for (const [k, v] of Object.entries(item.mods)) {
+          if (!v) continue;
+          parts.push(`+${Math.round(v * 100)}% ${tOpt('panel.' + (k === 'hp' ? 'health' : k), k)}`);
+        }
+        if (parts.length) add(t('panel.towerMods'), parts.join(' · '));
+      }
+    } else if (this.tab === 'places') {
+      const mapDef = MAPS.find((mm) => mm.id === item.id);
+      if (mapDef) {
+        add(t('campaign.waves'), tNum(mapDef.waves));
+        const boss = mapDef.boss ? ENEMIES.find((e) => e.id === mapDef.boss) : null;
+        if (boss) add(t('panel.bossTag'), tName(boss));
+      }
+    }
+    if (!rows.length) return null;
+    return el('div', { class: 'rp-section' },
+      el('h4', {}, t('panel.gameplay')),
+      el('div', { class: 'codex-stats' },
+        ...rows.map(([label, val]) => el('div', { class: 'codex-stat' },
+          el('span', { class: 'cs-label' }, label), el('b', { class: 'cs-val' }, String(val)))),
+      ),
+    );
+  }
+
+  // cross-links: hero↔place↔tower↔soldier↔adversary ties mined from the data files
+  _relatedSection(item) {
+    const links = [];
+    const push = (tab, it) => { if (it && !links.some((l) => l.it === it) && links.length < 8) links.push({ tab, it }); };
+    if (this.tab === 'heroes') {
+      if (item.unlock?.map) push('places', PLACES_BY_ID[item.unlock.map]);
+      for (const tw of TOWERS) if (tw.compatHeroes?.includes(item.id)) push('towers', tw);
+    } else if (this.tab === 'towers') {
+      if (item.placeRef) push('places', PLACES_BY_ID[item.placeRef]);
+      if (item.garrison) push('soldiers', SOLDIERS.find((s) => s.id === item.garrison.soldier));
+      for (const hid of item.compatHeroes || []) push('heroes', HEROES.find((h) => h.id === hid));
+    } else if (this.tab === 'soldiers') {
+      for (const tw of TOWERS) if (tw.garrison?.soldier === item.id) push('towers', tw);
+    } else if (this.tab === 'enemies') {
+      for (const mm of MAPS) if (mm.boss === item.id || mm.twinBoss === item.id) push('places', PLACES_BY_ID[mm.id]);
+    } else if (this.tab === 'places') {
+      const mm = MAPS.find((x) => x.id === item.id);
+      if (mm?.boss) push('enemies', ENEMIES.find((e) => e.id === mm.boss));
+      for (const h of HEROES) if (h.unlock?.map === item.id) push('heroes', h);
+      for (const tw of TOWERS) if (tw.placeRef === item.id) push('towers', tw);
+    }
+    if (!links.length) return null;
+    return el('div', { class: 'rp-section' },
+      el('h4', {}, t('codex.related')),
+      el('div', { class: 'related-chips' },
+        ...links.map(({ tab, it }) => {
+          const chip = el('button', { class: 'related-chip' },
+            el('span', { class: 'rc-kind' }, t('codex.' + tab)), tName(it));
+          chip.onclick = () => { audio.codex(); this.tab = tab; this._renderDetail(it); this._renderTabs(); };
+          return chip;
+        }),
       ),
     );
   }

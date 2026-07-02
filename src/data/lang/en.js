@@ -509,6 +509,9 @@ export const EN = {
   'codex.towers': 'Towers',
   'codex.soldiers': 'Soldiers',
   'codex.lockedEntry': 'Defend more of the land to reveal this entry.',
+  'codex.related': 'Related Entries',
+  'codex.cost': 'Cost',
+  'codex.hp': 'Vitality',
 
   'settings.title': 'Settings',
   'settings.audio': 'Audio',
