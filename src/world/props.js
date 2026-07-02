@@ -322,9 +322,12 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
     const profile = [];
     for (let i = 0; i <= 8; i++) {
       const t = i / 8;
-      profile.push(new THREE.Vector2(Math.sin(Math.PI * Math.pow(t, 0.75)) * 0.62, 0.9 + t * 3.2));
+      // foliage skirt starts near the ground (real sarv reads as a grounded teardrop) —
+      // starting at 0.9 left only a pencil-thin trunk below, which vanishes at distance
+      // and made the canopy look like a floating leaf on open biomes (snowfields).
+      profile.push(new THREE.Vector2(Math.sin(Math.PI * Math.pow(t, 0.75)) * 0.62, 0.42 + t * 3.68));
     }
-    group.add(instanced(new THREE.CylinderGeometry(0.09, 0.15, 1.0, 7).translate(0, 0.5, 0), MATS().woodDark, trunkM));
+    group.add(instanced(new THREE.CylinderGeometry(0.13, 0.2, 1.0, 7).translate(0, 0.5, 0), MATS().woodDark, trunkM));
     group.add(instanced(new THREE.LatheGeometry(profile, 10), colorMat(0x2e4a2c, 0.95), folM));
   }
   // trees — Quaternius kit foliage routed by biome (forest=twisted+dead+common, mountain=
