@@ -25,6 +25,22 @@ const ROLE_ICONS = {
   archer: '🏹', siege: '🪨', fire: '🔥', magic: '📜', support: '🪶',
   aura: '🚩', economy: '🪙', barracks: '🛡️', trap: '🕳️',
 };
+// Crafted gold-line SVGs replace the emoji role glyphs (emoji render inconsistently
+// across platforms and clash with the theme). Emoji stay as the never-break fallback.
+const ROLE_ICON_SRC = {
+  archer: 'assets/ui/role-icons/archer.svg', siege: 'assets/ui/role-icons/siege.svg',
+  fire: 'assets/ui/role-icons/fire.svg', magic: 'assets/ui/role-icons/magic.svg',
+  support: 'assets/ui/role-icons/support.svg', aura: 'assets/ui/role-icons/aura.svg',
+  economy: 'assets/ui/role-icons/economy.svg', barracks: 'assets/ui/role-icons/barracks.svg',
+  trap: 'assets/ui/role-icons/trap.svg',
+};
+function roleIconEl(role, cls = 'role-icon-img') {
+  const src = ROLE_ICON_SRC[role];
+  if (!src) return document.createTextNode(ROLE_ICONS[role] || '▣');
+  const img = el('img', { class: cls, src, alt: '', draggable: 'false' });
+  img.onerror = () => img.replaceWith(document.createTextNode(ROLE_ICONS[role] || '▣'));
+  return img;
+}
 const HERO_ICONS = {
   champion: '⚔️', sage: '🪶', guardian: '🕊️', forgemaster: '🔨', king: '👑',
   strategist: '📜', defender: '🛡️', protector: '🏮', matriarch: '👸', ancestor: '🗿',
@@ -949,7 +965,7 @@ export class HUD {
       return c;
     };
     const items = [chip(null, [el('span', { class: 'fl' }, tOpt('hud.filterAll', 'All'))], tOpt('hud.filterAll', 'All'))];
-    for (const g of groups) items.push(chip(g.key, [el('span', { class: 'fi' }, g.icon)], g.label));
+    for (const g of groups) items.push(chip(g.key, [el('span', { class: 'fi' }, tab === 'towers' ? roleIconEl(g.key) : g.icon)], g.label));
     // Uniform grid, balanced rows, columns capped so cells stay tappable
     // (10 tower chips → 5+5; ~21 hero chips → 7+7+7).
     const maxCols = 7;
@@ -969,9 +985,9 @@ export class HUD {
         const portrait = el('div', { class: 'portrait' });
         const place = def.placeRef ? PLACES_BY_ID[def.placeRef] : null;
         if (place) applyAtlasCell(portrait, PLACE_ATLAS, place.atlas);
-        else portrait.append(el('div', { class: 'emblem' }, ROLE_ICONS[def.role] || '🏛️'));
+        else portrait.append(el('div', { class: 'emblem' }, roleIconEl(def.role, 'role-icon-img emblem-img')));
         portrait.append(
-          el('span', { class: 'roleico', title: t('role.' + def.role) }, ROLE_ICONS[def.role] || ''),
+          el('span', { class: 'roleico', title: t('role.' + def.role) }, roleIconEl(def.role)),
           el('span', { class: 'cost' }, tNum(def.cost)),
         );
         card.append(
@@ -1033,7 +1049,7 @@ export class HUD {
         'aria-label': title,
         'aria-pressed': 'false',
       },
-        el('span', { class: 'quick-build-icon', 'aria-hidden': 'true' }, ROLE_ICONS[def.role] || '▣'),
+        el('span', { class: 'quick-build-icon', 'aria-hidden': 'true' }, roleIconEl(def.role)),
         el('span', { class: 'quick-build-cost', 'aria-hidden': 'true' }, tNum(def.cost)),
       );
       btn.onclick = () => {
@@ -1392,7 +1408,7 @@ export class HUD {
     else if (kind === 'tower') {
       const place = ref.placeRef ? PLACES_BY_ID[ref.placeRef] : null;
       if (place) applyAtlasCell(p, PLACE_ATLAS, place.atlas);
-      else p.append(el('div', { class: 'emblem' }, ROLE_ICONS[ref.role] || '🏛️'));
+      else p.append(el('div', { class: 'emblem' }, roleIconEl(ref.role, 'role-icon-img emblem-img')));
     }
     return p;
   }
