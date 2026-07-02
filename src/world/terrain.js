@@ -125,6 +125,10 @@ export function buildTerrain(heightAt, biome, flattenFn, opts = {}) {
   const cGround1 = new THREE.Color(biome.ground[1]);
   const cRock = new THREE.Color(biome.rock);
   const cHigh = new THREE.Color(biome.high);
+  // macro patch tone: a darker, duller sibling of the ground (biome.patch overrides) —
+  // big soft blotches of it break the "one flat sheet" read on open ground
+  const cPatch = new THREE.Color(biome.patch ?? biome.ground[0]);
+  if (biome.patch == null) cPatch.offsetHSL(-0.016, -0.11, -0.115);
   const c = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
@@ -136,14 +140,19 @@ export function buildTerrain(heightAt, biome, flattenFn, opts = {}) {
     c.lerpColors(cGround0, cGround1, t + 0.25);
     if (h > biome.hills * 1.6 + 2) c.lerp(cHigh, Math.min(1, (h - biome.hills * 1.6 - 2) / 6));
     else if (h > biome.hills * 0.9) c.lerp(cRock, Math.min(1, (h - biome.hills * 0.9) / 4) * 0.6);
+    // macro patches: threshold a slow fbm so distinct blotches emerge (not uniform noise).
+    // 3-octave fbm sums to at most 0.875 (mean ≈ 0.44) — normalize before thresholding.
+    const patch = fbm(x * 0.029 - 40, z * 0.029 + 23, 3, 13) / 0.875;
+    const pmask = clamp01((patch - 0.52) / 0.2);
+    if (pmask > 0) c.lerp(cPatch, pmask * 0.6);
     const broad = fbm(x * 0.013 + 17, z * 0.013 - 11, 3, 31);
     const grit = fbm(x * 0.18 - 5, z * 0.18 + 9, 2, 19);
     const hsl = {};
     c.getHSL(hsl);
     c.setHSL(
-      hsl.h + (broad - 0.5) * 0.018,
-      clamp01(hsl.s * (0.96 + broad * 0.12)),
-      clamp01(hsl.l + (grit - 0.5) * 0.055),
+      hsl.h + (broad - 0.5) * 0.03,
+      clamp01(hsl.s * (0.92 + broad * 0.2)),
+      clamp01(hsl.l + (grit - 0.5) * 0.085),
     );
     colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
   }
@@ -151,9 +160,11 @@ export function buildTerrain(heightAt, biome, flattenFn, opts = {}) {
   geo.computeVertexNormals();
   const edgeTint = new THREE.Color(biome.ground?.[1] ?? biome.ground?.[0] ?? 0x6f8050)
     .lerp(new THREE.Color(biome.mood?.fogColor ?? 0xb3c4d8), opts.edgeTintFogMix ?? 0.68);
-  const edgeStart = opts.edgeStart ?? (circular ? visualRadius * 0.72 : 52);
+  const edgeStart = opts.edgeStart ?? (circular ? visualRadius * 0.78 : 52);
   const edgeEnd = opts.edgeEnd ?? (circular ? visualRadius : WORLD_SIZE / 2);
-  const edgeTintStrength = opts.edgeTintStrength ?? 0.58;
+  // washes the rim toward fog so the board melts into the backdrop — kept moderate:
+  // at 0.58 the whole outer third of the play area read as bleached-out haze
+  const edgeTintStrength = opts.edgeTintStrength ?? 0.44;
   const edgeMetric = circular ? 'length(position.xz)' : 'max(abs(position.x), abs(position.z))';
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true, roughness: 0.95, metalness: 0,
