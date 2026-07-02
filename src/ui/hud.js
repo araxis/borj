@@ -47,6 +47,27 @@ function statIconEl(name, fallback) {
   img.onerror = () => img.replaceWith(document.createTextNode(fallback));
   return img;
 }
+// hero-role icons: 17 crafted + 4 shared with the tower set (archer/sage/strategist/defender)
+const HERO_ICON_SRC = {
+  champion: 'assets/ui/hero-icons/champion.svg', guardian: 'assets/ui/hero-icons/guardian.svg',
+  forgemaster: 'assets/ui/hero-icons/forgemaster.svg', king: 'assets/ui/hero-icons/king.svg',
+  protector: 'assets/ui/hero-icons/protector.svg', matriarch: 'assets/ui/hero-icons/matriarch.svg',
+  ancestor: 'assets/ui/hero-icons/ancestor.svg', monsterSlayer: 'assets/ui/hero-icons/monsterSlayer.svg',
+  stateswoman: 'assets/ui/hero-icons/stateswoman.svg', companion: 'assets/ui/hero-icons/companion.svg',
+  counselor: 'assets/ui/hero-icons/counselor.svg', marshal: 'assets/ui/hero-icons/marshal.svg',
+  gatekeeper: 'assets/ui/hero-icons/gatekeeper.svg', rider: 'assets/ui/hero-icons/rider.svg',
+  martyr: 'assets/ui/hero-icons/martyr.svg', prince: 'assets/ui/hero-icons/prince.svg',
+  striker: 'assets/ui/hero-icons/striker.svg',
+  sage: 'assets/ui/role-icons/support.svg', strategist: 'assets/ui/role-icons/magic.svg',
+  defender: 'assets/ui/role-icons/barracks.svg', archer: 'assets/ui/role-icons/archer.svg',
+};
+function heroIconEl(role, cls = 'role-icon-img') {
+  const src = HERO_ICON_SRC[role];
+  if (!src) return document.createTextNode(HERO_ICONS[role] || '⚔️');
+  const img = el('img', { class: cls, src, alt: '', draggable: 'false' });
+  img.onerror = () => img.replaceWith(document.createTextNode(HERO_ICONS[role] || '⚔️'));
+  return img;
+}
 const HERO_ICONS = {
   champion: '⚔️', sage: '🪶', guardian: '🕊️', forgemaster: '🔨', king: '👑',
   strategist: '📜', defender: '🛡️', protector: '🏮', matriarch: '👸', ancestor: '🗿',
@@ -971,7 +992,7 @@ export class HUD {
       return c;
     };
     const items = [chip(null, [el('span', { class: 'fl' }, tOpt('hud.filterAll', 'All'))], tOpt('hud.filterAll', 'All'))];
-    for (const g of groups) items.push(chip(g.key, [el('span', { class: 'fi' }, tab === 'towers' ? roleIconEl(g.key) : g.icon)], g.label));
+    for (const g of groups) items.push(chip(g.key, [el('span', { class: 'fi' }, tab === 'towers' ? roleIconEl(g.key) : heroIconEl(g.key))], g.label));
     // Uniform grid, balanced rows, columns capped so cells stay tappable
     // (10 tower chips → 5+5; ~21 hero chips → 7+7+7).
     const maxCols = 7;
@@ -1015,7 +1036,7 @@ export class HUD {
         const card = el('div', { class: 'card' + (unlocked ? '' : ' locked'), 'data-id': hero.id, 'aria-label': tName(hero) });
         const portrait = el('div', { class: 'portrait' });
         applyAtlasCell(portrait, HERO_ATLAS, hero.atlas);
-        portrait.append(el('span', { class: 'roleico' }, HERO_ICONS[hero.role] || '⚔️'));
+        portrait.append(el('span', { class: 'roleico' }, heroIconEl(hero.role)));
         if (!unlocked) portrait.append(el('div', { class: 'lockico' }, '🔒'));
         if (assignedTower) portrait.append(el('span', { class: 'assigned-chip' }, '⚑'));
         const rank = this.game.heroRank(hero.id);
