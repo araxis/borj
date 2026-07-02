@@ -33,6 +33,30 @@ const matFor = {
   firepot: () => MATS().flame,
 };
 
+// Arrows and bolts get a bright metal head + pale fletching: the dark shaft alone is a
+// 2px black stick that disappears in motion — the gold glint is what the eye tracks.
+let _headGeo = null, _fletchGeo = null;
+function dartGroup(kind) {
+  const g = new THREE.Group();
+  const shaft = new THREE.Mesh(geo(kind), (matFor[kind] || matFor.arrow)());
+  g.add(shaft);
+  _headGeo = _headGeo || new THREE.ConeGeometry(0.055, 0.18, 5).rotateX(Math.PI / 2);
+  const head = new THREE.Mesh(_headGeo, MATS().gold);
+  head.position.z = kind === 'bolt' ? 0.6 : 0.4;
+  const hs = kind === 'bolt' ? 1.5 : 1;
+  head.scale.setScalar(hs);
+  g.add(head);
+  _fletchGeo = _fletchGeo || new THREE.PlaneGeometry(0.09, 0.2);
+  for (const rot of [0, Math.PI / 2]) {
+    const f = new THREE.Mesh(_fletchGeo, MATS().stoneWhite);
+    f.position.z = kind === 'bolt' ? -0.45 : -0.28;
+    f.rotation.set(0, 0, rot);
+    f.rotateX(0.12);
+    g.add(f);
+  }
+  return g;
+}
+
 export class Projectile {
   // opts: { kind, from:V3, target:enemy, speed, arc, onHit(enemy, pos), trail:[r,g,b], pierce, game }
   constructor(game, opts) {
@@ -48,7 +72,9 @@ export class Projectile {
     this.alive = true;
     this.t = 0;
     this.from = opts.from.clone();
-    this.mesh = new THREE.Mesh(geo(this.kind), (matFor[this.kind] || matFor.arrow)());
+    this.mesh = this.kind === 'arrow' || this.kind === 'bolt'
+      ? dartGroup(this.kind)
+      : new THREE.Mesh(geo(this.kind), (matFor[this.kind] || matFor.arrow)());
     this.mesh.position.copy(opts.from);
     this.mesh.castShadow = this.kind === 'stone' || this.kind === 'disc';
     game.scene.add(this.mesh);

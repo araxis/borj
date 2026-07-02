@@ -622,7 +622,10 @@ export class Tower {
     const trail = vfx === 'sacredFlame' || vfx === 'moltenSplash' ? FXC.ember
       : vfx === 'scriptWard' || vfx === 'gloryBeam' ? FXC.sacred
         : vfx === 'featherDart' ? FXC.feather
-          : vfx === 'longArrow' ? FXC.gold : null;
+          : vfx === 'longArrow' ? FXC.gold
+            // every shot leaves at least a faint warm tracer — an untrailed arrow is a
+            // 2px black stick that vanishes in motion; the wake is what the eye tracks
+            : FXC.spark;
     // muzzle flash — a bright puff at the firing point gives the shot a visible origin
     const mdir = target.group.position.clone().sub(from).normalize();
     this.game.particles.burst(from.clone().addScaledVector(mdir, 0.4), 5, {
