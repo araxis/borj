@@ -12,7 +12,7 @@ import { BOSS_CHALLENGES, bossChallengeDef } from '../data/bosschallenges.js';
 import { loadProfile, markCodexSeen } from '../core/save.js';
 import { audio } from '../core/audio.js';
 
-const ROLE_ICONS = { archer: '🏹', siege: '🪨', fire: '🔥', magic: '📜', support: '🪶', aura: '🚩', economy: '🪙', barracks: '🛡️', trap: '🕳️' };
+import { roleIconEl } from './icons.js';
 
 export class Codex {
   constructor() {
@@ -70,8 +70,8 @@ export class Codex {
       else if (this.tab === 'towers') {
         const place = item.placeRef ? PLACES_BY_ID[item.placeRef] : null;
         if (place) applyAtlasCell(img, PLACE_ATLAS, place.atlas);
-        else img.textContent = ROLE_ICONS[item.role] || '🏛️';
-      } else img.textContent = '🛡️';
+        else img.append(el('div', { class: 'emblem' }, roleIconEl(item.role, 'role-icon-img emblem-img')));
+      } else img.append(el('div', { class: 'emblem' }, roleIconEl('barracks', 'role-icon-img emblem-img')));
       const card = el('div', { class: 'codexcard', 'aria-label': tName(item) }, img, el('div', { class: 'cname' }, tName(item)));
       wireAction(card, () => { audio.codex(); this._renderDetail(item); });
       grid.append(card);
@@ -90,7 +90,7 @@ export class Codex {
     else {
       const place = item.placeRef ? PLACES_BY_ID[item.placeRef] : null;
       if (place) applyAtlasCell(img, PLACE_ATLAS, place.atlas);
-      else img.append(el('div', { class: 'emblem' }, ROLE_ICONS[item.role] || '🛡️'));
+      else img.append(el('div', { class: 'emblem' }, roleIconEl(item.role, 'role-icon-img emblem-img')));
     }
     const back = el('button', { class: 'gbtn back' }, '← ' + t('codex.title'));
     back.onclick = () => { this._renderGrid(); };

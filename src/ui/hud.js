@@ -2,6 +2,7 @@
 // wave controls, toasts, boss banner, interaction modes (build/assign/rally/fuse).
 import * as THREE from 'three';
 import { el, $, clear, wireAction } from './dom.js';
+import { ROLE_ICONS, HERO_ICONS, roleIconEl, heroIconEl, statIconEl } from './icons.js';
 import { t, tf, tName, tNameAlt, tNum, tOpt, onLangChange, toggleLang } from '../core/i18n.js';
 import { applyAtlasCell } from '../core/atlas.js';
 import { TOWERS, AGES } from '../data/towers.js';
@@ -21,59 +22,7 @@ function put(parent, ...kids) {
   for (const k of kids.flat()) if (k != null) parent.append(k);
 }
 
-const ROLE_ICONS = {
-  archer: '🏹', siege: '🪨', fire: '🔥', magic: '📜', support: '🪶',
-  aura: '🚩', economy: '🪙', barracks: '🛡️', trap: '🕳️',
-};
-// Crafted gold-line SVGs replace the emoji role glyphs (emoji render inconsistently
-// across platforms and clash with the theme). Emoji stay as the never-break fallback.
-const ROLE_ICON_SRC = {
-  archer: 'assets/ui/role-icons/archer.svg', siege: 'assets/ui/role-icons/siege.svg',
-  fire: 'assets/ui/role-icons/fire.svg', magic: 'assets/ui/role-icons/magic.svg',
-  support: 'assets/ui/role-icons/support.svg', aura: 'assets/ui/role-icons/aura.svg',
-  economy: 'assets/ui/role-icons/economy.svg', barracks: 'assets/ui/role-icons/barracks.svg',
-  trap: 'assets/ui/role-icons/trap.svg',
-};
-function roleIconEl(role, cls = 'role-icon-img') {
-  const src = ROLE_ICON_SRC[role];
-  if (!src) return document.createTextNode(ROLE_ICONS[role] || '▣');
-  const img = el('img', { class: cls, src, alt: '', draggable: 'false' });
-  img.onerror = () => img.replaceWith(document.createTextNode(ROLE_ICONS[role] || '▣'));
-  return img;
-}
-// top-bar stat chips share the same crafted-icon treatment (emoji as fallback)
-function statIconEl(name, fallback) {
-  const img = el('img', { class: 'role-icon-img stat-icon-img', src: `assets/ui/stat-icons/${name}.svg`, alt: '', draggable: 'false' });
-  img.onerror = () => img.replaceWith(document.createTextNode(fallback));
-  return img;
-}
-// hero-role icons: 17 crafted + 4 shared with the tower set (archer/sage/strategist/defender)
-const HERO_ICON_SRC = {
-  champion: 'assets/ui/hero-icons/champion.svg', guardian: 'assets/ui/hero-icons/guardian.svg',
-  forgemaster: 'assets/ui/hero-icons/forgemaster.svg', king: 'assets/ui/hero-icons/king.svg',
-  protector: 'assets/ui/hero-icons/protector.svg', matriarch: 'assets/ui/hero-icons/matriarch.svg',
-  ancestor: 'assets/ui/hero-icons/ancestor.svg', monsterSlayer: 'assets/ui/hero-icons/monsterSlayer.svg',
-  stateswoman: 'assets/ui/hero-icons/stateswoman.svg', companion: 'assets/ui/hero-icons/companion.svg',
-  counselor: 'assets/ui/hero-icons/counselor.svg', marshal: 'assets/ui/hero-icons/marshal.svg',
-  gatekeeper: 'assets/ui/hero-icons/gatekeeper.svg', rider: 'assets/ui/hero-icons/rider.svg',
-  martyr: 'assets/ui/hero-icons/martyr.svg', prince: 'assets/ui/hero-icons/prince.svg',
-  striker: 'assets/ui/hero-icons/striker.svg',
-  sage: 'assets/ui/role-icons/support.svg', strategist: 'assets/ui/role-icons/magic.svg',
-  defender: 'assets/ui/role-icons/barracks.svg', archer: 'assets/ui/role-icons/archer.svg',
-};
-function heroIconEl(role, cls = 'role-icon-img') {
-  const src = HERO_ICON_SRC[role];
-  if (!src) return document.createTextNode(HERO_ICONS[role] || '⚔️');
-  const img = el('img', { class: cls, src, alt: '', draggable: 'false' });
-  img.onerror = () => img.replaceWith(document.createTextNode(HERO_ICONS[role] || '⚔️'));
-  return img;
-}
-const HERO_ICONS = {
-  champion: '⚔️', sage: '🪶', guardian: '🕊️', forgemaster: '🔨', king: '👑',
-  strategist: '📜', defender: '🛡️', protector: '🏮', matriarch: '👸', ancestor: '🗿',
-  monsterSlayer: '🗡️', stateswoman: '🏛️', companion: '🐎', counselor: '💬', marshal: '🎺',
-  archer: '🏹', gatekeeper: '🚪', rider: '🏇', martyr: '🕯️', prince: '🤴', striker: '🥊',
-};
+// Icon maps + crafted-SVG element helpers live in icons.js (shared with the codex).
 // Both card tabs filter by combat role; the role lists are derived from the data
 // at render time so they are always complete. TOWER_ROLE_ORDER only curates order.
 const TOWER_ROLE_ORDER = ['archer', 'siege', 'fire', 'magic', 'support', 'aura', 'economy', 'barracks', 'trap'];
