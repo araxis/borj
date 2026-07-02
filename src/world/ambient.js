@@ -107,9 +107,10 @@ export function planRiver(biomeId, baseHeight, roadPaths, rng) {
   }
   const pts = [];
   // span the round-2 expanded circular board (r≈112): the river must reach the fogged rim
-  // on both sides or it reads as a truncated stub ending mid-meadow
-  for (let x = -106; x <= 106; x += 12) {
-    pts.push([x, best + Math.sin(x * 0.06 + rng() * 6) * 9 + (rng() - 0.5) * 5]);
+  // on both sides or it reads as a truncated stub ending mid-meadow. Amplitude/jitter kept
+  // gentle: bends tighter than the ribbon+bank width fold the strips over themselves.
+  for (let x = -106; x <= 106; x += 14) {
+    pts.push([x, best + Math.sin(x * 0.05 + rng() * 6) * 6.5 + (rng() - 0.5) * 3]);
   }
   const sampled = samplePath(pts, baseHeight, 1.2);
   return sampled;
@@ -147,6 +148,103 @@ export function buildRiverMesh(river, group) {
   mesh.receiveShadow = false;
   group.add(mesh);
   return mat; // caller scrolls map.offset for flow
+}
+
+// Round-2 rivers: foam edges, wet banks, stones and reeds. The foam strips are the
+// strongest "this water FLOWS" cue — thin scrolling white streaks hugging both shores;
+// the wet strip darkens the bank so the water sits IN the land instead of on it.
+function foamTexture() {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 256;
+  const g = c.getContext('2d');
+  for (let i = 0; i < 90; i++) {
+    const a = 0.16 + Math.random() * 0.4;
+    g.fillStyle = `rgba(235,248,250,${a})`;
+    const x = Math.random() * 64, y = Math.random() * 256;
+    const len = 6 + Math.random() * 22;
+    g.fillRect(x, y, 1.2 + Math.random() * 1.8, len);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// builds one side-offset ribbon along the river samples; yFn(sample, outerX, outerZ, side) -> [yIn, yOut]
+function riverRibbon(samples, offIn, offOut, yFn, side) {
+  const verts = [], uvs = [], idx = [];
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i];
+    const sx = -s.tangent.z * side, sz = s.tangent.x * side;
+    const n = Math.hypot(sx, sz) || 1;
+    const nx = sx / n, nz = sz / n;
+    const xi = s.pos.x + nx * offIn, zi = s.pos.z + nz * offIn;
+    const xo = s.pos.x + nx * offOut, zo = s.pos.z + nz * offOut;
+    const [yi, yo] = yFn(s, xo, zo);
+    verts.push(xi, yi, zi, xo, yo, zo);
+    const v = s.dist / 6;
+    uvs.push(0, v, 1, v);
+    if (i > 0) {
+      const a = (i - 1) * 2;
+      idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+export function buildRiverDressing(river, group, heightAt, { reeds = true, rng = Math.random } = {}) {
+  const { samples } = river;
+  const half = RIVER_WIDTH / 2;
+  const scrollMats = [];
+  for (const side of [-1, 1]) {
+    // scrolling foam hugging the shoreline
+    const foamGeo = riverRibbon(samples, half - 0.38, half + 0.24, (s) => [s.pos.y - 0.30, s.pos.y - 0.26], side);
+    const foamMat = new THREE.MeshBasicMaterial({
+      map: foamTexture(), transparent: true, opacity: 0.6, depthWrite: false, color: 0xeaf6f8,
+    });
+    const foam = new THREE.Mesh(foamGeo, foamMat);
+    foam.renderOrder = 2;
+    group.add(foam);
+    scrollMats.push(foamMat);
+    // wet darkened bank following the carved slope up to dry land
+    const wetGeo = riverRibbon(samples, half + 0.16, half + 1.4,
+      (s, xo, zo) => [s.pos.y - 0.24, (heightAt ? heightAt(xo, zo) : s.pos.y) + 0.05], side);
+    const wetMat = new THREE.MeshStandardMaterial({
+      color: 0x453e2e, transparent: true, opacity: 0.5, depthWrite: false, roughness: 1,
+    });
+    const wet = new THREE.Mesh(wetGeo, wetMat);
+    wet.renderOrder = 1;
+    group.add(wet);
+  }
+  // bank stones + reed tufts, alternating sides, skipping nothing fancy — sparse and cheap
+  const stoneM = [], reedM = [];
+  const m4b = (x, y, z, ry, s) => new THREE.Matrix4().makeRotationY(ry).scale(new THREE.Vector3(s, s, s)).setPosition(x, y, z);
+  for (let i = 3; i < samples.length - 3; i += 4) {
+    const s = samples[i];
+    const side = (i % 8 < 4) ? 1 : -1;
+    const nx = -s.tangent.z * side, nz = s.tangent.x * side;
+    const off = half + 0.9 + rng() * 1.3;
+    const x = s.pos.x + nx * off, z = s.pos.z + nz * off;
+    const y = heightAt ? heightAt(x, z) : s.pos.y;
+    if (rng() < 0.55) stoneM.push(m4b(x, y - 0.12, z, rng() * 6.28, 0.5 + rng() * 0.9));
+    else if (reeds) for (let k = 0; k < 3; k++) reedM.push(m4b(x + (rng() - 0.5) * 0.8, y, z + (rng() - 0.5) * 0.8, rng() * 6.28, 0.8 + rng() * 0.7));
+  }
+  const inst = (geo, mat, mats4) => {
+    const im = new THREE.InstancedMesh(geo, mat, mats4.length);
+    mats4.forEach((m, i) => im.setMatrixAt(i, m));
+    im.instanceMatrix.needsUpdate = true;
+    im.castShadow = false;
+    im.receiveShadow = true;
+    return im;
+  };
+  if (stoneM.length) group.add(inst(new THREE.DodecahedronGeometry(0.32, 0), new THREE.MeshStandardMaterial({ color: 0x8b8474, roughness: 0.95 }), stoneM));
+  if (reedM.length) group.add(inst(new THREE.ConeGeometry(0.055, 1.35, 5).translate(0, 0.62, 0), new THREE.MeshStandardMaterial({ color: 0x6d7c3f, roughness: 0.9 }), reedM));
+  return scrollMats; // caller scrolls map.offset for flow, same as the water sheet
 }
 
 // stone bridge where a road crosses the river

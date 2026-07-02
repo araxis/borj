@@ -7,7 +7,7 @@ import { BIOMES, makeHeightField, buildTerrain, WORLD_SIZE } from './terrain.js'
 import { samplePath, buildRoadMesh, ROAD_WIDTH } from './road.js';
 import { scatterProps, scatterHorizonBand, buildSpawnGate, buildPad, makeBanner, swapForestTrees, swapForestEnrich } from './props.js';
 import { buildLandCitadel, citadelFootprint } from './citadels.js';
-import { planRiver, buildRiverMesh, buildBridge, buildWorldApron, RIVER_WIDTH } from './ambient.js';
+import { planRiver, buildRiverMesh, buildRiverDressing, buildBridge, buildWorldApron, RIVER_WIDTH } from './ambient.js';
 import { buildBackdrop, buildMountainRing, updateBackdropForCamera } from './backdrop.js';
 import { getProp, instanceProp, propReady, propBase, propRotFix, placeM4, KIT_UNIT, KIT_TINT, THINGS_UNIT, REALISTIC_UNIT, loadForestTrees, loadForestEnrich, loadZabulistanProps } from '../core/props3d.js';
 import { makeFlame } from '../models/towerkit.js';
@@ -168,6 +168,12 @@ export class GameMap {
     this.waterMats = [];
     if (this.river) {
       this.waterMats.push(buildRiverMesh(this.river, this.group));
+      // round-2 river dressing: scrolling foam edges (pushed into waterMats for flow),
+      // wet bank strips, stones and reed tufts along the shoreline
+      this.waterMats.push(...buildRiverDressing(this.river, this.group, (x, z) => this.heightAt(x, z), {
+        reeds: (this.effectiveProps?.reeds ?? 0) > 0 || ['river', 'valley', 'wetland', 'forest'].includes(this.place?.biome),
+        rng,
+      }));
       for (const path of this.paths) {
         let cluster = [];
         for (let i = 4; i < path.samples.length - 4; i++) {
