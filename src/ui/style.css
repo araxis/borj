@@ -3570,3 +3570,75 @@ body.hud-low-chrome .quick-build-more:active { transform: translateY(1px); }
   body.hud-low-chrome .quick-build-btn:active:not(.unaffordable),
   body.hud-low-chrome .quick-build-more:active { transform: none; }
 }
+
+/* ============================================================
+   C2 — menu pages in the illuminated language.
+   The title becomes a calligraphy plate with a slow gold sheen;
+   farr embers drift up across the main-menu plate; menu buttons
+   sweep in staggered like the card grids.
+   ============================================================ */
+
+.title-illum {
+  background: linear-gradient(100deg, #c9a04a 0%, #f7e3ae 26%, #d8a93e 48%, #fff3ce 70%, #c9a04a 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 22px rgba(216, 169, 62, 0.35));
+  animation: titleSheen 8s linear infinite;
+}
+@keyframes titleSheen {
+  from { background-position: 0% 0; }
+  to { background-position: -220% 0; }
+}
+
+/* farr embers: two tiled dot-fields drifting upward at different speeds; each layer
+   shifts by exactly one tile height per cycle, so the loop is seamless */
+.ember-veil { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: 10px; }
+.ember-veil::before, .ember-veil::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-repeat: repeat;
+}
+.ember-veil::before {
+  background-image:
+    radial-gradient(circle, rgba(255, 216, 130, 0.75) 1.4px, transparent 2.4px),
+    radial-gradient(circle, rgba(244, 205, 110, 0.5) 1.1px, transparent 2px);
+  background-size: 170px 210px, 130px 170px;
+  background-position: 24px 40px, 90px 120px;
+  animation: emberDriftA 17s linear infinite;
+  opacity: 0.55;
+}
+.ember-veil::after {
+  background-image:
+    radial-gradient(circle, rgba(255, 236, 170, 0.65) 1px, transparent 1.9px),
+    radial-gradient(circle, rgba(216, 169, 62, 0.45) 1.6px, transparent 2.7px);
+  background-size: 110px 150px, 220px 260px;
+  background-position: 60px 30px, 150px 80px;
+  animation: emberDriftB 23s linear infinite;
+  opacity: 0.4;
+}
+@keyframes emberDriftA {
+  from { background-position: 24px 40px, 90px 120px; }
+  to { background-position: 24px -170px, 90px -50px; }
+}
+@keyframes emberDriftB {
+  from { background-position: 60px 30px, 150px 80px; }
+  to { background-position: 60px -120px, 150px -180px; }
+}
+
+/* menu buttons sweep in like the card grids */
+#mainMenu.visible .menu-actions .gbtn { animation: cardCascade 0.45s cubic-bezier(.2,.8,.25,1) both; }
+#mainMenu.visible .menu-actions .gbtn:nth-child(1) { animation-delay: .12s; }
+#mainMenu.visible .menu-actions .gbtn:nth-child(2) { animation-delay: .18s; }
+#mainMenu.visible .menu-actions .gbtn:nth-child(3) { animation-delay: .24s; }
+#mainMenu.visible .menu-actions .gbtn:nth-child(4) { animation-delay: .30s; }
+#mainMenu.visible .menu-actions .gbtn:nth-child(5) { animation-delay: .36s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .title-illum { animation: none; }
+  .ember-veil { display: none; }
+  #mainMenu.visible .menu-actions .gbtn { animation: none; }
+}

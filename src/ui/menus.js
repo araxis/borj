@@ -24,6 +24,7 @@ export class Menus {
   _build() {
     this.mainMenu = el('div', { class: 'overlay', id: 'mainMenu' },
       el('div', { class: 'dialog frame', style: { textAlign: 'center', minWidth: 'min(480px, 90vw)' } },
+        el('div', { class: 'ember-veil', 'aria-hidden': 'true' }), // slow farr embers over the plate
         el('div', { class: 'title-illum', id: 'mmTitle' }, t('app.title')),
         el('div', { class: 'title-rule' }),
         el('div', { class: 'subtitle', id: 'mmSub' }, t('app.subtitle')),
