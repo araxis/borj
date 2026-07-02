@@ -3642,3 +3642,125 @@ body.hud-low-chrome .quick-build-more:active { transform: translateY(1px); }
   .ember-veil { display: none; }
   #mainMenu.visible .menu-actions .gbtn { animation: none; }
 }
+
+/* ============================================================
+   C3 — the Map of Iran: stage select as a parchment journey.
+   Stage nodes sit at their storied places, the campaign road is a
+   dashed ink line (conquered stretch in gold), completed = gold
+   seal, frontier = pulsing farr, locked = faded sketch. The card
+   grid remains the narrow-screen fallback.
+   ============================================================ */
+
+#campaignMap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 100 / 56;
+  border-radius: 12px;
+  border: 1px solid #6e5526;
+  overflow: hidden;
+  /* aged parchment: warm base, soft terrain stains, sea hints (Caspian NW-center, Gulf SW), edge scorch */
+  background:
+    radial-gradient(ellipse 24% 12% at 38% 6%, rgba(78, 128, 128, 0.35), transparent 70%),
+    radial-gradient(ellipse 30% 14% at 12% 88%, rgba(78, 128, 118, 0.28), transparent 70%),
+    radial-gradient(ellipse 34% 26% at 44% 36%, rgba(122, 95, 48, 0.22), transparent 72%),
+    radial-gradient(ellipse 26% 20% at 74% 22%, rgba(122, 95, 48, 0.2), transparent 72%),
+    radial-gradient(ellipse 120% 100% at 50% 45%, transparent 58%, rgba(70, 48, 20, 0.4) 88%, rgba(46, 30, 12, 0.55) 100%),
+    linear-gradient(155deg, #d9c493 0%, #cdb37e 42%, #c2a76f 74%, #b6995f 100%);
+  box-shadow: inset 0 0 42px rgba(58, 38, 14, 0.5), 0 6px 22px rgba(0, 0, 0, 0.5);
+}
+#campaignMap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+#campaignMap .journey-line {
+  fill: none;
+  stroke: rgba(88, 62, 26, 0.55);
+  stroke-width: 0.42;
+  stroke-dasharray: 1.3 1.05;
+  stroke-linejoin: round;
+}
+#campaignMap .journey-line.done {
+  stroke: rgba(216, 169, 62, 0.9);
+  stroke-width: 0.55;
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 1px rgba(244, 205, 110, 0.6));
+}
+
+.map-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  z-index: 1;
+}
+.map-node-medallion {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 0.95rem;
+  border: 2px solid #7a5c28;
+  color: #f4e3b4;
+  background: radial-gradient(circle at 35% 30%, #6a4e1c, #3a2b0e 78%);
+  box-shadow: 0 2px 6px rgba(46, 30, 10, 0.55), inset 0 1px 0 rgba(255, 235, 170, 0.25);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.map-node-name {
+  font-size: 0.62rem;
+  line-height: 1.1;
+  max-width: 92px;
+  text-align: center;
+  color: #4a3618;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 0 rgba(255, 240, 200, 0.5);
+}
+.map-node:hover:not(:disabled) .map-node-medallion {
+  transform: scale(1.12);
+  box-shadow: 0 3px 10px rgba(46, 30, 10, 0.6), 0 0 14px rgba(216, 169, 62, 0.55);
+}
+.map-node.done .map-node-medallion {
+  border-color: var(--gold);
+  color: #ffeeb2;
+  box-shadow: 0 2px 6px rgba(46, 30, 10, 0.55), 0 0 9px rgba(216, 169, 62, 0.45);
+}
+.map-node.frontier .map-node-medallion {
+  border-color: var(--gold-bright);
+  color: #fff3ce;
+  animation: farrNode 1.8s ease-in-out infinite;
+}
+@keyframes farrNode {
+  0%, 100% { box-shadow: 0 2px 6px rgba(46, 30, 10, 0.55), 0 0 6px rgba(244, 205, 110, 0.35); }
+  50% { box-shadow: 0 2px 6px rgba(46, 30, 10, 0.55), 0 0 18px rgba(244, 205, 110, 0.85); }
+}
+.map-node.locked { cursor: default; opacity: 0.55; }
+.map-node.locked .map-node-medallion {
+  border-style: dashed;
+  border-color: #8a6f3e;
+  color: #8a6f3e;
+  background: transparent;
+  box-shadow: none;
+  font-size: 0.72rem;
+}
+.map-node.locked .map-node-name { color: #6d5731; opacity: 0.8; }
+/* red wax seal pip: this stage guards a boss saga */
+.map-node-wax {
+  position: absolute;
+  top: 0; right: 4px;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #b0402e, #6e1f14 75%);
+  border: 1px solid rgba(46, 12, 6, 0.7);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* wide screens journey on the map; narrow screens keep the proven card grid */
+#campaignMap + #campaignGrid { display: none; }
+@media (max-width: 700px) {
+  #campaignMap { display: none; }
+  #campaignMap + #campaignGrid { display: grid; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-node.frontier .map-node-medallion { animation: none; box-shadow: 0 2px 6px rgba(46, 30, 10, 0.55), 0 0 14px rgba(244, 205, 110, 0.7); }
+}

@@ -129,6 +129,74 @@ export class Menus {
       wireAction(card, () => { audio.ui(); this.showMapIntro(m, endlessPick); }, { disabled: !available });
       grid.append(card);
     }
+
+    // C3: the Map of Iran — a parchment journey with stage nodes at their storied
+    // places. The card grid above stays in the DOM as the narrow-screen fallback;
+    // CSS decides which of the two is visible.
+    const oldMap = $('#campaignMap');
+    if (oldMap) oldMap.remove();
+    grid.parentNode.insertBefore(this._buildIranMap(sorted, profile, endlessPick, sandboxPick), grid);
+  }
+
+  // stage positions on the stylized Iran/Turan parchment (viewBox 100×56, y down).
+  // Loyal to the epic's geography: Sistan/Zabulistan SE, Mazandaran on the Caspian,
+  // Turan beyond the Oxus NE, Madayen W, Persepolis SW.
+  static MAP_POS = {
+    'zabulistan': [66, 44], 'sistan': [60, 48], 'kabul': [76, 36], 'samangan': [78, 24],
+    'dez-sepid': [58, 27], 'mazandaran': [46, 16], 'alborz': [40, 20], 'damavand': [44, 24],
+    'siyavash-gate': [62, 17], 'turan': [78, 11], 'balkh': [70, 19], 'dez-roein': [88, 14],
+    'manijeh-garden': [85, 7], 'makran': [56, 50], 'estakhr': [36, 44], 'gordafarid-fort': [52, 24],
+    'madayen': [20, 34], 'arash-watch': [48, 13], 'dez-bahman': [28, 16], 'gang-dez': [93, 6],
+  };
+
+  _buildIranMap(sorted, profile, endlessPick, sandboxPick) {
+    const POS = Menus.MAP_POS;
+    const pane = el('div', { id: 'campaignMap' });
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 100 56');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('aria-hidden', 'true');
+    const seg = (pts, cls) => {
+      if (pts.length < 2) return;
+      const p = document.createElementNS(NS, 'path');
+      p.setAttribute('d', pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' '));
+      p.setAttribute('class', cls);
+      svg.append(p);
+    };
+    const all = sorted.map((m) => POS[m.id] || [50, 28]);
+    seg(all, 'journey-line');
+    // the conquered stretch of the road glows gold: prefix of completed stages (+1 frontier)
+    let doneCount = 0;
+    for (const m of sorted) { if (profile.completedMaps.includes(m.id)) doneCount++; else break; }
+    seg(all.slice(0, Math.min(doneCount + 1, all.length)), 'journey-line done');
+    pane.append(svg);
+
+    for (const m of sorted) {
+      const place = PLACES_BY_ID[m.id];
+      const [x, y] = POS[m.id] || [50, 28];
+      const prev = sorted.find((s) => s.order === m.order - 1);
+      const unlocked = m.order === 1 || (prev && profile.completedMaps.includes(prev.id));
+      const done = profile.completedMaps.includes(m.id);
+      const available = sandboxPick || (endlessPick ? done : unlocked);
+      const frontier = available && !done;
+      const state = done ? 'done' : frontier ? 'frontier' : available ? 'done' : 'locked';
+      const node = el('button', {
+        class: `map-node ${state}`,
+        style: { left: x + '%', top: (y / 56) * 100 + '%' },
+        'aria-label': `${tName(place)}. ${t('campaign.waves')}: ${tNum(m.waves)}`,
+        title: `${tName(place)} — ${t('campaign.waves')}: ${tNum(m.waves)}`,
+      },
+        el('span', { class: 'map-node-medallion' },
+          done ? '✪' : frontier ? '✦' : tNum(m.order)),
+        m.boss ? el('span', { class: 'map-node-wax', 'aria-hidden': 'true' }) : null,
+        el('span', { class: 'map-node-name' }, tName(place)),
+      );
+      if (available) node.onclick = () => { audio.ui(); this.showMapIntro(m, endlessPick); };
+      else node.disabled = true;
+      pane.append(node);
+    }
+    return pane;
   }
 
   showMapIntro(mapDef, endless) {
