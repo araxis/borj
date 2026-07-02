@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { PLACES_BY_ID } from '../data/places.js';
 import { BIOMES, makeHeightField, buildTerrain, WORLD_SIZE } from './terrain.js';
 import { samplePath, buildRoadMesh, ROAD_WIDTH } from './road.js';
-import { scatterProps, buildSpawnGate, buildPad, makeBanner, swapForestTrees, swapForestEnrich } from './props.js';
+import { scatterProps, scatterHorizonBand, buildSpawnGate, buildPad, makeBanner, swapForestTrees, swapForestEnrich } from './props.js';
 import { buildLandCitadel, citadelFootprint } from './citadels.js';
 import { planRiver, buildRiverMesh, buildBridge, buildWorldApron, RIVER_WIDTH } from './ambient.js';
 import { buildBackdrop, buildMountainRing, updateBackdropForCamera } from './backdrop.js';
@@ -33,7 +33,13 @@ export class GameMap {
     // per-map prop overrides win over the biome defaults (e.g. Mazandaran zeroes cypress while
     // Manijeh Garden — same forest biome — keeps the garden sarv).
     this.effectiveProps = { ...this.biome.props, ...this.place?.props };
-    this.visualBoard = visualProfile?.board ? { ...visualProfile.board } : null;
+    // Every map gets an expanded CIRCULAR visual board (round 2 "grand board"): gameplay
+    // paths/pads stay inside the old ±75 square, but the terrain now extends to r≈112 as a
+    // middle-distance dressing band, and the circular path activates the sculpted
+    // board-edge blend + apron mirror that only Zabulistan's authored profile used to get.
+    this.visualBoard = visualProfile?.board
+      ? { ...visualProfile.board }
+      : { shape: 'circle', radius: 112, edgeStart: 84, apronFar: 300 };
     this.scene = scene;
     this.group = new THREE.Group();
     scene.add(this.group);
@@ -239,6 +245,14 @@ export class GameMap {
     this.propsGroup = new THREE.Group();
     const propsAnim = scatterProps(rng, (x, z) => this.heightAt(x, z), isClear, this.effectiveProps, this.propsGroup, this.place?.biome || 'plains');
     if (mapDef.id === 'zabulistan') suppressZabulistanGenericScenery(this.propsGroup);
+    // middle-distance dressing band on the expanded circular board (outside gameplay, inside the rim)
+    if (this.visualBoard?.shape === 'circle' && this.visualBoard.radius > 88) {
+      scatterHorizonBand(rng, (x, z) => this.heightAt(x, z), this.propsGroup, this.place?.biome || 'plains', this.biome, {
+        rLo: 78,
+        rHi: this.visualBoard.radius - 8,
+        isClear,
+      });
+    }
     this.group.add(this.propsGroup);
     // expose the clearance closures so the building-kit generators reuse them verbatim
     this._isClear = isClear;

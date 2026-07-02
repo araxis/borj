@@ -106,7 +106,9 @@ export function planRiver(biomeId, baseHeight, roadPaths, rng) {
     if (minD > bestScore) { bestScore = minD; best = baseZ; }
   }
   const pts = [];
-  for (let x = -78; x <= 78; x += 12) {
+  // span the round-2 expanded circular board (r≈112): the river must reach the fogged rim
+  // on both sides or it reads as a truncated stub ending mid-meadow
+  for (let x = -106; x <= 106; x += 12) {
     pts.push([x, best + Math.sin(x * 0.06 + rng() * 6) * 9 + (rng() - 0.5) * 5]);
   }
   const sampled = samplePath(pts, baseHeight, 1.2);

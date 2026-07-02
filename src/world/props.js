@@ -680,6 +680,130 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
   return anim;
 }
 
+// Round-2 "grand board": dress the middle-distance band (between the old gameplay square
+// and the expanded circular rim) with far-read silhouettes — distant villages, orchards,
+// rock spurs, herds, a ruined watchpost. Everything is cheap, instanced, and fog-hazed;
+// at 80-110u from centre these read as "the land continues", not as playable props.
+export function scatterHorizonBand(rng, heightAt, group, biomeId, biome, { rLo = 78, rHi = 104, isClear = null } = {}) {
+  const g = new THREE.Group();
+  g.name = 'horizon-band';
+  const fog = new THREE.Color(biome.mood?.fogColor ?? 0xb3c4d8);
+  const hazed = (hex, mix = 0.18) => colorMat(new THREE.Color(hex).lerp(fog, mix).getHex(), 0.96);
+  const pt = () => {
+    for (let tries = 0; tries < 8; tries++) {
+      const a = rng() * Math.PI * 2;
+      const r = rLo + rng() * (rHi - rLo);
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (isClear && !isClear(x, z, 3)) continue; // keep clusters out of the extended river etc.
+      return [x, heightAt(x, z), z, a];
+    }
+    const a = rng() * Math.PI * 2;
+    const r = rLo + rng() * (rHi - rLo);
+    return [Math.cos(a) * r, heightAt(Math.cos(a) * r, Math.sin(a) * r), Math.sin(a) * r, a];
+  };
+  const green = ['plains', 'valley', 'river', 'wetland', 'highland', 'forest'].includes(biomeId);
+  const cold = ['snowpeak', 'mountain'].includes(biomeId);
+  const settled = !cold && biomeId !== 'forest';
+
+  // distant tree clusters — broadleaf blobs (green), sarv teardrops (arid), pines (cold)
+  {
+    const trunkM = [], folM = [];
+    const clusters = cold ? 8 : 14;
+    for (let ci = 0; ci < clusters; ci++) {
+      const [cx, , cz] = pt();
+      const n = 2 + Math.floor(rng() * 3);
+      for (let i = 0; i < n; i++) {
+        const x = cx + (rng() - 0.5) * 9, z = cz + (rng() - 0.5) * 9;
+        const s = 1.1 + rng() * 0.9; // slightly over-scale so they read at distance
+        trunkM.push(m4(x, heightAt(x, z), z, rng() * 6.28, s));
+        folM.push(m4(x, heightAt(x, z), z, rng() * 6.28, s));
+      }
+    }
+    g.add(instanced(new THREE.CylinderGeometry(0.14, 0.22, 1.4, 6).translate(0, 0.7, 0), MATS().woodDark, trunkM));
+    const folGeo = cold
+      ? new THREE.ConeGeometry(1.1, 3.4, 7).translate(0, 2.6, 0)
+      : green
+        ? new THREE.SphereGeometry(1.5, 8, 6).scale(1, 0.85, 1).translate(0, 2.6, 0)
+        : new THREE.LatheGeometry(
+          Array.from({ length: 7 }, (_, i) => {
+            const t = i / 6;
+            return new THREE.Vector2(Math.sin(Math.PI * Math.pow(t, 0.75)) * 0.62, 0.42 + t * 3.4);
+          }), 8);
+    const folColor = cold ? 0x2f4436 : green ? 0x4c7a3a : 0x3a5a34;
+    g.add(instanced(folGeo, hazed(folColor, 0.22), folM));
+  }
+
+  // rock spurs — clumped, partially buried
+  {
+    const rockM = [];
+    for (let ci = 0; ci < 10; ci++) {
+      const [cx, , cz] = pt();
+      const n = 2 + Math.floor(rng() * 3);
+      for (let i = 0; i < n; i++) {
+        const x = cx + (rng() - 0.5) * 6, z = cz + (rng() - 0.5) * 6;
+        rockM.push(m4(x, heightAt(x, z) - 0.3, z, rng() * 6.28, 1.4 + rng() * 2.2));
+      }
+    }
+    g.add(instanced(new THREE.DodecahedronGeometry(0.8, 0), hazed(biome.rock ?? 0x8a8270, 0.16), rockM));
+  }
+
+  // distant villages — clusters of adobe houses, one domed, with a fence line
+  if (settled) {
+    const houseM = [], domeM = [], fenceM = [];
+    const villages = 2 + Math.floor(rng() * 2);
+    for (let vi = 0; vi < villages; vi++) {
+      const [cx, , cz, a] = pt();
+      const n = 4 + Math.floor(rng() * 4);
+      for (let i = 0; i < n; i++) {
+        const x = cx + (rng() - 0.5) * 12, z = cz + (rng() - 0.5) * 12;
+        houseM.push(m4(x, heightAt(x, z), z, rng() * 6.28, 1.0 + rng() * 0.9));
+      }
+      const dx = cx + (rng() - 0.5) * 6, dz = cz + (rng() - 0.5) * 6;
+      domeM.push(m4(dx, heightAt(dx, dz) + 1.25, dz, 0, 1.1));
+      for (let f = 0; f < 3; f++) {
+        const fx = cx + Math.cos(a + f * 0.5) * (7 + f), fz = cz + Math.sin(a + f * 0.5) * (7 + f);
+        fenceM.push(m4(fx, heightAt(fx, fz), fz, a + f * 0.5 + 1.57, 1));
+      }
+    }
+    g.add(instanced(new THREE.BoxGeometry(1.6, 1.3, 1.4).translate(0, 0.6, 0), hazed(0xb59a6e, 0.2), houseM));
+    g.add(instanced(new THREE.SphereGeometry(0.75, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2), hazed(0xc4ad84, 0.2), domeM));
+    g.add(instanced(new THREE.BoxGeometry(3.2, 0.7, 0.12).translate(0, 0.35, 0), hazed(0x7a6648, 0.22), fenceM));
+  }
+
+  // grazing herds — small dark blobs drifting the band
+  if (!cold) {
+    const herdM = [];
+    const herds = 2 + Math.floor(rng() * 2);
+    for (let hi = 0; hi < herds; hi++) {
+      const [cx, , cz] = pt();
+      const n = 4 + Math.floor(rng() * 5);
+      for (let i = 0; i < n; i++) {
+        const x = cx + (rng() - 0.5) * 8, z = cz + (rng() - 0.5) * 8;
+        herdM.push(m4(x, heightAt(x, z) + 0.32, z, rng() * 6.28, 0.9 + rng() * 0.5));
+      }
+    }
+    g.add(instanced(new THREE.SphereGeometry(0.42, 6, 5).scale(1.5, 0.85, 0.7), hazed(0x4d4238, 0.25), herdM));
+  }
+
+  // a ruined watchpost — one broken tower on a rise, the old empire's edge
+  {
+    const [x, y, z] = pt();
+    const b = new MeshBuilder();
+    b.cyl(1.5, 1.9, 5.2, 9, 'stone', 0, 2.6, 0);
+    b.cyl(1.7, 1.7, 0.7, 9, 'stoneDark', 0, 5.4, 0);
+    b.box(1.3, 1.8, 1.2, 'stone', 1.7, 0.9, 0.4, 0.4);   // collapsed chunk
+    b.box(0.9, 1.1, 0.9, 'stoneDark', -1.9, 0.5, -0.8, 0.9);
+    const tower = b.build();
+    tower.position.set(x, y - 0.4, z);
+    tower.rotation.y = rng() * 6.28;
+    tower.rotation.z = 0.06; // a tired lean
+    g.add(tower);
+  }
+
+  group.add(g);
+  return g;
+}
+
 // Spawn gate: a weathered war-gate where enemy waves enter — battered sandstone pylons
 // with gilt bands under a dark arch, sat on a stepped base that sinks into the ground.
 export function buildSpawnGate() {

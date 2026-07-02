@@ -13,7 +13,7 @@ export class RTSCamera {
     this.pitch = 0.92; this.pitchGoal = this.pitch;
     this.dist = 70; this.distGoal = this.dist;
     this.bounds = { minX: -75, maxX: 75, minZ: -75, maxZ: 75 };
-    this.minDist = 18; this.maxDist = 110;
+    this.minDist = 18; this.maxDist = 132; // zoom-out reaches the round-2 expanded board (r≈112)
     this.minPitch = 0.35; this.maxPitch = 1.35;
     this.follow = null; // entity with .group.position
     this._focusBeat = null;

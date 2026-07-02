@@ -44,8 +44,8 @@ export const ZABULISTAN_VISUAL_PROFILE = Object.freeze({
   }),
   board: Object.freeze({
     shape: 'circle',
-    radius: 86,
-    edgeStart: 52,
+    radius: 110, // round-2 grand board: was 86 — extra ring is middle-distance dressing, gameplay untouched
+    edgeStart: 66,
     edgeTintFogMix: 0.1,
     edgeTintStrength: 0.12,
     apronFar: 316,
