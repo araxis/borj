@@ -76,7 +76,10 @@ export const BIOMES = {
   },
   snowpeak: {
     hills: 6.0, ground: [0xc9d2d8, 0xbcc7d0], rock: 0x8e9197, high: 0xe8eef4,
-    mood: { background: 0xbfd2e4, fogColor: 0xcdd9e6, fogNear: 70, fogFar: 220, sunColor: 0xe8f0ff, sunIntensity: 2.0, hemiIntensity: 1.5 },
+    patch: 0xa8b6c4, // wind-scoured blue-gray drifts — keeps the snowfield from reading as blank paper
+    // snow albedo is so high that the generic sun/exposure scaling blows the field to
+    // pure white — author a dimmer sun + low exposure for this biome specifically
+    mood: { background: 0xbfd2e4, fogColor: 0xcdd9e6, fogNear: 70, fogFar: 220, sunColor: 0xe8f0ff, sunIntensity: 1.55, hemiIntensity: 1.2, exposure: 0.9 },
     props: { cypress: 6, tree: 0, rock: 24, reeds: 0, palm: 0, bush: 0, grass: 0, snow: true },
   },
   steppe: {
