@@ -767,6 +767,27 @@ export class Ambient {
       }
     }
 
+    // carrion crows clustered near the first spawn gate — battle-aftermath tension.
+    // They peck at the scorched ground, burst skyward when a wave marches past, and
+    // drift back once the road is quiet again.
+    this.crows = [];
+    const cgate = map.gates?.[0];
+    if (cgate) {
+      const a0 = rng() * 6.28318, rr0 = 5 + rng() * 4;
+      const ccx = cgate.position.x + Math.cos(a0) * rr0, ccz = cgate.position.z + Math.sin(a0) * rr0;
+      for (let i = 0; i < 5; i++) {
+        const crow = makeBird(0.55, 0x151312);
+        const x = ccx + (rng() - 0.5) * 3.2, z = ccz + (rng() - 0.5) * 3.2;
+        crow.g.position.set(x, map.heightAt(x, z) + 0.1, z);
+        crow.g.rotation.y = rng() * 6.28318;
+        // wings tucked while grounded
+        crow.wl.pivotI.rotation.z = 1.05; crow.wl.pivotO.rotation.z = -2.0;
+        crow.wr.pivotI.rotation.z = -1.05; crow.wr.pivotO.rotation.z = 2.0;
+        this.group.add(crow.g);
+        this.crows.push({ ...crow, state: 'ground', seed: rng() * 10, home: crow.g.position.clone(), t: 0, phase: rng() * 6.28 });
+      }
+    }
+
     // the Simurgh: a rare, huge, distant silhouette crossing high over the mountain lands
     this.simurgh = null;
     if (['mountain', 'snowpeak'].includes(biomeId) || map.def?.id === 'alborz') {
@@ -1010,6 +1031,47 @@ export class Ambient {
         c.g.rotation.y = Math.atan2(c.vel.x, c.vel.z);
         c.neckPivot.rotation.x = -0.5; // neck stretched in flight
         if (c.g.position.y > 40) { c.g.visible = false; c.state = 'gone'; }
+      }
+    }
+
+    // crows: peck and shuffle at the spawn field; scatter from marching waves; return
+    for (const cr of this.crows || []) {
+      if (cr.state === 'ground') {
+        cr.g.position.y = cr.home.y + Math.max(0, Math.sin(time * 3.1 + cr.seed * 7)) * 0.09; // pecking hop
+        cr.g.rotation.y += Math.sin(time * 0.9 + cr.seed) * dt * 0.7;
+        if (game?.enemies) {
+          for (const e of game.enemies) {
+            if (e.alive && e.group.position.distanceToSquared(cr.g.position) < 100) {
+              cr.state = 'fly';
+              cr.vel = new THREE.Vector3(cr.g.position.x - e.group.position.x, 0, cr.g.position.z - e.group.position.z).normalize();
+              cr.vel.y = 1.15;
+              cr.vel.normalize();
+              break;
+            }
+          }
+        }
+      } else if (cr.state === 'fly') {
+        cr.g.position.addScaledVector(cr.vel, dt * 8.5);
+        cr.g.rotation.y = Math.atan2(cr.vel.x, cr.vel.z);
+        flapBird(cr, time, 4);
+        if (cr.g.position.y > 32) { cr.g.visible = false; cr.state = 'gone'; cr.t = 16 + Math.random() * 14; }
+      } else if (cr.state === 'gone') {
+        cr.t -= dt;
+        if (cr.t <= 0) {
+          let quiet = true;
+          if (game?.enemies) {
+            for (const e of game.enemies) {
+              if (e.alive && e.group.position.distanceToSquared(cr.home) < 225) { quiet = false; break; }
+            }
+          }
+          if (quiet) {
+            cr.g.position.copy(cr.home);
+            cr.g.visible = true;
+            cr.state = 'ground';
+            cr.wl.pivotI.rotation.z = 1.05; cr.wl.pivotO.rotation.z = -2.0;
+            cr.wr.pivotI.rotation.z = -1.05; cr.wr.pivotO.rotation.z = 2.0;
+          } else cr.t = 6;
+        }
       }
     }
 

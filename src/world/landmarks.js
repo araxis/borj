@@ -573,11 +573,102 @@ function buildFactionStandards(map, rng, group) {
   }
 }
 
+// every map: the war is HERE — scorched earth and spent arrows around the spawns,
+// fresh sharpened stakes on the citadel approach. All static and cheap (instanced).
+function buildAftermath(map, rng, group) {
+  const o = new THREE.Object3D();
+  // -- near each spawn gate: scorch patches + planted arrow clusters --
+  const scorchMat = new THREE.MeshLambertMaterial({ color: 0x14100c, transparent: true, opacity: 0.5, depthWrite: false });
+  const arrowMats = [];
+  for (const gate of map.gates || []) {
+    const gx = gate.position.x, gz = gate.position.z;
+    for (let p = 0; p < 3; p++) {
+      const a = rng() * Math.PI * 2, r = 3 + rng() * 6;
+      const cx = gx + Math.cos(a) * r, cz = gz + Math.sin(a) * r;
+      if (!map._isClear(cx, cz, 1)) continue;
+      // ground-conforming burn fan: every rim vertex sampled at terrain height
+      const R = 1.4 + rng() * 1.3, N = 10;
+      const pos = [cx, map.heightAt(cx, cz) + 0.08, cz];
+      const idx = [];
+      for (let i = 0; i <= N; i++) {
+        const t = (i / N) * Math.PI * 2;
+        const vx = cx + Math.cos(t) * R * (0.7 + rng() * 0.45), vz = cz + Math.sin(t) * R * (0.7 + rng() * 0.45);
+        pos.push(vx, map.heightAt(vx, vz) + 0.08, vz);
+        if (i < N) idx.push(0, i + 1, i + 2);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setIndex(idx);
+      geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, scorchMat);
+      m.renderOrder = 1;
+      group.add(m);
+    }
+    // arrow clusters: volleys that fell short of the gate
+    for (let c = 0; c < 2; c++) {
+      const a = rng() * Math.PI * 2, r = 4 + rng() * 5;
+      const cx = gx + Math.cos(a) * r, cz = gz + Math.sin(a) * r;
+      const n = 5 + (rng() * 4) | 0;
+      for (let i = 0; i < n; i++) {
+        const x = cx + (rng() - 0.5) * 2.4, z = cz + (rng() - 0.5) * 2.4;
+        o.position.set(x, map.heightAt(x, z) + 0.24, z);
+        o.rotation.set(0.15 + rng() * 0.35, rng() * Math.PI * 2, 0, 'YXZ');
+        o.updateMatrix();
+        arrowMats.push(o.matrix.clone());
+      }
+    }
+  }
+  if (arrowMats.length) {
+    const im = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.02, 0.02, 0.7, 4),
+      new THREE.MeshLambertMaterial({ color: 0x4a3a26 }), arrowMats.length);
+    arrowMats.forEach((m, i) => im.setMatrixAt(i, m));
+    im.castShadow = false;
+    group.add(im);
+  }
+  // -- citadel approach: rows of sharpened stakes angled at the oncoming enemy --
+  const path = map.paths?.[0];
+  if (path) {
+    // walk back from the citadel until the keep-out releases the road flanks — big
+    // palaces reject the nearest ~20 samples outright (same trap as the Derafsh)
+    const stakeMats = [];
+    let rows = 0;
+    for (let back = 14; back <= 64 && rows < 4; back += 4) {
+      const s = path.samples[Math.max(0, path.samples.length - back)];
+      const lean = Math.atan2(-s.tangent.x, -s.tangent.z); // tips face down-road, toward the spawns
+      let rowPlaced = false;
+      for (const side of [1, -1]) {
+        for (const off of [2.7, 3.4]) {
+          const x = s.pos.x - s.tangent.z * side * off;
+          const z = s.pos.z + s.tangent.x * side * off;
+          if (!map._isClear(x, z, 0.7)) continue;
+          o.position.set(x, map.heightAt(x, z) + 0.42, z);
+          o.rotation.set(0.95 + (rng() - 0.5) * 0.22, lean + (rng() - 0.5) * 0.3, 0, 'YXZ');
+          o.updateMatrix();
+          stakeMats.push(o.matrix.clone());
+          rowPlaced = true;
+        }
+      }
+      if (rowPlaced) rows++;
+    }
+    if (stakeMats.length) {
+      const im = new THREE.InstancedMesh(
+        new THREE.ConeGeometry(0.09, 1.35, 5),
+        new THREE.MeshLambertMaterial({ color: 0x74593a }), stakeMats.length);
+      stakeMats.forEach((m, i) => im.setMatrixAt(i, m));
+      im.castShadow = true;
+      im.receiveShadow = true;
+      group.add(im);
+    }
+  }
+}
+
 export function buildStoryLandmarks(map, rng) {
   const plans = LANDMARK_PLANS[map.def?.id];
   const group = new THREE.Group();
   group.name = 'story-landmarks';
   buildFactionStandards(map, rng, group);
+  buildAftermath(map, rng, group);
   if (!plans?.length) {
     map.group.add(group);
     return group;
