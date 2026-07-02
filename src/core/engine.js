@@ -205,13 +205,14 @@ export class Engine {
       if (!m) return;
       const lit = m.isMeshStandardMaterial || m.isMeshPhysicalMaterial
         || m.isMeshLambertMaterial || m.isMeshPhongMaterial || m.isMeshToonMaterial;
-      const noDepth = m.depthWrite === false; // additive/glow fx — keep out of shadowing entirely
-      const alphaCard = m.transparent && !(m.alphaTest > 0.01);
-      if (!lit || noDepth) { o.castShadow = false; o.receiveShadow = false; return; }
+      const additive = m.blending !== THREE.NormalBlending; // glow/energy fx
+      if (!lit || additive) { o.castShadow = false; o.receiveShadow = false; return; }
+      const alphaCard = m.transparent || m.depthWrite === false;
       if (alphaCard) {
-        // lit alpha-blended sheets (visual-kit ground fades, foliage cards) must not CAST —
-        // their depth pass renders the full quad as a solid slab — but they still RECEIVE,
-        // otherwise big set-piece shadows vanish on maps whose visible ground is such a sheet.
+        // Lit alpha-blended sheets and decals (visual-kit ground layers, road wear,
+        // foliage cards) must not CAST — their depth pass renders the full quad as a
+        // solid slab — but they MUST RECEIVE: these sheets are drawn over the terrain,
+        // so if they ignore the shadow map they visually erase every shadow beneath.
         o.castShadow = false;
         o.receiveShadow = true;
         const mats0 = Array.isArray(o.material) ? o.material : [o.material];

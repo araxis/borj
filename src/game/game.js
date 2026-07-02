@@ -4390,8 +4390,15 @@ export class Game {
     if (this.auraT <= 0) { this.auraT = 0.4; this._recomputeAuras(); }
 
     for (let i = this.enemies.length - 1; i >= 0; i--) {
-      if (!this.enemies[i].update(dt, time)) {
-        this.enemies[i].destroy();
+      let alive = false;
+      try {
+        alive = this.enemies[i].update(dt, time);
+      } catch (err) {
+        // one corrupted entity must never freeze the whole battle — cull it and move on
+        console.warn('enemy update crashed — culling', this.enemies[i]?.def?.id, err);
+      }
+      if (!alive) {
+        try { this.enemies[i].destroy(); } catch { /* already half-torn-down */ }
         this.enemies.splice(i, 1);
       }
     }

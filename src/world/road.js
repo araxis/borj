@@ -308,7 +308,7 @@ export function buildRoadMesh(sampled, style = 'stone', seed = 'road') {
 // position + facing along a sampled path at distance d
 export function pointAt(sampled, d) {
   const { samples, length } = sampled;
-  const dd = Math.max(0, Math.min(length, d));
+  const dd = Math.max(0, Math.min(length, Number.isFinite(d) ? d : 0));
   const f = (dd / length) * (samples.length - 1);
   const i = Math.min(samples.length - 2, Math.floor(f));
   const t = f - i;
