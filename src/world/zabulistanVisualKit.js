@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MATS, MeshBuilder } from '../models/materials.js';
 import { makeFlame } from '../models/towerkit.js';
+import { mergeStaticGroup } from './mergekit.js';
 import { makeBanner } from './props.js';
 import { getProp, instanceProp, propBase } from '../core/props3d.js';
 import { zabulistanVisualProfile } from '../data/zabulistanVisualProfile.js';
@@ -2049,6 +2050,14 @@ export function buildZabulistanVisualKit(map, rng) {
   addGateApproachDepth(map, group, rng);
   addPalaceSideTerrainClusters(map, group, rng);
   addSiegeLandmarks(map, group, rng);
+  // the authored camp is thousands of tiny static meshes — collapse them into one
+  // mesh per material bucket (D1 flagged ~6600 draw calls/frame on this stage).
+  // Banners/flames keep their own objects so the game loop can wave and pulse them.
+  const stats = mergeStaticGroup(group, [
+    ...(group.userData.animatedBanners || []),
+    ...(group.userData.animatedFlames || []),
+  ]);
+  if (stats.removed) console.info(`[zab-kit] merged ${stats.removed} static meshes into ${stats.made}`);
   return group;
 }
 
