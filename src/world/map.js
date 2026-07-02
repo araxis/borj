@@ -272,9 +272,6 @@ export class GameMap {
     this.campfires = propsAnim.campfires;
     this._foliageSpots = propsAnim.foliageSpots || []; // cypress/tree/palm centers — hero props avoid these
 
-    // signature Shahnameh story landmark for this stage (data-driven; pushes any live
-    // flames into propFlames so the game loop pulses them like every other prop flame)
-    buildStoryLandmarks(this, rng);
 
     // Mazandaran forest: if the realistic tree GLBs weren't ready at build (kit trees placed as a
     // stopgap), load them on the priority path and swap them in when ready — unless the map was
@@ -308,6 +305,11 @@ export class GameMap {
       }
       if (this.propBanners.length >= 10) break;
     }
+
+    // signature Shahnameh story landmark + Derafsh-e Kaviani + faction war-banners
+    // (after propBanners/propFlames exist: the standards push cloths/flames into them
+    // so the game loop waves and pulses them like every other prop)
+    buildStoryLandmarks(this, rng);
 
     // ---- KayKit Medieval Builder kit: the fortified Persian town fabric AROUND the
     // custom citadel (each generator is gated on the asset; null => procedural-only) ----

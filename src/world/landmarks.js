@@ -401,11 +401,187 @@ const LANDMARK_PLANS = {
   makran: [{ build: milestone, place: 'roadside', f: 0.38, off: 8 }],
 };
 
+// ---- B2: the Derafsh-e Kaviani and enemy faction war-banners -----------------------
+
+// the royal standard: violet field, gold sunburst, jeweled border, tasseled fringe —
+// all painted into the cloth texture so it deforms with the banner wave
+function derafshTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 192;
+  const g = c.getContext('2d');
+  g.fillStyle = '#3b2a63';
+  g.fillRect(0, 0, 256, 168);
+  g.strokeStyle = '#d8a93e'; g.lineWidth = 10;
+  g.strokeRect(5, 5, 246, 158);
+  // sunburst
+  g.fillStyle = '#e9c46a';
+  g.beginPath(); g.arc(128, 84, 30, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#e9c46a'; g.lineWidth = 7;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    g.beginPath();
+    g.moveTo(128 + Math.cos(a) * 38, 84 + Math.sin(a) * 38);
+    g.lineTo(128 + Math.cos(a) * 62, 84 + Math.sin(a) * 62);
+    g.stroke();
+  }
+  // corner gems
+  g.fillStyle = '#c23b2a';
+  for (const [x, y] of [[24, 24], [232, 24], [24, 144], [232, 144]]) { g.beginPath(); g.arc(x, y, 8, 0, Math.PI * 2); g.fill(); }
+  // tasseled fringe
+  for (let i = 0; i < 16; i++) {
+    g.fillStyle = ['#c23b2a', '#e9c46a', '#3b2a63'][i % 3];
+    g.fillRect(i * 16 + 3, 168, 10, 24);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function makeDerafshKaviani() {
+  const g = new THREE.Group();
+  const mats = MATS();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 10.5, 7), mats.gold);
+  pole.position.y = 5.25;
+  g.add(pole);
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 3.4, 5), mats.bronze);
+  bar.rotation.z = Math.PI / 2;
+  bar.position.y = 10.1;
+  g.add(bar);
+  // crescent-and-orb finial
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), mats.gold);
+  orb.position.y = 10.75;
+  g.add(orb);
+  const crescent = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.06, 6, 12, Math.PI), mats.gold);
+  crescent.position.y = 11.0;
+  g.add(crescent);
+  const clothMat = new THREE.MeshStandardMaterial({
+    map: derafshTexture(), roughness: 0.85, side: THREE.DoubleSide,
+  });
+  const cloth = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 2.4, 8, 6), clothMat);
+  cloth.position.y = 10.0 - 1.25;
+  g.add(cloth);
+  g.userData.cloth = cloth;
+  g.userData.base = cloth.geometry.attributes.position.array.slice();
+  return g;
+}
+
+// torn faction war-banner: dark field + crude sigil per adversary family, tilted stake
+function factionTexture(kind) {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 192;
+  const g = c.getContext('2d');
+  const field = { div: '#241b30', zahhak: '#1c2a1c', turan: '#191919', raider: '#4a1713' }[kind] || '#4a1713';
+  g.fillStyle = field;
+  g.fillRect(0, 0, 128, 192);
+  // ragged bottom edge
+  g.clearRect(0, 176, 128, 16);
+  g.fillStyle = field;
+  for (let i = 0; i < 8; i++) g.fillRect(i * 16, 176, 10, 8 + (i % 3) * 6);
+  g.strokeStyle = kind === 'zahhak' ? '#9de35b' : kind === 'div' ? '#cfc4a8' : '#b83a2a';
+  g.lineWidth = 7;
+  if (kind === 'div') { // horns
+    g.beginPath(); g.moveTo(40, 120); g.quadraticCurveTo(28, 60, 52, 40); g.stroke();
+    g.beginPath(); g.moveTo(88, 120); g.quadraticCurveTo(100, 60, 76, 40); g.stroke();
+  } else if (kind === 'zahhak') { // twin serpents
+    g.beginPath(); g.moveTo(48, 150); g.bezierCurveTo(20, 110, 76, 90, 48, 46); g.stroke();
+    g.beginPath(); g.moveTo(80, 150); g.bezierCurveTo(108, 110, 52, 90, 80, 46); g.stroke();
+  } else if (kind === 'turan') { // crescent over a slash
+    g.beginPath(); g.arc(64, 74, 26, Math.PI * 0.15, Math.PI * 0.85, false); g.stroke();
+    g.beginPath(); g.moveTo(34, 140); g.lineTo(94, 100); g.stroke();
+  } else { // raider: jagged cross
+    g.beginPath(); g.moveTo(38, 50); g.lineTo(90, 130); g.moveTo(90, 50); g.lineTo(38, 130); g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+const FACTION_BY_STAGE = {
+  mazandaran: 'div', alborz: 'div',
+  damavand: 'zahhak',
+  turan: 'turan', 'gang-dez': 'turan', samangan: 'turan', 'dez-sepid': 'turan', makran: 'turan',
+};
+
+function makeWarBanner(kind) {
+  const g = new THREE.Group();
+  const mats = MATS();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 4.6, 5), mats.woodDark);
+  pole.position.y = 2.3;
+  g.add(pole);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.4, 5), mats.iron);
+  tip.position.y = 4.75;
+  g.add(tip);
+  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.35, 4), mats.woodDark);
+  bar.rotation.z = Math.PI / 2;
+  bar.position.y = 4.35;
+  g.add(bar);
+  const clothMat = new THREE.MeshStandardMaterial({
+    map: factionTexture(kind), roughness: 0.95, side: THREE.DoubleSide, transparent: true, alphaTest: 0.4,
+  });
+  const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.9, 6, 6), clothMat);
+  cloth.position.y = 4.3 - 1.0;
+  g.add(cloth);
+  g.userData.cloth = cloth;
+  g.userData.base = cloth.geometry.attributes.position.array.slice();
+  return g;
+}
+
+// every map: the royal standard beside the citadel + faction war-banners at each spawn
+function buildFactionStandards(map, rng, group) {
+  // Derafsh-e Kaviani — planted on the last defensible stretch of the incoming road.
+  // The citadel's own keep-out rejects anything too close to the exit, so walk back
+  // along the path until a flank point clears.
+  const path = map.paths?.[0];
+  if (path) {
+    let planted = false;
+    for (const back of [14, 20, 26, 34, 42]) {
+      const s = path.samples[Math.max(0, path.samples.length - back)];
+      for (const side of [1, -1]) {
+        for (const off of [5.5, 7.5]) {
+          const x = s.pos.x - s.tangent.z * side * off;
+          const z = s.pos.z + s.tangent.x * side * off;
+          if (!map._isClear(x, z, 2)) continue;
+          const d = makeDerafshKaviani();
+          d.position.set(x, map.heightAt(x, z), z);
+          d.rotation.y = Math.atan2(s.tangent.x, s.tangent.z) + Math.PI / 2;
+          group.add(d);
+          map.propBanners?.push(d);
+          planted = true;
+          break;
+        }
+        if (planted) break;
+      }
+      if (planted) break;
+    }
+  }
+  // enemy war-banners crowd each spawn gate — the invader's claim on the road's far end
+  const kind = FACTION_BY_STAGE[map.def?.id] || 'raider';
+  for (const gate of map.gates || []) {
+    for (let i = 0; i < 3; i++) {
+      const a = rng() * Math.PI * 2;
+      const r = 3.5 + rng() * 3;
+      const x = gate.position.x + Math.cos(a) * r;
+      const z = gate.position.z + Math.sin(a) * r;
+      if (!map._isClear(x, z, 1.2)) continue;
+      const wb = makeWarBanner(kind);
+      wb.position.set(x, map.heightAt(x, z), z);
+      wb.rotation.y = rng() * Math.PI * 2;
+      wb.rotation.z = (rng() - 0.5) * 0.16; // battle-worn lean
+      group.add(wb);
+      map.propBanners?.push(wb);
+    }
+  }
+}
+
 export function buildStoryLandmarks(map, rng) {
   const plans = LANDMARK_PLANS[map.def?.id];
-  if (!plans?.length) return null;
   const group = new THREE.Group();
   group.name = 'story-landmarks';
+  buildFactionStandards(map, rng, group);
+  if (!plans?.length) {
+    map.group.add(group);
+    return group;
+  }
   const path = map.paths?.[0];
   // monuments must not spear through scattered foliage — _isClear doesn't track trees,
   // but the map exposes every cypress/tree/palm center as [x, z, keepout]
