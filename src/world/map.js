@@ -536,13 +536,28 @@ function buildVillage(map, rng) {
       }
     }
   });
-  // one chahar-taq fire-temple pavilion landmark per map (sparse)
+  // one chahar-taq fire-temple pavilion landmark per map (sparse), tended by mobed priests
   if (placed.length) {
     const c = placed[placed.length - 1];
     for (const [ox, oz] of [[0, -19], [19, 0], [-19, 0], [0, 19]]) {
-      if (map._isClear(c.x + ox, c.z + oz, 6)) { placeBuilding(map, 'ChaharTaq', c.x + ox, c.z + oz, rng() * 6.28318, 7); break; }
+      const tx = c.x + ox, tz = c.z + oz;
+      if (!map._isClear(tx, tz, 6)) continue;
+      if (placeBuilding(map, 'ChaharTaq', tx, tz, rng() * 6.28318, 7)) {
+        // two white-robed mobeds stand watch at the sacred fire, facing the pavilion
+        for (let k = 0; k < 2; k++) {
+          const a = rng() * 6.28318;
+          const vx = tx + Math.cos(a) * 4.3, vz = tz + Math.sin(a) * 4.3;
+          if (map._isClear(vx, vz, 0.8)) {
+            map.villagerSpots.push([vx, map.heightAt(vx, vz), vz, Math.atan2(tx - vx, tz - vz), 'mobed']);
+          }
+        }
+      }
+      break;
     }
   }
+
+  // Nowruz garlands — festival pennant strings on friendly compounds
+  buildNowruzGarlands(map, rng, placed);
 
   // ---- Quaternius props: forge smith-quarter + caravanserai clutter + frozen villagers ----
   if (placed.length && propReady('Anvil')) {
@@ -582,6 +597,55 @@ function buildVillage(map, rng) {
       const vx = c.x + Math.cos(a) * rr, vz = c.z + Math.sin(a) * rr;
       if (map._isClear(vx, vz, 1.0)) map.villagerSpots.push([vx, map.heightAt(vx, vz), vz, rng() * 6.28318]);
     }
+  }
+}
+
+// Nowruz garlands: a sagging string of festival pennants between two poles at each
+// friendly compound — the villages are celebrating, not just enduring the war.
+const NOWRUZ_COL = [0xb03a2e, 0x2e7d4f, 0xd4a017, 0x5b3f8a, 0xe8e2d2];
+function buildNowruzGarlands(map, rng, placed) {
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0x6a5238 });
+  const stringMat = new THREE.MeshLambertMaterial({ color: 0x3a3228 });
+  const penGeo = new THREE.BufferGeometry();
+  penGeo.setAttribute('position', new THREE.Float32BufferAttribute([-0.13, 0, 0, 0.13, 0, 0, 0, -0.34, 0], 3));
+  penGeo.computeVertexNormals();
+  for (const c of placed) {
+    if (rng() < 0.15) continue; // not every hamlet celebrates
+    // find two clear pole points ~4.5u apart on the compound edge
+    let p1 = null, p2 = null;
+    for (let t = 0; t < 14 && !p2; t++) {
+      const a = rng() * 6.28318, rr = 4.5 + rng() * 1.5;
+      const x1 = c.x + Math.cos(a) * rr, z1 = c.z + Math.sin(a) * rr;
+      const x2 = c.x + Math.cos(a + 0.9) * rr, z2 = c.z + Math.sin(a + 0.9) * rr;
+      if (map._isClear(x1, z1, 0.5) && map._isClear(x2, z2, 0.5)) {
+        p1 = new THREE.Vector3(x1, map.heightAt(x1, z1), z1);
+        p2 = new THREE.Vector3(x2, map.heightAt(x2, z2), z2);
+      }
+    }
+    if (!p2) continue;
+    const g = new THREE.Group();
+    const H = 3.8; // tall enough that the pennant line floats above compound walls
+    for (const p of [p1, p2]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, H, 6), poleMat);
+      pole.position.set(p.x, p.y + H / 2, p.z);
+      g.add(pole);
+    }
+    const a1 = p1.clone(); a1.y += H - 0.08;
+    const a2 = p2.clone(); a2.y += H - 0.08;
+    const mid = a1.clone().lerp(a2, 0.5); mid.y -= 0.55; // sag
+    const curve = new THREE.QuadraticBezierCurve3(a1, mid, a2);
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.012, 5), stringMat));
+    for (let i = 1; i <= 8; i++) {
+      const pt = curve.getPoint(i / 9);
+      const pen = new THREE.Mesh(penGeo, new THREE.MeshLambertMaterial({
+        color: NOWRUZ_COL[(rng() * NOWRUZ_COL.length) | 0], side: THREE.DoubleSide,
+      }));
+      pen.position.copy(pt); pen.position.y -= 0.02;
+      pen.rotation.y = Math.atan2(a2.x - a1.x, a2.z - a1.z) + Math.PI / 2;
+      g.add(pen);
+    }
+    g.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; } });
+    map.kitGroup.add(g);
   }
 }
 

@@ -620,8 +620,22 @@ function buildGroundHorizonVeil(group, biome, opts = {}) {
 const SCARF_COL = [0x9a3b3b, 0x39568a, 0x6a4a7a, 0x7a6a2a, 0x8a4a2a];
 const WRAP_COL = [0xe8e2d2, 0xd8c8a8, 0xc8b890, 0x8a7048, 0x6a6258];
 
-function makeHeadwear(rng, female) {
+function makeHeadwear(rng, female, white = false) {
   const g = new THREE.Group();
+  if (white) {
+    // mobed's white priest turban — full wraps, no color variance
+    const m = colorMat(0xf0ead8, 0.97);
+    for (let i = 0; i < 3; i++) {
+      const t = new THREE.Mesh(new THREE.TorusGeometry(0.155 - i * 0.012, 0.05, 6, 14), m);
+      t.rotation.x = Math.PI / 2; t.rotation.z = rng() * 0.6;
+      t.position.y = 0.19 + i * 0.045;
+      g.add(t);
+    }
+    const top = new THREE.Mesh(new THREE.SphereGeometry(0.115, 8, 6), m);
+    top.position.y = 0.33; g.add(top);
+    g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  }
   if (female) {
     // draped headscarf — hood over the crown + a short fall down the back
     const m = colorMat(SCARF_COL[(rng() * SCARF_COL.length) | 0], 0.96);
@@ -905,18 +919,22 @@ export class Ambient {
     // (buildHumanoid with no armor/helmet/weapon; texture-free). They just stand and breathe.
     this.villagers = [];
     const CLOTHS = [0x7a5c3e, 0x8a6d3a, 0x6b5536, 0x9a7b46, 0x55614e, 0x46566a, 0x8a4a3a, 0xa8925e, 0x6a4a5a];
-    for (const [x, y, z, ry] of (map.villagerSpots || []).slice(0, 6)) {
-      const female = rng() < 0.4;
+    // mobed fire-priests (tagged spots at the chahar-taq) always spawn; commoners fill the rest
+    const allSpots = map.villagerSpots || [];
+    const lifeSpots = [...allSpots.filter((s) => s[4] === 'mobed'), ...allSpots.filter((s) => s[4] !== 'mobed').slice(0, 6)];
+    for (const [x, y, z, ry, kind] of lifeSpots) {
+      const mobed = kind === 'mobed';
+      const female = !mobed && rng() < 0.4;
       const v = buildHumanoid({
         armor: 'none', helmet: 'none', weapon: 'none', shield: false, hairStyle: 'none', // covered below
-        clothColor: CLOTHS[(rng() * CLOTHS.length) | 0],
-        beard: !female && rng() < 0.5 ? 'full' : 'none',
-        cloak: rng() < 0.45, cloakColor: CLOTHS[(rng() * CLOTHS.length) | 0],
+        clothColor: mobed ? 0xece4d0 : CLOTHS[(rng() * CLOTHS.length) | 0],
+        beard: mobed || (!female && rng() < 0.5) ? 'full' : 'none',
+        cloak: mobed || rng() < 0.45, cloakColor: mobed ? 0xdcd2b8 : CLOTHS[(rng() * CLOTHS.length) | 0],
         female, scale: female ? 0.94 : 1.0,
       });
-      v.rig.head.add(makeHeadwear(rng, female)); // turban / skullcap / headscarf
+      v.rig.head.add(makeHeadwear(rng, female, mobed)); // turban / skullcap / headscarf (white for mobeds)
       // basket/jug in hand — attach to the forearm so it tracks the elbow (arms now bend)
-      if (rng() < 0.5) { const it = makeCarry(rng); const h = v.rig.foreL || v.rig.armL; it.position.set(0, v.rig.foreL ? -0.26 : -0.6, 0.06); h.add(it); }
+      if (!mobed && rng() < 0.5) { const it = makeCarry(rng); const h = v.rig.foreL || v.rig.armL; it.position.set(0, v.rig.foreL ? -0.26 : -0.6, 0.06); h.add(it); }
       // ambient background figures skip the shadow pass (~30 meshes each) — keep it for gameplay
       // objects (towers/enemies/citadel/trees). They still RECEIVE shadows cast onto them.
       v.group.traverse((o) => { if (o.isMesh) o.castShadow = false; });
