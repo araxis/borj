@@ -1196,8 +1196,10 @@ function buildPastureFence(amb, map, hx, hz, rng) {
     if (map._nearRoad(x, z, 2)) continue;
     const fp = getProp('fence');
     if (!fp) continue;
-    fp.position.set(x, map.heightAt(x, z), z);
+    fp.position.set(x, map.heightAt(x, z) - 0.06, z);
     fp.rotation.y = a + Math.PI / 2; // tangent to the ring
+    fp.scale.z *= 2.4; // the kit panel is paper-thin — beef the rails/posts so they read at gameplay zoom
+    fp.rotation.z = (rng() - 0.5) * 0.06; // weathered lean
     amb.group.add(fp);
   }
 }

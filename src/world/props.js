@@ -471,8 +471,12 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
     const n = biomeProps.grass;
     const dry = !!biomeProps.dryGrass;
     const gpts = [];
-    for (let i = 0; i < n; i++) {
-      const x = (rng() - 0.5) * 138, z = (rng() - 0.5) * 138;
+    // biased disc instead of the old ±69 square: dense in the gameplay core, thinning
+    // naturally out to the expanded rim (r≈100) — kills the square "mowed lawn" edge
+    for (let i = 0; i < n * 1.25; i++) {
+      const a = rng() * Math.PI * 2;
+      const rr = Math.pow(rng(), 0.62) * 100;
+      const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
       if (!isClear(x, z, 0.5)) continue;
       gpts.push([x, heightAt(x, z), z]);
     }
@@ -899,16 +903,18 @@ export function buildCitadel() {
 // Tower pad: carved stone foundation players build on
 export function buildPad() {
   const b = new MeshBuilder();
-  b.box(3.4, 0.5, 3.4, 'stoneDark', 0, 0.25, 0);
-  b.box(3.0, 0.22, 3.0, 'stone', 0, 0.58, 0);
+  // battered two-step base (wider at the ground) instead of a sheer dark slab — the old
+  // vertical stoneDark side read as a hard black bevel floating on the grass
+  b.box(3.9, 0.2, 3.9, 'stone', 0, 0.05, 0);
+  b.box(3.55, 0.26, 3.55, 'wood', 0, 0.27, 0); // timber frame band — stoneDark went pitch-black on the shade side
+  b.box(3.0, 0.24, 3.0, 'stone', 0, 0.55, 0);
   b.box(3.2, 0.1, 0.4, 'relief', 0, 0.62, 1.45);
   b.box(3.2, 0.1, 0.4, 'relief', 0, 0.62, -1.45);
-  const g = b.build();
-  g.traverse((o) => {
-    if (o.isMesh) {
-      o.castShadow = false;
-      o.receiveShadow = false;
-    }
-  });
-  return g;
+  // corner post stubs anchor the silhouette
+  for (const [px, pz] of [[-1.7, -1.7], [1.7, -1.7], [-1.7, 1.7], [1.7, 1.7]]) {
+    b.box(0.3, 0.5, 0.3, 'woodDark', px, 0.28, pz);
+  }
+  // shadows deliberately NOT forced off — the engine's classifier lets the steps
+  // receive the sun shadow pass, which is what visually seats them in the ground
+  return b.build();
 }
