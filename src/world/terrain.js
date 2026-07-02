@@ -175,9 +175,10 @@ export function buildTerrain(heightAt, biome, flattenFn, opts = {}) {
   // a 2-texture/map GPU leak). vertexColors carry the base color until they finish loading.
   groundPhotos(mat, biome);
   const mesh = new THREE.Mesh(geo, mat);
-  // The board is a large receiver; shadow-map edges from distant scenery read as
-  // hard black rectangles. GTAO keeps ground contact while terrain stays clean.
-  mesh.receiveShadow = false;
+  // The board catches the sun's shadow map. Distant scenery sits outside the shadow
+  // camera (±85 around the board) so it cannot smear slabs across the terrain, and
+  // alpha-card foliage never casts (engine._classifyShadows policy).
+  mesh.receiveShadow = true;
   return mesh;
 }
 

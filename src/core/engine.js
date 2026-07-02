@@ -53,9 +53,10 @@ export class Engine {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
-    // Dynamic shadow maps and screen-space AO both misread the scene's dense instanced
-    // alpha foliage as hard rectangular slabs. Keep depth from lighting, bloom, and grade.
-    this.renderer.shadowMap.enabled = false;
+    // Shadow casting is opt-in per mesh: _classifyShadows() sweeps the scene and only
+    // opaque lit geometry casts — alpha-card foliage and flat helper slabs (the historical
+    // "hard rectangular slab" artifacts) are excluded, so the map can stay on.
+    this.renderer.shadowMap.enabled = settings.get('shadows') && settings.get('quality') !== 'low';
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.scene = new THREE.Scene();
@@ -66,7 +67,8 @@ export class Engine {
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     pmrem.dispose(); // free the generator's internal render targets (we keep only the result texture)
-    this.scene.environmentIntensity = 0.55;
+    // kept low: ambient (env + hemi) must stay well under the sun or cast shadows wash out flat
+    this.scene.environmentIntensity = 0.35;
 
     // gradient skydome with a real sun disc + halo (follows the camera; fog-immune)
     this.skyUniforms = {
@@ -105,17 +107,22 @@ export class Engine {
     this.sky.renderOrder = -10;
     this.scene.add(this.sky);
 
-    // lighting rig — warm sun + cool sky fill; per-map mood tints these
-    this.hemi = new THREE.HemisphereLight(0xbdd1e8, 0x8a7a64, 1.0);
+    // lighting rig — warm sun + cool sky fill; per-map mood tints these.
+    // Sun-dominant ratio (sun ≈ 3-4× ambient) is what makes cast shadows readable;
+    // near-equal ambient flattens the whole scene into the old "mobile" look.
+    this.hemi = new THREE.HemisphereLight(0xbdd1e8, 0x8a7a64, 0.75);
     this.scene.add(this.hemi);
-    this.sun = new THREE.DirectionalLight(0xffe3b3, 2.2);
-    this.sun.position.set(45, 70, 25);
-    this.sun.castShadow = false;
+    this.sun = new THREE.DirectionalLight(0xffe3b3, 2.8);
+    // ~58° elevation: shadows stretch enough to read but big set pieces (palaces)
+    // stay grounded instead of draping half the board in darkness.
+    this.sun.position.set(42, 76, 27);
+    this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.camera.left = -85; this.sun.shadow.camera.right = 85;
     this.sun.shadow.camera.top = 85; this.sun.shadow.camera.bottom = -85;
     this.sun.shadow.camera.far = 220;
     this.sun.shadow.bias = -0.0006;
+    this.sun.shadow.normalBias = 0.03; // low-poly facets acne-guard
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
 
@@ -160,7 +167,7 @@ export class Engine {
     const pr = Math.min(window.devicePixelRatio || 1, q === 'high' ? 2 : q === 'medium' ? 1.5 : 1);
     this.renderer.setPixelRatio(pr);
     this.composer.setPixelRatio(pr);
-    this.renderer.shadowMap.enabled = false;
+    this.renderer.shadowMap.enabled = settings.get('shadows') && q !== 'low';
     const sz = q === 'high' ? 2048 : 1024;
     if (this.sun.shadow.mapSize.x !== sz) {
       this.sun.shadow.mapSize.set(sz, sz);
@@ -181,6 +188,53 @@ export class Engine {
   }
 
   onUpdate(fn) { this._updates.add(fn); return () => this._updates.delete(fn); }
+
+  // Sweep the scene and decide which meshes take part in shadow mapping. Runs throttled
+  // from the main loop so dynamically spawned objects (enemies, projectiles, props) get
+  // classified without every spawn site knowing about shadows. Each mesh is visited once.
+  // Policy (mirrors visualguards.js): only opaque *lit* geometry casts; alpha cards,
+  // additive fx, and wide flat slabs (aprons, decals, range discs) never cast.
+  _classifyShadows() {
+    const box = this._shadowBox || (this._shadowBox = new THREE.Box3());
+    const size = this._shadowSize || (this._shadowSize = new THREE.Vector3());
+    this.scene.traverse((o) => {
+      if (!(o.isMesh || o.isSkinnedMesh || o.isInstancedMesh)) return;
+      if (o.userData.__shadowClassified) return;
+      o.userData.__shadowClassified = true;
+      const m = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (!m) return;
+      const lit = m.isMeshStandardMaterial || m.isMeshPhysicalMaterial
+        || m.isMeshLambertMaterial || m.isMeshPhongMaterial || m.isMeshToonMaterial;
+      const noDepth = m.depthWrite === false; // additive/glow fx — keep out of shadowing entirely
+      const alphaCard = m.transparent && !(m.alphaTest > 0.01);
+      if (!lit || noDepth) { o.castShadow = false; o.receiveShadow = false; return; }
+      if (alphaCard) {
+        // lit alpha-blended sheets (visual-kit ground fades, foliage cards) must not CAST —
+        // their depth pass renders the full quad as a solid slab — but they still RECEIVE,
+        // otherwise big set-piece shadows vanish on maps whose visible ground is such a sheet.
+        o.castShadow = false;
+        o.receiveShadow = true;
+        const mats0 = Array.isArray(o.material) ? o.material : [o.material];
+        for (const mm of mats0) if (mm) mm.needsUpdate = true;
+        return;
+      }
+      let flatSlab = false;
+      if (!o.isSkinnedMesh) {
+        box.setFromObject(o);
+        if (!box.isEmpty()) {
+          box.getSize(size);
+          const dims = [size.x, size.y, size.z].sort((a, b) => a - b);
+          flatSlab = dims[0] <= 0.72 && dims[2] >= 18;
+        }
+      }
+      o.castShadow = !flatSlab;
+      o.receiveShadow = true;
+      // materials that already compiled without shadow support must rebuild —
+      // receiveShadow is baked into the shader program at compile time
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const mm of mats) if (mm) mm.needsUpdate = true;
+    });
+  }
 
   addShake(amount) {
     if (!settings.get('screenShake') || settings.get('reducedMotion')) return;
@@ -205,6 +259,7 @@ export class Engine {
       if (!this._running) return;
       requestAnimationFrame(loop);
       this._ticks = (this._ticks || 0) + 1;
+      if (this.renderer.shadowMap.enabled && (this._ticks & 31) === 1) this._classifyShadows();
       const raw = Math.min(this._clock.getDelta(), 0.05);
       let timeScale = this.speed;
       // slow-motion ramp: eases from `scale` back up to full speed across its duration
@@ -249,11 +304,15 @@ export class Engine {
     this.scene.fog = new THREE.Fog(fogColor, safeFogNear, safeFogFar);
     this.scene.background = new THREE.Color(background);
     this.sun.color.set(sunColor);
-    this.sun.intensity = clamp(sunIntensity, 1.45, 2.65);
+    // scale biome moods (authored for the old flat rig) into the sun-dominant range —
+    // relative per-biome intent survives, but the sun always clearly beats the ambient
+    this.sun.intensity = clamp(sunIntensity * 1.45, 2.1, 3.4);
     this.hemi.color.set(hemiSky);
     this.hemi.groundColor.set(hemiGround);
-    this.hemi.intensity = clamp(hemiIntensity, 0.9, 1.58);
-    this.renderer.toneMappingExposure = clamp(exposure, 0.96, 1.16);
+    this.hemi.intensity = clamp(hemiIntensity * 0.6, 0.55, 0.95);
+    // the sun-dominant rig meters darker overall (grazing terrain falls off the lambert
+    // curve) — lift exposure so the LIT side of the scene stays as bright as before
+    this.renderer.toneMappingExposure = clamp(exposure * 1.1, 1.04, 1.26);
     // skydome: deep zenith derived from the background, horizon from the fog
     const top = new THREE.Color(skyTop ?? background);
     if (skyTop == null) {

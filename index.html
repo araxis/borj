@@ -8,6 +8,28 @@
   <link rel="preload" as="image" href="assets/ui/splash-bg.webp" fetchpriority="high" />
   <link rel="stylesheet" href="./src/ui/style.css" />
   <style>.splash-bg{background-image:linear-gradient(rgba(10,7,3,0.5),rgba(10,7,3,0.78)),url('assets/ui/splash-bg.webp');opacity:1}.overlay{background-image:linear-gradient(rgba(10,7,4,0.58),rgba(8,5,3,0.74)),url('assets/ui/splash-bg.webp')}</style>
+  <script>
+    // ?headless=1 — keep the render loop alive in hidden/background tabs so automated
+    // verification (screenshot capture) can drive the game without a visible window.
+    if (new URLSearchParams(location.search).has('headless')) {
+      // Main-thread timers are throttled to ~1Hz in hidden tabs; a worker's are not.
+      // Ping-pong clocking: the worker replies 33ms after each request, and the next
+      // request is only sent AFTER the frame flush completes — slow frames self-pace
+      // instead of piling worker messages onto a saturated main thread.
+      const workerSrc = 'onmessage = () => setTimeout(() => postMessage(0), 33)';
+      const pump = new Worker(URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' })));
+      let queue = new Map(); let nextId = 1;
+      window.requestAnimationFrame = (cb) => { const id = nextId++; queue.set(id, cb); return id; };
+      window.cancelAnimationFrame = (id) => { queue.delete(id); };
+      pump.onmessage = () => {
+        const cbs = queue; queue = new Map();
+        const t = performance.now();
+        cbs.forEach((cb) => { try { cb(t); } catch (e) { console.error(e); } });
+        pump.postMessage(0);
+      };
+      pump.postMessage(0);
+    }
+  </script>
 </head>
 <body>
   <canvas id="scene"></canvas>
