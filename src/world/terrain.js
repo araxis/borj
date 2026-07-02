@@ -84,7 +84,10 @@ export const BIOMES = {
   },
   steppe: {
     hills: 2.6, ground: [0xb8a850, 0xc9b75c], rock: 0x97886a, high: 0xb3a988,
-    mood: { background: 0xc2c8d8, fogColor: 0xc8c8cc, fogNear: 100, fogFar: 290, sunColor: 0xffd9a0, sunIntensity: 2.3 },
+    patch: 0x8f7f42, // scorched dust patches — the pale grass albedo needs a firmer anchor
+    // bright straw albedo blows out under the generic sun/exposure scaling (same family
+    // as snowpeak) — author a calmer sun + neutral exposure
+    mood: { background: 0xc2c8d8, fogColor: 0xc8c8cc, fogNear: 100, fogFar: 290, sunColor: 0xffd9a0, sunIntensity: 1.75, exposure: 0.94 },
     props: { cypress: 4, tree: 6, rock: 12, reeds: 0, palm: 0, bush: 8, grass: 850, dryGrass: true, snow: false },
   },
   desert: {
