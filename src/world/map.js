@@ -46,7 +46,9 @@ export class GameMap {
 
     const seedNum = [...mapDef.id].reduce((a, c) => a + c.charCodeAt(0), 7);
     const rng = makeRng('map:' + mapDef.id);
-    const baseHeight = makeHeightField(seedNum, this.biome);
+    const baseHeight = makeHeightField(seedNum, this.biome, {
+      rimRadius: this.visualBoard?.shape === 'circle' ? this.visualBoard.radius : null,
+    });
 
     // sample roads on base height
     this.paths = mapDef.paths.map((pts, i) => samplePath(pts, baseHeight, 0.8));

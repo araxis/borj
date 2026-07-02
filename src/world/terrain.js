@@ -105,7 +105,7 @@ export const BIOMES = {
 export const WORLD_SIZE = 150;
 
 // Build a height function for a map; flattenPoints = sampled road points + pads + citadel
-export function makeHeightField(seedNum, biome) {
+export function makeHeightField(seedNum, biome, { rimRadius = null } = {}) {
   const amp = biome.hills;
   return (x, z) => {
     const n = fbm(x * 0.018 + 50, z * 0.018 + 50, 4, seedNum);
@@ -113,6 +113,20 @@ export function makeHeightField(seedNum, biome) {
     // raise outer rim into hills/mountains for a natural arena
     const edge = Math.max(Math.abs(x), Math.abs(z)) / (WORLD_SIZE / 2);
     if (edge > 0.72) h += (edge - 0.72) * (edge - 0.72) * 6 * (0.5 + amp * 0.18); // barely-there edge, no rim-ridge border
+    // RADIAL rim shoulder for the round-2 circular boards: the terrain ends in a rising
+    // ridge whose angular undulation interlocks with the mountain-ring silhouette behind
+    // it, instead of a flat sheet stopping mid-air. Square-metric term above dips at
+    // diagonals; this one is uniform around the circle, with fbm variation per bearing.
+    if (rimRadius) {
+      const rr = Math.hypot(x, z);
+      const start = rimRadius * 0.76;
+      if (rr > start) {
+        const t = Math.min(1, (rr - start) / (rimRadius - start));
+        const a = Math.atan2(z, x);
+        const vary = fbm(Math.cos(a) * 4.2 + 9, Math.sin(a) * 4.2 - 4, 3, seedNum + 5) / 0.875;
+        h += t * t * (3 + vary * 8.5) * (0.55 + amp * 0.12);
+      }
+    }
     return h;
   };
 }

@@ -422,18 +422,26 @@ function makeProceduralRangeTile(i, cfg) {
 
 function fillProceduralRing(ringGroup, cfg) {
   const layers = Math.max(1, Math.min(2, cfg.layers || 1));
+  // near FOOTHILL layer bridges the board's rim shoulder (r≈112) and the main ring —
+  // low, faint ridges in the middle distance so the eye steps rim → foothills → range
+  const layerCfgs = [
+    { R: cfg.R * 0.66, peak: cfg.peak * 0.5, opacity: cfg.opacity * 0.55, seedOff: 61, sink: 2 },
+  ];
   for (let layer = 0; layer < layers; layer++) {
-    const layerCfg = {
-      ...cfg,
+    layerCfgs.push({
       R: cfg.R + layer * 16,
       peak: cfg.peak * (layer ? 0.68 : 1),
       opacity: cfg.opacity * (layer ? 0.48 : 1),
-    };
+      seedOff: layer * 31,
+      sink: layer * 4,
+    });
+  }
+  for (const lc of layerCfgs) {
     for (let i = 0; i < RING.N; i++) {
-      const tile = makeProceduralRangeTile(i + layer * 31, layerCfg);
-      const ang = (i / RING.N) * Math.PI * 2 + (ringRand(i, 3) - 0.5) * 0.11;
-      const R = layerCfg.R * (0.88 + ringRand(i + layer * 7, 4) * 0.14);
-      tile.position.set(Math.cos(ang) * R, RING.baseY - layer * 4 + (ringRand(i, 5) - 0.5) * 3, Math.sin(ang) * R);
+      const tile = makeProceduralRangeTile(i + lc.seedOff, { ...cfg, ...lc });
+      const ang = (i / RING.N) * Math.PI * 2 + (ringRand(i + lc.seedOff, 3) - 0.5) * 0.11;
+      const R = lc.R * (0.88 + ringRand(i + lc.seedOff * 7, 4) * 0.14);
+      tile.position.set(Math.cos(ang) * R, RING.baseY - lc.sink + (ringRand(i, 5) - 0.5) * 3, Math.sin(ang) * R);
       tile.rotation.y = -ang - Math.PI / 2;
       tile.scale.y = 0.95 + ringRand(i, 6) * 0.28;
       ringGroup.add(tile);
