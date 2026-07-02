@@ -241,6 +241,33 @@ const cache = new Map();      // name -> { scene, baseW, baseH, baseD } | 'faile
 const tintCache = new Map();  // `${matUUID}|${tintHex}|${factor}` -> Material
 let started = false;
 
+// Shared post-load registration for every prop loader path. Decimated photogrammetry
+// scans (zabulistan zv_* sets, forest m[smrtx]## enrichment, horizon range_* tiles) are
+// single-sided CRUSTS — seen from behind they read as hollow broken shells, so they render
+// both faces; closed low-poly kit pieces keep backface culling.
+const SCAN_CRUST = /^(zv_|m[smrtx]\d|range_)/;
+function registerLoadedProp(name, gltf) {
+  gltf.scene.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(gltf.scene);
+  const size = box.getSize(new THREE.Vector3());
+  const doubleSided = SCAN_CRUST.test(name);
+  // tag cached geometry so map.dispose() skips it (clones/instances share these by
+  // reference; disposing them would force a full GPU re-upload every map transition).
+  gltf.scene.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = true; o.receiveShadow = true;
+    if (o.geometry) o.geometry.userData.cached = true;
+    if (doubleSided) {
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) if (m) m.side = THREE.DoubleSide;
+    }
+  });
+  if (name.startsWith('range_')) sanitizeVisualArtifacts(gltf.scene, { scope: 'horizon', hide: true });
+  // baseY = lowest point; callers lift by -baseY*unit so off-pivot props (banners,
+  // torches) sit on the ground instead of floating/sinking. Additive — never-break.
+  cache.set(name, { scene: gltf.scene, baseW: size.x || 1, baseH: size.y || 1, baseD: size.z || 1, baseY: box.min.y || 0 });
+}
+
 export function loadAllProps() {
   if (started) return;
   started = true;
@@ -260,15 +287,7 @@ export function loadAllProps() {
     loader.load(url, (gltf) => {
       // try/finally so a malformed gltf can't skip pump() and permanently kill a pool slot
       try {
-        gltf.scene.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(gltf.scene);
-        const size = box.getSize(new THREE.Vector3());
-        // tag cached geometry so map.dispose() skips it (clones/instances share these by
-        // reference; disposing them would force a full GPU re-upload every map transition).
-        gltf.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.geometry) o.geometry.userData.cached = true; } });
-        // baseY = lowest point; callers lift by -baseY*unit so off-pivot props (banners,
-        // torches) sit on the ground instead of floating/sinking. Additive — never-break.
-        cache.set(name, { scene: gltf.scene, baseW: size.x || 1, baseH: size.y || 1, baseD: size.z || 1, baseY: box.min.y || 0 });
+        registerLoadedProp(name, gltf);
       } finally { pump(); }
     }, undefined, () => { cache.set(name, 'failed'); pump(); });
   };
@@ -295,12 +314,7 @@ function loadGlbSet(names, files, started, onReady) {
     if (cache.has(name)) { check(); continue; }
     loader.load(files[name], (gltf) => {
       try {
-        gltf.scene.updateMatrixWorld(true);
-        const box = new THREE.Box3().setFromObject(gltf.scene);
-        const size = box.getSize(new THREE.Vector3());
-        gltf.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.geometry) o.geometry.userData.cached = true; } });
-        if (name.startsWith('range_')) sanitizeVisualArtifacts(gltf.scene, { scope: 'horizon', hide: true });
-        cache.set(name, { scene: gltf.scene, baseW: size.x || 1, baseH: size.y || 1, baseD: size.z || 1, baseY: box.min.y || 0 });
+        registerLoadedProp(name, gltf);
       } finally { check(); }
     }, undefined, () => { cache.set(name, 'failed'); check(); });
   }
