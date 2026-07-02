@@ -128,10 +128,18 @@ export function buildTerrain(heightAt, biome, flattenFn, opts = {}) {
   const cGround1 = new THREE.Color(biome.ground[1]);
   const cRock = new THREE.Color(biome.rock);
   const cHigh = new THREE.Color(biome.high);
-  // macro patch tone: a darker, duller sibling of the ground (biome.patch overrides) —
-  // big soft blotches of it break the "one flat sheet" read on open ground
+  // macro patch tones: a darker/duller sibling (moist soil) plus a lighter dry-grass
+  // sibling (biome.patch / biome.dry override) — two-sided blotches read far richer
+  // than one, especially on dark saturated grounds where the dark patch barely shows
   const cPatch = new THREE.Color(biome.patch ?? biome.ground[0]);
   if (biome.patch == null) cPatch.offsetHSL(-0.016, -0.11, -0.115);
+  const cDry = new THREE.Color(biome.dry ?? biome.ground[1]);
+  if (biome.dry == null) {
+    const dh = {};
+    cDry.getHSL(dh);
+    // pull the hue halfway toward straw-yellow, desaturate, lighten
+    cDry.setHSL(dh.h + (0.125 - dh.h) * 0.55, clamp01(dh.s * 0.8), clamp01(dh.l * 1.12 + 0.03));
+  }
   const c = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
@@ -145,9 +153,14 @@ export function buildTerrain(heightAt, biome, flattenFn, opts = {}) {
     else if (h > biome.hills * 0.9) c.lerp(cRock, Math.min(1, (h - biome.hills * 0.9) / 4) * 0.6);
     // macro patches: threshold a slow fbm so distinct blotches emerge (not uniform noise).
     // 3-octave fbm sums to at most 0.875 (mean ≈ 0.44) — normalize before thresholding.
+    // High band → darker moist soil; low band → dry straw grass; middle → base ground.
     const patch = fbm(x * 0.029 - 40, z * 0.029 + 23, 3, 13) / 0.875;
-    const pmask = clamp01((patch - 0.52) / 0.2);
-    if (pmask > 0) c.lerp(cPatch, pmask * 0.6);
+    // smoothed 3-octave value noise clusters tightly around its mean (~0.50 after
+    // normalizing) — bands must start near the mean or they trigger on almost nothing
+    const pmaskDark = clamp01((patch - 0.505) / 0.16);
+    const pmaskDry = clamp01((0.46 - patch) / 0.14);
+    if (pmaskDark > 0) c.lerp(cPatch, pmaskDark * 0.6);
+    else if (pmaskDry > 0) c.lerp(cDry, pmaskDry * 0.5);
     const broad = fbm(x * 0.013 + 17, z * 0.013 - 11, 3, 31);
     const grit = fbm(x * 0.18 - 5, z * 0.18 + 9, 2, 19);
     const hsl = {};
