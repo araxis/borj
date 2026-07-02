@@ -131,6 +131,9 @@ export class Engine {
     this.composer.addPass(this.renderPass);
     // Ground-contact ambient occlusion is constructed but disabled: GTAO's depth/normal prepass
     // treats stylized alpha foliage as solid cards, producing camera-aligned black rectangles.
+    // Re-tested 2026-07: reproduces immediately on Mazandaran tree canopies (giant diagonal
+    // black slab across the board); measured gain on artifact-free desert views was subtle.
+    // Do not re-enable without a foliage-aware depth prepass.
     this.gtao = new GTAOPass(this.scene, this.camera, window.innerWidth, window.innerHeight);
     this.gtao.blendIntensity = 0.85;
     this.gtao.updateGtaoMaterial({ radius: 2.0, distanceExponent: 1.0, thickness: 1.0, scale: 1.0, samples: 16, screenSpaceRadius: false });

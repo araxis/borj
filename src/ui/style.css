@@ -755,6 +755,7 @@ body.hud-low-chrome .quick-build-icon {
 .card .roleico .role-icon-img { width: 14px; height: 14px; vertical-align: middle; }
 .emblem-img { width: 42px; height: 42px; opacity: 0.92; }
 .rp-portrait .emblem .emblem-img { width: 64px; height: 64px; }
+.statchip .ico .stat-icon-img { width: 16px; height: 16px; vertical-align: -0.18em; }
 body.hud-low-chrome .quick-build-cost {
   position: absolute;
   inset-inline-end: 4px;

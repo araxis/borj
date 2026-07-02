@@ -41,6 +41,12 @@ function roleIconEl(role, cls = 'role-icon-img') {
   img.onerror = () => img.replaceWith(document.createTextNode(ROLE_ICONS[role] || '▣'));
   return img;
 }
+// top-bar stat chips share the same crafted-icon treatment (emoji as fallback)
+function statIconEl(name, fallback) {
+  const img = el('img', { class: 'role-icon-img stat-icon-img', src: `assets/ui/stat-icons/${name}.svg`, alt: '', draggable: 'false' });
+  img.onerror = () => img.replaceWith(document.createTextNode(fallback));
+  return img;
+}
 const HERO_ICONS = {
   champion: '⚔️', sage: '🪶', guardian: '🕊️', forgemaster: '🔨', king: '👑',
   strategist: '📜', defender: '🛡️', protector: '🏮', matriarch: '👸', ancestor: '🗿',
@@ -492,11 +498,11 @@ export class HUD {
   _build() {
     this.root.append(
       el('div', { id: 'topbar', class: 'frame' },
-        el('span', { class: 'statchip gold-chip' }, el('span', { class: 'ico' }, '🪙'), el('b', { id: 'goldVal' }, '0'), el('span', { id: 'goldLbl' }, t('hud.gold'))),
+        el('span', { class: 'statchip gold-chip' }, el('span', { class: 'ico' }, statIconEl('gold', '🪙')), el('b', { id: 'goldVal' }, '0'), el('span', { id: 'goldLbl' }, t('hud.gold'))),
         el('div', { class: 'sep' }),
-        el('span', { class: 'statchip lives-chip' }, el('span', { class: 'ico' }, '🏛️'), el('b', { id: 'livesVal' }, '0'), el('span', { id: 'livesLbl' }, t('hud.lives'))),
+        el('span', { class: 'statchip lives-chip' }, el('span', { class: 'ico' }, statIconEl('lives', '🏛️')), el('b', { id: 'livesVal' }, '0'), el('span', { id: 'livesLbl' }, t('hud.lives'))),
         el('div', { class: 'sep' }),
-        el('span', { class: 'statchip wave-chip' }, el('span', { class: 'ico' }, '🌊'), el('b', { id: 'waveVal' }, '0'), el('span', { id: 'waveLbl' }, t('hud.wave'))),
+        el('span', { class: 'statchip wave-chip' }, el('span', { class: 'ico' }, statIconEl('wave', '🌊')), el('b', { id: 'waveVal' }, '0'), el('span', { id: 'waveLbl' }, t('hud.wave'))),
         el('span', { class: 'statchip wavemod', id: 'waveMod', style: { display: 'none' } }),
         el('div', { id: 'sandboxTools', class: 'sandbox-tools', style: { display: this.game.sandbox ? '' : 'none' }, 'aria-label': tOpt('hud.sandboxTools', 'Sandbox tools') },
           el('button', { class: 'iconbtn sandbox-btn', id: 'sandboxFxBtn', title: tOpt('hud.sandboxFxTip', 'Preview command FX'), 'aria-label': tOpt('hud.sandboxFxTip', 'Preview command FX') },
@@ -517,7 +523,7 @@ export class HUD {
           ),
         ),
         el('button', { class: 'statchip farrchip', id: 'farrChip', title: t('hud.farrTip'), 'aria-label': t('hud.farrOpen') },
-          el('span', { class: 'ico' }, '✦'),
+          el('span', { class: 'ico' }, statIconEl('farr', '✦')),
           el('b', { id: 'farrVal' }, '0'),
           el('span', { id: 'farrLbl' }, t('hud.farr')),
           el('span', { class: 'farrbar' }, el('i', { id: 'farrFill' })),
