@@ -3496,3 +3496,77 @@ body.rtl .gbtn.launch { letter-spacing: 0; }
 @media (prefers-reduced-motion: reduce) and (max-width: 700px) {
   #commandBanner.show { transform: translateY(0) scale(1); }
 }
+
+/* ============================================================
+   C1 — illuminated-manuscript HUD layer.
+   Gold filigree corner ornaments on every framed panel, richer
+   button state language, clearer affordability. Appended last so
+   the cascade upgrades the base skin without touching layout.
+   ============================================================ */
+
+/* filigree corners: a quarter-ring arc + an illuminator's gold dot in each corner */
+.frame::after {
+  content: '';
+  position: absolute; inset: 4px;
+  border-radius: 7px;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 0 0,       transparent 8px, rgba(216,169,62,0.55) 8.8px, rgba(216,169,62,0.55) 9.9px, transparent 10.8px),
+    radial-gradient(circle at 100% 0,    transparent 8px, rgba(216,169,62,0.55) 8.8px, rgba(216,169,62,0.55) 9.9px, transparent 10.8px),
+    radial-gradient(circle at 0 100%,    transparent 8px, rgba(216,169,62,0.55) 8.8px, rgba(216,169,62,0.55) 9.9px, transparent 10.8px),
+    radial-gradient(circle at 100% 100%, transparent 8px, rgba(216,169,62,0.55) 8.8px, rgba(216,169,62,0.55) 9.9px, transparent 10.8px),
+    radial-gradient(circle, rgba(244,205,110,0.95) 1.5px, transparent 2.4px),
+    radial-gradient(circle, rgba(244,205,110,0.95) 1.5px, transparent 2.4px),
+    radial-gradient(circle, rgba(244,205,110,0.95) 1.5px, transparent 2.4px),
+    radial-gradient(circle, rgba(244,205,110,0.95) 1.5px, transparent 2.4px);
+  background-repeat: no-repeat;
+  background-size: 20px 20px, 20px 20px, 20px 20px, 20px 20px, 9px 9px, 9px 9px, 9px 9px, 9px 9px;
+  background-position:
+    top left, top right, bottom left, bottom right,
+    3px 3px, calc(100% - 3px) 3px, 3px calc(100% - 3px), calc(100% - 3px) calc(100% - 3px);
+}
+
+/* richer button state language: gold breath on hover, a real press, honest disabled */
+.gbtn:hover:not(:disabled) {
+  color: #ffeebe;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.5), 0 0 14px rgba(216,169,62,0.35), inset 0 1px 0 rgba(244,205,110,0.4);
+}
+.gbtn:active:not(:disabled) {
+  transform: translateY(1px);
+  filter: brightness(0.92);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.6), inset 0 2px 7px rgba(0,0,0,0.45);
+}
+.gbtn:disabled {
+  filter: saturate(0.3);
+  border-color: #52452f;
+  color: #a4966f;
+  box-shadow: none;
+}
+.gbtn.primary:hover:not(:disabled) {
+  box-shadow: 0 2px 12px rgba(0,0,0,0.5), 0 0 18px rgba(216,169,62,0.5), inset 0 1px 0 rgba(255,230,160,0.5);
+}
+.gbtn.danger:hover:not(:disabled) {
+  box-shadow: 0 2px 10px rgba(0,0,0,0.5), 0 0 14px rgba(200,90,60,0.4), inset 0 1px 0 rgba(240,184,160,0.35);
+}
+.iconbtn:active { transform: translateY(1px); }
+
+/* affordability must be legible at a glance: dim what can't be bought, redden its price */
+.card.unaffordable:not(.locked) { filter: saturate(0.5) brightness(0.78); }
+.card.unaffordable:not(.locked):hover { transform: none; box-shadow: 0 4px 12px rgba(0,0,0,0.5); border-color: #7a4a34; }
+.card.unaffordable .cost { color: #ff8570; border-color: #8e4a33; }
+body.hud-low-chrome .quick-build-btn.unaffordable { opacity: 0.42; filter: saturate(0.4) brightness(0.82); }
+body.hud-low-chrome .quick-build-btn.unaffordable .quick-build-cost { color: #ff8570; border-color: rgba(142,74,51,0.6); }
+body.hud-low-chrome .quick-build-btn:active:not(.unaffordable),
+body.hud-low-chrome .quick-build-more:active { transform: translateY(1px); }
+
+/* the topbar reads as one carved plate: lapis inlay line under the gold rim */
+#topbar {
+  box-shadow: var(--shadow-deep), inset 0 0 0 1px rgba(216,169,62,0.25),
+    inset 0 -3px 0 -1px rgba(42,74,158,0.55), inset 0 0 26px rgba(0,0,0,0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gbtn:active:not(:disabled), .iconbtn:active,
+  body.hud-low-chrome .quick-build-btn:active:not(.unaffordable),
+  body.hud-low-chrome .quick-build-more:active { transform: none; }
+}
