@@ -50,6 +50,9 @@ All third-party assets are free-licensed and bundled locally (no runtime downloa
   attribution required and given here. Rigged, walk-animated 3D models: the **lion** and **white
   war-elephant / پیل سپید** enemies (`public/assets/animals/`); four **Persian soldier archetypes** —
   heavy infantry, scout-archer, woman warrior (Gordāfarid), robed mobed (`public/assets/models/Soldier_*.glb`);
+  the **rigged hero-commander figures** that stand on the towers they lead — Rostam, Zal, Kaveh, Kay Khosrow,
+  Tahmineh, Gordāfarid, Sohrab, Esfandiyar, Fereydun, Simurgh, Sam, Giv, Tus, Kay Kavus, Faramarz, Arash,
+  Bahrām Gur, Siyāvash (`public/assets/models/Hero_*.glb`);
   and the **Persian weapon props** — shamshir, gorz (ox-headed gorz-e-gāvsar), neyzeh, kaman, tabarzin,
   scepter (`public/assets/weapons/`). Modified for web delivery: textures resized to 1024 and re-encoded
   as WebP (geometry left uncompressed).

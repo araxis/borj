@@ -85,6 +85,15 @@ const MODEL_FILES = {
   Hero_esfandiyar: 'assets/models/Hero_Esfandiyar.glb',
   Hero_fereydun: 'assets/models/Hero_Fereydun.glb',
   Hero_simurgh: 'assets/models/Hero_Simurgh.glb',   // BIRD, static (no clips) — perches on the tower
+  // Batch 2 champions (Meshy biped, A-pose, clips Attack/Dead/Idle_11/Running/Walking)
+  Hero_sam: 'assets/models/Hero_Sam.glb',
+  Hero_giv: 'assets/models/Hero_Giv.glb',
+  Hero_tus: 'assets/models/Hero_Tus.glb',
+  Hero_kay_kavus: 'assets/models/Hero_KayKavus.glb',
+  Hero_faramarz: 'assets/models/Hero_Faramarz.glb',
+  Hero_arash: 'assets/models/Hero_Arash.glb',
+  Hero_bahram_gur: 'assets/models/Hero_BahramGur.glb',
+  Hero_siyavash: 'assets/models/Hero_Siyavash.glb',
   // Towers (static GLB bodies; engine attaches flame/banner/age-turrets) — key a_twr_<def.model>
   a_twr_watchtower: 'assets/towers/Watchtower.glb',
   a_twr_palaceBalcony: 'assets/towers/PalaceBalcony.glb',
@@ -124,6 +133,7 @@ const MODEL_FILES = {
   a_wpn_mace: 'assets/weapons/Gorz.glb',
   a_wpn_spear: 'assets/weapons/Neyzeh.glb',
   a_wpn_bow: 'assets/weapons/Kaman.glb',
+  a_wpn_scepter: 'assets/weapons/Scepter.glb',    // royal scepter (Kay Kavus) — carried upright
   a_wpn_axe: 'assets/weapons/Tabarzin.glb',
   a_wpn_staff: 'assets/weapons/Staff.glb',
   a_wpn_lance: 'assets/weapons/Lance.glb',       // cavalry lance — vertical, tip-up

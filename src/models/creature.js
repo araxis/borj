@@ -21,7 +21,8 @@ const WEAPON_FIX = {
   sword: { scale: 0.40, rotX: 162 * D, y: 0 },                          // shamshir: hangs tip-DOWN, slight angle, grip at hip
   mace:  { scale: 0.40, rotX: -50 * D, y: 0.15 },                       // gorz: carried forward / in front
   spear: { scale: 0.85, rotX: 0.5 * D, rotY: 0.1 * D, rotZ: 24.2 * D, y: 0 }, // neyzeh: DEAD vertical, tip-UP, tall (tip above head, butt near ground)
-  staff: { scale: 0.42, rotX: 19.5 * D, rotY: 1 * D, rotZ: 5.7 * D, y: 0 },  // scepter: vertical, tip-UP
+  staff: { scale: 0.42, rotX: 19.5 * D, rotY: 1 * D, rotZ: 5.7 * D, y: 0 },  // vertical, tip-UP
+  scepter: { scale: 0.42, rotX: 19.5 * D, rotY: 1 * D, rotZ: 5.7 * D, y: 0 }, // royal scepter (Kay Kavus): vertical, tip-UP — seeded from staff
   bow:   { scale: 0.42, rotX: 16.1 * D, rotY: 1.3 * D, rotZ: 9 * D, y: 0 },  // kaman: vertical at the side
   axe:   { scale: 0.40, rotX: 47.9 * D, rotY: 3.9 * D, rotZ: 8.7 * D, y: 0.05 }, // tabarzin: head up-forward
   // new weapons — initial angles seeded from the closest existing weapon; calibrated below
@@ -93,7 +94,10 @@ export function buildWeaponTestModel(weapon, asset = 'a_soldier_heavy', height =
 
 // rigged hero commander that stands on the tower it leads (idle clip + bone-attached signature weapon).
 // Returns null when the hero GLB isn't loaded (caller skips the figure — ring-only, as before).
-const HERO_HEIGHT = { rostam: 1.95, sohrab: 1.78, gordafarid: 1.68, tahmineh: 1.7, zal: 1.82, simurgh: 1.9 };
+const HERO_HEIGHT = {
+  rostam: 1.95, sohrab: 1.78, gordafarid: 1.68, tahmineh: 1.7, zal: 1.82, simurgh: 1.9,
+  sam: 1.9, giv: 1.8, tus: 1.82, 'kay-kavus': 1.8, faramarz: 1.78, arash: 1.78, 'bahram-gur': 1.8, siyavash: 1.77,
+};
 export function heroModel(heroDef) {
   if (!heroDef) return null;
   const key = 'Hero_' + heroDef.id.replace(/-/g, '_');
