@@ -677,20 +677,39 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
   return anim;
 }
 
-// Spawn gate: dark arch where enemy waves enter
+// Spawn gate: a weathered war-gate where enemy waves enter — battered sandstone pylons
+// with gilt bands under a dark arch, sat on a stepped base that sinks into the ground.
 export function buildSpawnGate() {
   const b = new MeshBuilder();
-  b.box(0.8, 3.2, 0.8, 'stoneDark', -1.6, 1.6, 0);
-  b.box(0.8, 3.2, 0.8, 'stoneDark', 1.6, 1.6, 0);
-  const arch = new THREE.TorusGeometry(1.6, 0.32, 8, 14, Math.PI);
-  const m = new THREE.Matrix4();
-  m.setPosition(0, 3.2, 0);
-  b.add(arch, 'stoneDark', m);
-  b.box(3.2, 0.4, 1.2, 'stone', 0, 0.2, 0);
+  // stepped base (bottom step deep-sunk so it never floats on sloped ground)
+  b.box(5.2, 0.9, 2.6, 'stoneDark', 0, -0.1, 0);
+  b.box(4.2, 0.34, 2.0, 'stone', 0, 0.42, 0);
+  // battered pylons: sandstone shafts, dark foot + cap blocks, a gilt band near the top
+  for (const side of [-1, 1]) {
+    const x = side * 1.78;
+    b.box(1.06, 0.4, 1.06, 'stoneDark', x, 0.75, 0);          // foot
+    b.box(0.92, 3.0, 0.92, 'stone', x, 2.35, 0);              // shaft
+    b.box(0.62, 0.5, 0.62, 'plaster', x, 2.0, 0.34);          // carved relief panel
+    b.box(1.0, 0.2, 1.0, 'gold', x, 3.45, 0);                 // gilt band
+    b.box(1.18, 0.44, 1.18, 'stoneDark', x, 3.95, 0);         // cap
+    b.box(0.55, 0.3, 0.55, 'bronze', x, 4.3, 0);              // finial block
+  }
+  // arch: sandstone sweep with a gold trim ring on the inner face
+  const arch = new THREE.TorusGeometry(1.72, 0.3, 10, 18, Math.PI);
+  const mArch = new THREE.Matrix4();
+  mArch.setPosition(0, 4.0, 0);
+  b.add(arch, 'stone', mArch);
+  const trim = new THREE.TorusGeometry(1.42, 0.07, 8, 18, Math.PI);
+  const mTrim = new THREE.Matrix4();
+  mTrim.setPosition(0, 4.0, 0.09);
+  b.add(trim, 'gold', mTrim);
+  // keystone crest
+  b.box(0.6, 0.72, 0.5, 'stone', 0, 5.85, 0);
+  b.box(0.4, 0.34, 0.34, 'gold', 0, 6.28, 0);
   const g = b.build();
-  // dark veil inside the arch
-  const veil = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 3.0), MATS().shadowVeil);
-  veil.position.y = 1.6;
+  // dark veil inside the arch — the ominous "somewhere else" the raiders march out of
+  const veil = new THREE.Mesh(new THREE.PlaneGeometry(3.1, 3.6), MATS().shadowVeil);
+  veil.position.y = 2.0;
   g.add(veil);
   return g;
 }
