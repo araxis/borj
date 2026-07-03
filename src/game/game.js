@@ -4506,8 +4506,9 @@ export class Game {
     }
     this.citadelGuard.update(dt);
 
-    // land life: windmill sails, roadside banners, camp flames + smoke
+    // land life: windmill sails, waterwheels, roadside banners, camp flames + smoke
     for (const rotor of this.map.windmills || []) rotor.rotation.y += dt * 1.1;
+    for (const sp of this.map.spinners || []) sp.mesh.rotation[sp.axis] += dt * sp.rate;
     for (const b of this.map.propBanners || []) animateBanner(b, time + b.position.x);
     for (const f of this.map.propFlames || []) {
       // shader-animated now; occasional ember from roadside/torch flames

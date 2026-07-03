@@ -318,6 +318,7 @@ export class GameMap {
     this.group.add(this.kitGroup);
     this.villagerSpots = []; // ground points where idle civilian NPCs stand (filled by village/bazaar generators)
     this.refugePoints = []; // compound/temple doorsteps that panicking villagers run INSIDE
+    this.spinners = []; // round 4: rotating set-piece parts { mesh, axis, rate } spun by the game loop
     const biome = this.place?.biome || 'plains';
     buildCurtainWall(this, rng);
     if (['plains', 'steppe', 'valley', 'river', 'desert'].includes(biome)) buildVillage(this, rng);
@@ -327,6 +328,8 @@ export class GameMap {
       buildCityQuarter(this, rng);
     }
     if (this.river) buildDocks(this, rng);
+    if (this.river && mapDef.id !== 'zabulistan') buildWaterMill(this, rng); // round 4 C1
+
     if (mapDef.id !== 'zabulistan' && ['desert', 'steppe', 'highland', 'plains', 'river'].includes(biome)) buildRuinedColumns(this, rng);
     if (mapDef.id !== 'zabulistan') scatterHeroProps(this, rng); // realistic weathered rock/deadwood/dry props (biome-routed, capped)
     this.zabulistanVisualKit = buildZabulistanVisualKit(this, makeRng('map:' + mapDef.id + ':visual-kit'));
@@ -823,6 +826,104 @@ function buildCityQuarter(map, rng) {
   wallG.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   mergeStaticGroup(wallG); // ~120 static mudbrick boxes → 2 meshes (one per material)
   map.kitGroup.add(wallG);
+}
+
+// Round 4 C1 — a working watermill on the river: a mudbrick mill house on the bank
+// and a great paddle wheel that turns in the current, flinging spray.
+function buildWaterMill(map, rng) {
+  const samples = map.river?.samples;
+  if (!samples || samples.length < 12) return;
+  const rimR = map.visualBoard?.radius ? map.visualBoard.radius - 6 : 74;
+  // a mill belongs AT the water, so _isClear (which rejects everything near the river)
+  // can't be used — check road/pad/citadel/board-edge only, and try both banks
+  const bankOk = (bx, bz) => {
+    if (Math.hypot(bx, bz) > rimR) return false;
+    if (map._nearRoad(bx, bz, ROAD_WIDTH * 0.7 + 2)) return false;
+    if (Math.hypot(bx - map.exitPos.x, bz - map.exitPos.z) < map._footprint + 4) return false;
+    for (const pad of map.pads) if (Math.hypot(bx - pad.pos.x, bz - pad.pos.z) < 4.5) return false;
+    return true;
+  };
+  let s = null, side = null;
+  for (const frac of [0.32, 0.5, 0.64, 0.42, 0.72, 0.24, 0.8]) {
+    const cand = samples[Math.floor(samples.length * frac)];
+    if (!cand || map._nearRoad(cand.pos.x, cand.pos.z, 11)) continue;
+    const sl = Math.hypot(cand.tangent.z, cand.tangent.x) || 1;
+    for (const dir of [1, -1]) {
+      const nx = (-cand.tangent.z / sl) * dir, nz = (cand.tangent.x / sl) * dir;
+      const bx = cand.pos.x + nx * (RIVER_WIDTH / 2 + 2.4), bz = cand.pos.z + nz * (RIVER_WIDTH / 2 + 2.4);
+      if (bankOk(bx, bz)) { s = cand; side = new THREE.Vector3(nx, 0, nz); break; }
+    }
+    if (s) break;
+  }
+  if (!s) return;
+  const bankX = s.pos.x + side.x * (RIVER_WIDTH / 2 + 2.4);
+  const bankZ = s.pos.z + side.z * (RIVER_WIDTH / 2 + 2.4);
+  const bankY = map.heightAt(bankX, bankZ);
+  const mud = new THREE.MeshLambertMaterial({ color: 0xb0895a });
+  const mudDark = new THREE.MeshLambertMaterial({ color: 0x8a6a41 });
+  const woodM = new THREE.MeshLambertMaterial({ color: 0x6b4a2c });
+  const bankYaw = Math.atan2(side.x, side.z);
+  // mill house
+  const house = new THREE.Group();
+  house.position.set(bankX, bankY, bankZ);
+  house.rotation.y = bankYaw;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(3.4, 3.0, 3.0), mud);
+  body.position.y = 1.5;
+  house.add(body);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(2.7, 1.4, 4), mudDark);
+  roof.position.y = 3.7; roof.rotation.y = Math.PI / 4;
+  house.add(roof);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.6, 0.1), woodM);
+  door.position.set(0, 0.8, 1.51);
+  house.add(door);
+  house.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  map.kitGroup.add(house);
+  // the paddle wheel, hung over the water on an axle from the mill wall
+  const R = 1.9;
+  const wcx = s.pos.x + side.x * (RIVER_WIDTH / 2 - 0.2);
+  const wcz = s.pos.z + side.z * (RIVER_WIDTH / 2 - 0.2);
+  const waterY = s.pos.y - 0.32;
+  const mount = new THREE.Group();
+  mount.position.set(wcx, waterY + R * 0.72, wcz); // bottom of the wheel dips into the flow
+  mount.rotation.y = bankYaw;
+  const wheel = new THREE.Group();
+  for (const zz of [-0.45, 0.45]) {
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(R, 0.09, 6, 20), woodM);
+    rim.position.z = zz;
+    wheel.add(rim);
+  }
+  const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.1, 6), mudDark);
+  axle.rotation.x = Math.PI / 2;
+  wheel.add(axle);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.08, R * 2, 0.08), woodM);
+    spoke.rotation.z = a; wheel.add(spoke);
+    // paddle board on the rim
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 1.0), mudDark);
+    pad.position.set(Math.cos(a) * R, Math.sin(a) * R, 0);
+    pad.rotation.z = a; wheel.add(pad);
+  }
+  wheel.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  mount.add(wheel);
+  map.group.add(mount);
+  map.spinners.push({ mesh: wheel, axis: 'z', rate: -0.7 });
+  // flour sacks by the door + a miller's spot
+  const sackM = [];
+  for (let i = 0; i < 4; i++) {
+    const a = bankYaw + Math.PI, r = 2.0 + rng() * 0.6;
+    const sx = bankX + Math.cos(a + (rng() - 0.5)) * r, sz = bankZ + Math.sin(a + (rng() - 0.5)) * r;
+    sackM.push([sx, map.heightAt(sx, sz), sz]);
+  }
+  for (const [sx, sy, sz] of sackM) {
+    const sack = new THREE.Mesh(new THREE.SphereGeometry(0.32, 7, 5), new THREE.MeshLambertMaterial({ color: 0xd8c8a0 }));
+    sack.scale.set(1, 0.85, 1);
+    sack.position.set(sx, sy + 0.25, sz);
+    sack.castShadow = true;
+    map.kitGroup.add(sack);
+  }
+  const mx = bankX + Math.cos(bankYaw + Math.PI) * 1.6, mz = bankZ + Math.sin(bankYaw + Math.PI) * 1.6;
+  if (map._isClear(mx, mz, 0.8)) map.villagerSpots.push([mx, map.heightAt(mx, mz), mz, bankYaw]);
 }
 
 // River docks at non-bridge banks (Madayen / Sistan) with barrels & a ladder.
