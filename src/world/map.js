@@ -316,6 +316,7 @@ export class GameMap {
     this.kitGroup = new THREE.Group();
     this.group.add(this.kitGroup);
     this.villagerSpots = []; // ground points where idle civilian NPCs stand (filled by village/bazaar generators)
+    this.refugePoints = []; // compound/temple doorsteps that panicking villagers run INSIDE
     const biome = this.place?.biome || 'plains';
     buildCurtainWall(this, rng);
     if (['plains', 'steppe', 'valley', 'river', 'desert'].includes(biome)) buildVillage(this, rng);
@@ -548,6 +549,7 @@ function buildVillage(map, rng) {
       const tx = c.x + ox, tz = c.z + oz;
       if (!map._isClear(tx, tz, 6)) continue;
       if (!placeBuilding(map, 'ChaharTaq', tx, tz, rng() * 6.28318, 7)) continue; // foliage in the footprint — try the next flank
+      map.refugePoints.push([tx, tz]); // the mobeds shelter inside their own temple
       // two white-robed mobeds stand watch at the sacred fire, facing the pavilion
       for (let k = 0; k < 2; k++) {
         const a = rng() * 6.28318;
@@ -596,6 +598,7 @@ function buildVillage(map, rng) {
 
   // mark ground spots near each compound for idle civilian villagers (spawned by Ambient)
   for (const c of placed) {
+    map.refugePoints.push([c.x, c.z]); // panicking villagers bolt for the compound door
     for (let k = 0; k < 2; k++) {
       const a = rng() * 6.28318, rr = 2.2 + rng() * 2.6;
       const vx = c.x + Math.cos(a) * rr, vz = c.z + Math.sin(a) * rr;

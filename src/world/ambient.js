@@ -1159,17 +1159,52 @@ export class Ambient {
     for (const v of this.villagers) {
       v.t -= dt;
       const pos = v.group.position;
-      if (this._threatT <= 0 && game && v.state !== 'flee') {
+      if (this._threatT <= 0 && game && v.state !== 'flee' && v.state !== 'fleeIn' && v.state !== 'inside') {
         for (const e of game.enemies) {
           if (e.alive && e.group.position.distanceToSquared(pos) < 121) { // ~11u panic radius
-            v.state = 'flee'; v.t = 1.4 + Math.random() * 1.4;
-            const d = pos.clone().sub(e.group.position).setY(0).normalize();
-            v.group.rotation.y = Math.atan2(d.x, d.z); // face away
+            // bolt for the nearest compound door when one is close — the village
+            // empties INDOORS under attack; open-field villagers just run
+            let refuge = null, bd = 26 * 26;
+            for (const [rx, rz] of this.map.refugePoints || []) {
+              const dd = (rx - pos.x) * (rx - pos.x) + (rz - pos.z) * (rz - pos.z);
+              if (dd < bd) { bd = dd; refuge = [rx, rz]; }
+            }
+            if (refuge) {
+              v.state = 'fleeIn'; v.refuge = refuge;
+            } else {
+              v.state = 'flee'; v.t = 1.4 + Math.random() * 1.4;
+              const d = pos.clone().sub(e.group.position).setY(0).normalize();
+              v.group.rotation.y = Math.atan2(d.x, d.z); // face away
+            }
             break;
           }
         }
       }
-      if (v.state === 'flee') {
+      if (v.state === 'fleeIn') {
+        const [rx, rz] = v.refuge;
+        const dx = rx - pos.x, dz = rz - pos.z, d = Math.hypot(dx, dz);
+        if (d > 1.6) {
+          v.group.rotation.y = Math.atan2(dx, dz);
+          pos.x += (dx / d) * 4.4 * dt; pos.z += (dz / d) * 4.4 * dt;
+          pos.y = this.map.heightAt(pos.x, pos.z);
+          animWalk(v.rig, time, 1.7); // running for the door
+        } else {
+          v.group.visible = false; // slipped inside
+          v.state = 'inside';
+          v.t = 6 + Math.random() * 6;
+        }
+      } else if (v.state === 'inside') {
+        if (v.t <= 0) {
+          let danger = false;
+          if (game?.enemies) {
+            for (const e of game.enemies) {
+              if (e.alive && e.group.position.distanceToSquared(pos) < 324) { danger = true; break; } // ~18u
+            }
+          }
+          if (danger) v.t = 4; // peek out later
+          else { v.group.visible = true; v.state = 'return'; }
+        }
+      } else if (v.state === 'flee') {
         const dir = new THREE.Vector3(Math.sin(v.group.rotation.y), 0, Math.cos(v.group.rotation.y));
         pos.addScaledVector(dir, 4.4 * dt);
         pos.x = THREE.MathUtils.clamp(pos.x, -72, 72); pos.z = THREE.MathUtils.clamp(pos.z, -72, 72);
