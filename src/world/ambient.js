@@ -890,6 +890,26 @@ export class Ambient {
       this.caravan = { camels, state: 'away', t: 8 + rng() * 12, dir, edge, dest, s: 0, gap: 3.0, speed: 3.0 };
     }
 
+    // Round 4 D2: a flock of town pigeons roosting on a rooftop — they peck and strut,
+    // burst into a wheeling flight now and then (or when a wave marches past), then resettle
+    this.pigeons = null;
+    if (map.chimneys && map.chimneys.length) {
+      const roost = map.chimneys[(rng() * map.chimneys.length) | 0];
+      const center = new THREE.Vector3(roost[0], roost[1] - 0.3, roost[2]);
+      const birds = [];
+      for (let i = 0; i < 7; i++) {
+        const b = makeBird(0.4, i % 3 === 0 ? 0xe8e4dc : 0x9a96a0);
+        const home = center.clone().add(new THREE.Vector3((rng() - 0.5) * 2.4, 0, (rng() - 0.5) * 2.4));
+        b.g.position.copy(home);
+        // folded wings while perched
+        b.wl.pivotI.rotation.z = 1.0; b.wl.pivotO.rotation.z = -1.9;
+        b.wr.pivotI.rotation.z = -1.0; b.wr.pivotO.rotation.z = 1.9;
+        this.group.add(b.g);
+        birds.push({ ...b, home, seed: rng() * 10, phase: rng() * 6.28 });
+      }
+      this.pigeons = { birds, center, state: 'roost', t: 8 + rng() * 12, flyT: 0 };
+    }
+
     // fireflies (moody lands) / butterflies (bright lands) — wandering points of color
     this.flutterers = [];
     {
@@ -1229,6 +1249,43 @@ export class Ambient {
           for (let l = 0; l < cam.legs.length; l++) cam.legs[l].rotation.x = Math.sin(time * 4 + l * 1.6 + i) * 0.32;
         }
         if (C.s <= 0) { C.state = 'away'; C.t = 30 + Math.random() * 30; for (const c of C.camels) c.g.visible = false; }
+      }
+    }
+
+    // town pigeons: peck the rooftop, then burst into a wheeling flight and resettle
+    if (this.pigeons) {
+      const F = this.pigeons;
+      if (F.state === 'roost') {
+        for (const b of F.birds) {
+          b.g.position.y = b.home.y + Math.max(0, Math.sin(time * 4 + b.seed * 6)) * 0.06; // peck-hop
+          b.g.rotation.y += Math.sin(time * 0.8 + b.seed) * dt * 0.6;
+        }
+        F.t -= dt;
+        let scare = F.t <= 0;
+        if (!scare && game?.enemies) {
+          for (const e of game.enemies) {
+            if (e.alive && e.group.position.distanceToSquared(F.center) < 225) { scare = true; break; }
+          }
+        }
+        if (scare) { F.state = 'fly'; F.flyT = 4 + Math.random() * 3; F.t = 18 + Math.random() * 22; }
+      } else { // fly: wheel around the roost, wings flapping
+        F.flyT -= dt;
+        for (let i = 0; i < F.birds.length; i++) {
+          const b = F.birds[i];
+          b.phase += dt * (1.7 + i * 0.06);
+          const r = 3.5 + i * 0.45;
+          b.g.position.set(F.center.x + Math.cos(b.phase) * r, F.center.y + 3.2 + Math.sin(time * 1.4 + b.seed) * 0.6, F.center.z + Math.sin(b.phase) * r);
+          b.g.rotation.y = -b.phase;
+          flapBird(b, time, 9);
+        }
+        if (F.flyT <= 0) {
+          F.state = 'roost';
+          for (const b of F.birds) {
+            b.g.position.copy(b.home);
+            b.wl.pivotI.rotation.z = 1.0; b.wl.pivotO.rotation.z = -1.9;
+            b.wr.pivotI.rotation.z = -1.0; b.wr.pivotO.rotation.z = 1.9;
+          }
+        }
       }
     }
 
