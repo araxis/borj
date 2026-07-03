@@ -14,6 +14,7 @@ import { makeFlame } from '../models/towerkit.js';
 import { buildStoryLandmarks } from './landmarks.js';
 import { makeRng } from './noise.js';
 import { buildZabulistanVisualKit, rebuildZabulistanVisualKit } from './zabulistanVisualKit.js';
+import { mergeStaticGroup } from './mergekit.js';
 import { zabulistanVisualProfile } from '../data/zabulistanVisualProfile.js';
 
 export class GameMap {
@@ -771,6 +772,57 @@ function buildCityQuarter(map, rng) {
     }
   }
   map.refugePoints.push([px, pz]);
+
+  // ---- A2: a low mudbrick town wall rings the quarter, breached by an arched city
+  // gate where the bazaar lane meets the road on each flank — the "walled town" read
+  const localToWorld = (lx, lz) => [cx + lx * cos + lz * sin, cz - lx * sin + lz * cos];
+  const wallG = new THREE.Group();
+  wallG.position.set(cx, map.heightAt(cx, cz) - 0.35, cz);
+  wallG.rotation.y = yaw;
+  const mud = new THREE.MeshLambertMaterial({ color: 0xb0895a });
+  const mudDark = new THREE.MeshLambertMaterial({ color: 0x8a6a41 });
+  const xHalf = ((COLS - 1) / 2) * CELL + CELL * 0.85;
+  const zHalf = ((ROWS - 1) / 2) * CELL + CELL * 0.85;
+  const WH = 2.4, TH = 0.5, gateHalf = 2.9;
+  const runWall = (x0, z0, x1, z1, alongX) => {
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    const n = Math.max(1, Math.round(len / 2.0));
+    for (let i = 0; i < n; i++) {
+      const mx = x0 + (x1 - x0) * (i + 0.5) / n;
+      const mz = z0 + (z1 - z0) * (i + 0.5) / n;
+      const [wxw, wzw] = localToWorld(mx, mz);
+      if (map._nearRoad(wxw, wzw, ROAD_WIDTH * 0.8)) continue; // don't wall across the road
+      const w = alongX ? (len / n) : TH, d = alongX ? TH : (len / n);
+      const b = new THREE.Mesh(new THREE.BoxGeometry(w * 0.98, WH, d * 0.98), mud);
+      b.position.set(mx, WH / 2, mz);
+      wallG.add(b);
+      const mer = new THREE.Mesh(new THREE.BoxGeometry(alongX ? 0.55 : TH + 0.05, 0.42, alongX ? TH + 0.05 : 0.55), mudDark);
+      mer.position.set(mx, WH + 0.21, mz);
+      wallG.add(mer);
+    }
+  };
+  // top & bottom edges (full runs), left & right edges (split around the lane gate)
+  runWall(-xHalf, -zHalf, xHalf, -zHalf, true);
+  runWall(-xHalf, zHalf, xHalf, zHalf, true);
+  for (const gx of [-xHalf, xHalf]) {
+    runWall(gx, -zHalf, gx, -gateHalf, false);
+    runWall(gx, gateHalf, gx, zHalf, false);
+    // the arched city gate: two piers + a lintel + a peaked cap
+    for (const gz of [-gateHalf, gateHalf]) {
+      const pier = new THREE.Mesh(new THREE.BoxGeometry(1.0, WH + 1.2, 1.0), mudDark);
+      pier.position.set(gx, (WH + 1.2) / 2, gz);
+      wallG.add(pier);
+    }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.7, gateHalf * 2 + 1.0), mud);
+    lintel.position.set(gx, WH + 1.0, 0);
+    wallG.add(lintel);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.5, gateHalf * 2 + 0.4), mudDark);
+    cap.position.set(gx, WH + 1.6, 0);
+    wallG.add(cap);
+  }
+  wallG.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  mergeStaticGroup(wallG); // ~120 static mudbrick boxes → 2 meshes (one per material)
+  map.kitGroup.add(wallG);
 }
 
 // River docks at non-bridge banks (Madayen / Sistan) with barrels & a ladder.
