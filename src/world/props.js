@@ -463,6 +463,40 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
     reedInst.receiveShadow = false;
     group.add(reedInst);
   }
+  // arid scrub (round 3, L3): the deserts and steppes were bare dunes — dress them
+  // with dry tamarisk clumps and thorn tufts so the heroic homelands read as living
+  // hard country, not empty sand
+  if (['desert', 'steppe'].includes(biomeId)) {
+    const clumpM = [], clumpM2 = [], tuftM = [];
+    for (const [x, y, z] of place(44, 2.5)) {
+      const s = 0.5 + rng() * 0.7;
+      if (rng() < 0.55) {
+        clumpM.push(m4(x, y + 0.18 * s, z, rng() * 6.28, s));
+        if (rng() < 0.5) clumpM2.push(m4(x + (rng() - 0.5) * 1.2, y + 0.12 * s, z + (rng() - 0.5) * 1.2, rng() * 6.28, s * 0.6));
+      } else {
+        for (let k = 0; k < 3; k++) tuftM.push(m4(x + (rng() - 0.5) * 0.7, y, z + (rng() - 0.5) * 0.7, rng() * 6.28, 0.6 + rng() * 0.7));
+      }
+    }
+    const scrub = (mats4, r, col) => {
+      const m = instanced(new THREE.IcosahedronGeometry(r, 0).translate(0, r * 0.7, 0), colorMat(col, 0.95), mats4);
+      m.castShadow = false;
+      const cv = new THREE.Color();
+      for (let i = 0; i < mats4.length; i++) {
+        cv.setRGB(1, 1, 1).offsetHSL((rng() - 0.5) * 0.04, 0, (rng() - 0.5) * 0.18);
+        m.setColorAt(i, cv);
+      }
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+      return m;
+    };
+    if (clumpM.length) group.add(scrub(clumpM, 0.55, 0x6b6b3a));
+    if (clumpM2.length) group.add(scrub(clumpM2, 0.4, 0x7d7443));
+    if (tuftM.length) {
+      const tufts = instanced(new THREE.ConeGeometry(0.1, 0.5, 4).translate(0, 0.24, 0), colorMat(0xa89552, 0.95), tuftM);
+      tufts.castShadow = false;
+      tufts.receiveShadow = false;
+      group.add(tufts);
+    }
+  }
   // low bushes / undergrowth — kit shrubs (Plant/Fern, +red autumn bushes in forest);
   // procedural sphere fallback
   if (biomeProps.bush) {
