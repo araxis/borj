@@ -199,12 +199,15 @@ export class Menus {
   // stage positions on the stylized Iran/Turan parchment (viewBox 100×56, y down).
   // Loyal to the epic's geography: Sistan/Zabulistan SE, Mazandaran on the Caspian,
   // Turan beyond the Oxus NE, Madayen W, Persepolis SW.
+  // (tuned 2026-07-03 to the delivered painting assets/ui/map-iran.jpg: Alborz crest
+  // and Damavand sit higher in the art, Kabul's highland knot further right, the
+  // Mesopotamian plain hugs the west edge)
   static MAP_POS = {
-    'zabulistan': [66, 44], 'sistan': [60, 48], 'kabul': [76, 36], 'samangan': [78, 24],
-    'dez-sepid': [58, 27], 'mazandaran': [46, 16], 'alborz': [40, 20], 'damavand': [44, 24],
+    'zabulistan': [66, 44], 'sistan': [61, 47], 'kabul': [75, 33], 'samangan': [78, 24],
+    'dez-sepid': [58, 27], 'mazandaran': [48, 14], 'alborz': [34, 13], 'damavand': [40, 15],
     'siyavash-gate': [62, 17], 'turan': [78, 11], 'balkh': [70, 19], 'dez-roein': [88, 14],
-    'manijeh-garden': [85, 7], 'makran': [56, 50], 'estakhr': [36, 44], 'gordafarid-fort': [52, 24],
-    'madayen': [20, 34], 'arash-watch': [48, 13], 'dez-bahman': [28, 16], 'gang-dez': [93, 6],
+    'manijeh-garden': [85, 7], 'makran': [56, 50], 'estakhr': [34, 46], 'gordafarid-fort': [52, 24],
+    'madayen': [14, 34], 'arash-watch': [52, 13], 'dez-bahman': [28, 16], 'gang-dez': [93, 6],
   };
 
   _buildIranMap(sorted, profile, endlessPick, sandboxPick) {
