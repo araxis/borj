@@ -246,6 +246,48 @@ function makeCrane() {
   return { g, neckPivot };
 }
 
+// Round 4 C4: a Bactrian caravan camel — tall legs, twin humps, an S-neck, a laden
+// pannier. Legs animate from stored refs; the head bobs as it plods.
+function makeCamel(rng = Math.random) {
+  const coat = colorMat(0xbf9c66 + ((rng() * 0x101010) | 0) * 0, 0.95);
+  const coatDk = colorMat(0x9a7a48, 0.95);
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.66, 1.5), coat);
+  body.position.y = 1.35; body.scale.set(1, 1, 1);
+  g.add(body);
+  for (const hz of [-0.28, 0.32]) { // twin humps
+    const hump = new THREE.Mesh(new THREE.SphereGeometry(0.36, 8, 6), coat);
+    hump.position.set(0, 1.72, hz); hump.scale.set(0.85, 0.9, 0.8);
+    g.add(hump);
+  }
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.95, 6), coat);
+  neck.position.set(0, 1.75, 0.85); neck.rotation.x = -0.7;
+  g.add(neck);
+  const headPivot = new THREE.Group();
+  headPivot.position.set(0, 2.15, 1.15);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.26, 0.44), coat);
+  const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.2), coatDk);
+  muzzle.position.set(0, -0.03, 0.3);
+  headPivot.add(head, muzzle);
+  g.add(headPivot);
+  // laden panniers
+  for (const sx of [-0.42, 0.42]) {
+    const bag = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.5, 0.8), sx > 0 ? coatDk : colorMat(0x8a4a3a, 0.95));
+    bag.position.set(sx, 1.2, 0);
+    g.add(bag);
+  }
+  const legs = [];
+  for (const lx of [-0.22, 0.22]) for (const lz of [-0.5, 0.55]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.07, 1.35, 5), coatDk);
+    leg.geometry.translate(0, -0.675, 0);
+    leg.position.set(lx, 1.35, lz);
+    g.add(leg); legs.push(leg);
+  }
+  g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  g.scale.setScalar(0.92);
+  return { g, legs, headPivot };
+}
+
 // Round-2 rivers: foam edges, wet banks, stones and reeds. The foam strips are the
 // strongest "this water FLOWS" cue — thin scrolling white streaks hugging both shores;
 // the wet strip darkens the bank so the water sits IN the land instead of on it.
@@ -831,6 +873,23 @@ export class Ambient {
       this.simurgh = { ...b, streamers, t: 45 + rng() * 60, active: false, dir: new THREE.Vector3(), pos: new THREE.Vector3() };
     }
 
+    // Round 4 C4: a trade caravan crosses the board to the town and back on the silk road
+    this.caravan = null;
+    if (['desert', 'steppe', 'plains', 'valley', 'river'].includes(biomeId) && map.def?.id !== 'zabulistan') {
+      const camels = [];
+      const n = 3 + ((rng() * 3) | 0);
+      for (let i = 0; i < n; i++) { const c = makeCamel(rng); c.g.visible = false; this.group.add(c.g); camels.push(c); }
+      // cross perpendicular to the incoming road so the train never walks the battle lane
+      const path0 = map.paths?.[0];
+      const inS = path0 ? (path0.samples[path0.samples.length - 8] || path0.samples[0]) : null;
+      const roadAng = inS ? Math.atan2(inS.pos.x - map.exitPos.x, inS.pos.z - map.exitPos.z) : rng() * 6.28318;
+      const a = roadAng + Math.PI / 2 + (rng() - 0.5) * 0.5;
+      const dir = { x: Math.sin(a), z: Math.cos(a) };
+      const edge = { x: dir.x * 112, z: dir.z * 112 };   // beyond the visible board
+      const dest = { x: dir.x * 30, z: dir.z * 30 };       // a market halt near the town
+      this.caravan = { camels, state: 'away', t: 8 + rng() * 12, dir, edge, dest, s: 0, gap: 3.0, speed: 3.0 };
+    }
+
     // fireflies (moody lands) / butterflies (bright lands) — wandering points of color
     this.flutterers = [];
     {
@@ -1128,6 +1187,51 @@ export class Ambient {
         }
       }
     }
+
+    // the trade caravan: waits off-board, plods in to the market halt, rests, departs
+    if (this.caravan) {
+      const C = this.caravan;
+      const map = this.map;
+      const pathLen = Math.hypot(C.dest.x - C.edge.x, C.dest.z - C.edge.z) || 1;
+      const placeTrain = (headS, facingIn) => {
+        for (let i = 0; i < C.camels.length; i++) {
+          const cs = Math.max(0, Math.min(1, headS - (i * C.gap) / pathLen));
+          const x = C.edge.x + (C.dest.x - C.edge.x) * cs;
+          const z = C.edge.z + (C.dest.z - C.edge.z) * cs;
+          const cam = C.camels[i];
+          cam.g.position.set(x, map.heightAt(x, z), z);
+          cam.g.rotation.y = facingIn ? Math.atan2(C.dest.x - C.edge.x, C.dest.z - C.edge.z) : Math.atan2(C.edge.x - C.dest.x, C.edge.z - C.dest.z);
+          for (let l = 0; l < cam.legs.length; l++) cam.legs[l].rotation.x = Math.sin(time * 4 + l * 1.6 + i) * 0.32;
+          cam.headPivot.rotation.x = Math.sin(time * 2 + i) * 0.12;
+        }
+      };
+      if (C.state === 'away') {
+        C.t -= dt;
+        if (C.t <= 0) { C.state = 'arriving'; C.s = 0; for (const c of C.camels) c.g.visible = true; }
+      } else if (C.state === 'arriving') {
+        C.s += (dt * C.speed) / pathLen;
+        placeTrain(C.s, true);
+        if (C.s >= 1) { C.state = 'resting'; C.t = 10 + Math.random() * 8; }
+      } else if (C.state === 'resting') {
+        placeTrain(1, true);
+        C.t -= dt;
+        if (C.t <= 0) { C.state = 'leaving'; C.s = 1; }
+      } else if (C.state === 'leaving') {
+        C.s -= (dt * C.speed) / pathLen;
+        // walking out: the head is now the last camel, so offset the other way
+        for (let i = 0; i < C.camels.length; i++) {
+          const cs = Math.max(0, Math.min(1, C.s + (i * C.gap) / pathLen));
+          const x = C.edge.x + (C.dest.x - C.edge.x) * cs;
+          const z = C.edge.z + (C.dest.z - C.edge.z) * cs;
+          const cam = C.camels[i];
+          cam.g.position.set(x, map.heightAt(x, z), z);
+          cam.g.rotation.y = Math.atan2(C.edge.x - C.dest.x, C.edge.z - C.dest.z);
+          for (let l = 0; l < cam.legs.length; l++) cam.legs[l].rotation.x = Math.sin(time * 4 + l * 1.6 + i) * 0.32;
+        }
+        if (C.s <= 0) { C.state = 'away'; C.t = 30 + Math.random() * 30; for (const c of C.camels) c.g.visible = false; }
+      }
+    }
+
     // flutterers: wandering sin-walk with bobbing; fireflies pulse
     for (const f of this.flutterers) {
       const t2 = time * 0.6 + f.seed;
