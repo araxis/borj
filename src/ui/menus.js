@@ -9,6 +9,7 @@ import { ENEMIES_BY_ID } from '../data/enemies.js';
 import { bossChallengeDef } from '../data/bosschallenges.js';
 import { loadProfile, takeSessionKherad, kheradBalance, hasResearch, unlockResearch } from '../core/save.js';
 import { RESEARCH, RESEARCH_DISCIPLINES, RESEARCH_BY_ID } from '../data/research.js';
+import { palaceThumb, generateThumbs } from './palaceThumbs.js';
 import { audio } from '../core/audio.js';
 import { loadPalace } from '../core/assets.js';
 import { loadForestTrees, loadForestEnrich } from '../core/props3d.js';
@@ -331,13 +332,21 @@ export class Menus {
       const available = sandboxPick || (endlessPick ? done : unlocked);
       const frontier = available && !done;
       const state = done ? 'done' : frontier ? 'frontier' : available ? 'done' : 'locked';
+      // the stage's real palace, rendered as a 3D portrait miniature (falls back to
+      // the glyph medallion until its portrait has been generated once)
+      const thumb = palaceThumb(m.id);
+      const medallion = el('span', { class: 'map-node-medallion' },
+        thumb ? el('img', { class: 'node-palace', src: thumb, alt: '', draggable: 'false' })
+          : (done ? '✪' : frontier ? '✦' : tNum(m.order)),
+        el('span', { class: 'node-badge' }, done ? '✪' : frontier ? '✦' : tNum(m.order)),
+      );
       const node = el('button', {
-        class: `map-node ${state}`,
+        class: `map-node ${state}${thumb ? ' has-palace' : ''}`,
         style: { left: x + '%', top: (y / 56) * 100 + '%' },
         'aria-label': `${tName(place)}. ${t('campaign.waves')}: ${tNum(m.waves)}`,
+        'data-place': m.id,
       },
-        el('span', { class: 'map-node-medallion' },
-          done ? '✪' : frontier ? '✦' : tNum(m.order)),
+        medallion,
         m.boss ? el('span', { class: 'map-node-wax', 'aria-hidden': 'true' }) : null,
         el('span', { class: 'map-node-name' }, tName(place)),
       );
@@ -351,6 +360,19 @@ export class Menus {
       }
       pane.append(node);
     }
+
+    // ---- 3D palace portraits: generate any missing ones progressively and swap them
+    // in live (first visit only — afterwards they come straight from localStorage) ----
+    generateThumbs(sorted.map((m) => m.id), (id, url) => {
+      const node = pane.querySelector(`.map-node[data-place="${id}"]`);
+      if (!node) return;
+      const med = node.querySelector('.map-node-medallion');
+      const badge = med.querySelector('.node-badge');
+      med.textContent = '';
+      med.append(el('img', { class: 'node-palace', src: url, alt: '', draggable: 'false' }));
+      if (badge) med.append(badge);
+      node.classList.add('has-palace');
+    });
 
     // ---- pointer parallax: the terrain drifts under the nodes, the map feels deep ----
     if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {

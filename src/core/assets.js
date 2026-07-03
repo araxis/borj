@@ -284,6 +284,24 @@ export function palaceStatus(placeId) {
   };
 }
 
+// free a cached palace's GPU/JS memory (used by the menu thumbnail generator after
+// it has rendered its portrait — NEVER call for a palace the live map is using)
+export function evictPalace(placeId) {
+  const c = palaceCache.get(placeId);
+  if (!c || c === 'loading' || c === 'failed') return;
+  c.scene.traverse((o) => {
+    if (!o.isMesh) return;
+    o.geometry?.dispose?.();
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats) {
+      if (!m) continue;
+      for (const k of Object.keys(m)) { const v = m[k]; if (v?.isTexture) v.dispose(); }
+      m.dispose?.();
+    }
+  });
+  palaceCache.delete(placeId);
+}
+
 export function sanitizePalaceShadows(root) {
   if (!root) return root;
   root.castShadow = false;
