@@ -332,6 +332,7 @@ export class GameMap {
     if (this.river) buildDocks(this, rng);
     if (this.river && mapDef.id !== 'zabulistan') buildWaterMill(this, rng); // round 4 C1
     if (mapDef.id !== 'zabulistan' && ['plains', 'valley', 'river'].includes(biome)) buildFarmstead(this, rng); // round 4 C2
+    if (mapDef.id !== 'zabulistan' && ['highland', 'mountain', 'snowpeak', 'steppe'].includes(biome)) buildOrchard(this, rng); // round 4 C5
 
     if (mapDef.id !== 'zabulistan' && ['desert', 'steppe', 'highland', 'plains', 'river'].includes(biome)) buildRuinedColumns(this, rng);
     if (mapDef.id !== 'zabulistan') scatterHeroProps(this, rng); // realistic weathered rock/deadwood/dry props (biome-routed, capped)
@@ -1018,6 +1019,67 @@ function buildFarmstead(map, rng) {
   map.movers.push({ group: ox, legs, a: { x: ax, z: az }, b: { x: bx, z: bz }, t: rng(), dir: 1, speed: 0.09 });
   // a farmer works the field
   const [fx, fz] = L2W(-6.6, -3.5);
+  if (map._isClear(fx, fz, 0.8)) map.villagerSpots.push([fx, map.heightAt(fx, fz), fz, yaw]);
+}
+
+// Round 4 C5 — a terraced orchard/vineyard for the highland & mountain maps (which
+// skip the farm/mill/dock): stepped stone terraces, rows of small fruit trees, a
+// picker's spot and fruit baskets. All static → merged.
+function buildOrchard(map, rng) {
+  let cx, cz, found = false;
+  for (let tries = 0; tries < 36 && !found; tries++) {
+    const a = rng() * 6.28318, r = 22 + rng() * 32;
+    cx = Math.cos(a) * r; cz = Math.sin(a) * r;
+    if (map._isClear(cx, cz, 9) && (!map._clearOfFoliage || map._clearOfFoliage(cx, cz, 9))) found = true;
+  }
+  if (!found) return;
+  const yaw = rng() * 6.28318, cos = Math.cos(yaw), sin = Math.sin(yaw);
+  const L2W = (lx, lz) => [cx + lx * cos + lz * sin, cz - lx * sin + lz * cos];
+  const stone = new THREE.MeshLambertMaterial({ color: 0x9a8d77 });
+  const woodM = new THREE.MeshLambertMaterial({ color: 0x5a3f26 });
+  const leaf = new THREE.MeshLambertMaterial({ color: 0x4e7038 });
+  const leaf2 = new THREE.MeshLambertMaterial({ color: 0x628544 });
+  const fruit = new THREE.MeshLambertMaterial({ color: 0xb43a2e });
+  const orch = new THREE.Group();
+  const ROWS = 3, COLS = 4, RSTEP = 3.2, CSTEP = 2.9;
+  for (let r = 0; r < ROWS; r++) {
+    const lz = (r - (ROWS - 1) / 2) * RSTEP;
+    // low retaining wall behind each row
+    const [wx, wz] = L2W(0, lz - 1.2);
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(COLS * CSTEP + 1.5, 0.55, 0.4), stone);
+    wall.position.set(wx, map.heightAt(wx, wz) + 0.25, wz); wall.rotation.y = yaw;
+    orch.add(wall);
+    for (let c = 0; c < COLS; c++) {
+      const lx = (c - (COLS - 1) / 2) * CSTEP + (rng() - 0.5) * 0.4;
+      const [tx, tz] = L2W(lx, lz + (rng() - 0.5) * 0.4);
+      const ty = map.heightAt(tx, tz);
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 1.0, 5), woodM);
+      trunk.position.set(tx, ty + 0.5, tz);
+      const canopy = new THREE.Mesh(new THREE.IcosahedronGeometry(0.85, 0), rng() < 0.5 ? leaf : leaf2);
+      canopy.position.set(tx, ty + 1.5, tz);
+      orch.add(trunk, canopy);
+      // a few fruit dots
+      for (let f = 0; f < 3; f++) {
+        const fd = new THREE.Mesh(new THREE.SphereGeometry(0.09, 5, 4), fruit);
+        fd.position.set(tx + (rng() - 0.5) * 1.2, ty + 1.2 + rng() * 0.6, tz + (rng() - 0.5) * 1.2);
+        orch.add(fd);
+      }
+    }
+  }
+  // fruit baskets at the low corner
+  for (let i = 0; i < 3; i++) {
+    const [bx, bz] = L2W((COLS - 1) / 2 * CSTEP + 1.2, (ROWS - 1) / 2 * RSTEP + 0.5 - i * 0.9);
+    const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.22, 0.34, 8), new THREE.MeshLambertMaterial({ color: 0x9a6a38 }));
+    basket.position.set(bx, map.heightAt(bx, bz) + 0.17, bz);
+    const heap = new THREE.Mesh(new THREE.SphereGeometry(0.24, 7, 5), fruit);
+    heap.position.set(bx, map.heightAt(bx, bz) + 0.36, bz); heap.scale.y = 0.6;
+    orch.add(basket, heap);
+  }
+  orch.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  mergeStaticGroup(orch);
+  map.kitGroup.add(orch);
+  // a picker works the rows
+  const [fx, fz] = L2W(-(COLS - 1) / 2 * CSTEP - 1.4, 0);
   if (map._isClear(fx, fz, 0.8)) map.villagerSpots.push([fx, map.heightAt(fx, fz), fz, yaw]);
 }
 
