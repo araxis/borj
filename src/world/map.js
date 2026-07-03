@@ -462,6 +462,11 @@ function buildCurtainWall(map, rng) {
 // the ground (lift by -baseY*unit), tint:null to keep its adobe/turquoise palette. Gated → never-break.
 function placeBuilding(map, name, x, z, ry, targetW) {
   if (!propReady(name)) return false;
+  // trees must not grow through walls: reject spots where a scattered trunk sits
+  // inside the footprint (the Kabul cypress-through-the-ChaharTaq bug). Callers
+  // with fallback offsets get to try the next spot.
+  const keep = targetW * 0.5 + 0.8;
+  if ((map._foliageSpots || []).some(([fx, fz]) => Math.hypot(x - fx, z - fz) < keep)) return false;
   const base = propBase(name);
   const unit = targetW / (base.baseW || 1);
   const p = getProp(name, { unit, tint: null });
@@ -539,17 +544,16 @@ function buildVillage(map, rng) {
   // one chahar-taq fire-temple pavilion landmark per map (sparse), tended by mobed priests
   if (placed.length) {
     const c = placed[placed.length - 1];
-    for (const [ox, oz] of [[0, -19], [19, 0], [-19, 0], [0, 19]]) {
+    for (const [ox, oz] of [[0, -19], [19, 0], [-19, 0], [0, 19], [14, 14], [-14, 14], [14, -14], [-14, -14]]) {
       const tx = c.x + ox, tz = c.z + oz;
       if (!map._isClear(tx, tz, 6)) continue;
-      if (placeBuilding(map, 'ChaharTaq', tx, tz, rng() * 6.28318, 7)) {
-        // two white-robed mobeds stand watch at the sacred fire, facing the pavilion
-        for (let k = 0; k < 2; k++) {
-          const a = rng() * 6.28318;
-          const vx = tx + Math.cos(a) * 4.3, vz = tz + Math.sin(a) * 4.3;
-          if (map._isClear(vx, vz, 0.8)) {
-            map.villagerSpots.push([vx, map.heightAt(vx, vz), vz, Math.atan2(tx - vx, tz - vz), 'mobed']);
-          }
+      if (!placeBuilding(map, 'ChaharTaq', tx, tz, rng() * 6.28318, 7)) continue; // foliage in the footprint — try the next flank
+      // two white-robed mobeds stand watch at the sacred fire, facing the pavilion
+      for (let k = 0; k < 2; k++) {
+        const a = rng() * 6.28318;
+        const vx = tx + Math.cos(a) * 4.3, vz = tz + Math.sin(a) * 4.3;
+        if (map._isClear(vx, vz, 0.8)) {
+          map.villagerSpots.push([vx, map.heightAt(vx, vz), vz, Math.atan2(tx - vx, tz - vz), 'mobed']);
         }
       }
       break;
