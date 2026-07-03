@@ -4509,6 +4509,15 @@ export class Game {
     // land life: windmill sails, waterwheels, roadside banners, camp flames + smoke
     for (const rotor of this.map.windmills || []) rotor.rotation.y += dt * 1.1;
     for (const sp of this.map.spinners || []) sp.mesh.rotation[sp.axis] += dt * sp.rate;
+    // the plough ox (and any mover) plods a↔b, legs wobbling, turning at each headland
+    for (const m of this.map.movers || []) {
+      m.t += dt * m.speed * m.dir;
+      if (m.t >= 1) { m.t = 1; m.dir = -1; } else if (m.t <= 0) { m.t = 0; m.dir = 1; }
+      const x = m.a.x + (m.b.x - m.a.x) * m.t, z = m.a.z + (m.b.z - m.a.z) * m.t;
+      m.group.position.set(x, this.map.heightAt(x, z), z);
+      m.group.rotation.y = m.dir > 0 ? Math.atan2(m.b.x - m.a.x, m.b.z - m.a.z) : Math.atan2(m.a.x - m.b.x, m.a.z - m.b.z);
+      for (let i = 0; i < m.legs.length; i++) m.legs[i].rotation.x = Math.sin(time * 5 + i * 1.6) * 0.35;
+    }
     for (const b of this.map.propBanners || []) animateBanner(b, time + b.position.x);
     for (const f of this.map.propFlames || []) {
       // shader-animated now; occasional ember from roadside/torch flames

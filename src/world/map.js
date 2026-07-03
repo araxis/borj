@@ -319,6 +319,7 @@ export class GameMap {
     this.villagerSpots = []; // ground points where idle civilian NPCs stand (filled by village/bazaar generators)
     this.refugePoints = []; // compound/temple doorsteps that panicking villagers run INSIDE
     this.spinners = []; // round 4: rotating set-piece parts { mesh, axis, rate } spun by the game loop
+    this.movers = []; // round 4: back-and-forth walkers { group, legs, a, b, t, dir, speed } (the plough ox)
     const biome = this.place?.biome || 'plains';
     buildCurtainWall(this, rng);
     if (['plains', 'steppe', 'valley', 'river', 'desert'].includes(biome)) buildVillage(this, rng);
@@ -329,6 +330,7 @@ export class GameMap {
     }
     if (this.river) buildDocks(this, rng);
     if (this.river && mapDef.id !== 'zabulistan') buildWaterMill(this, rng); // round 4 C1
+    if (mapDef.id !== 'zabulistan' && ['plains', 'valley', 'river'].includes(biome)) buildFarmstead(this, rng); // round 4 C2
 
     if (mapDef.id !== 'zabulistan' && ['desert', 'steppe', 'highland', 'plains', 'river'].includes(biome)) buildRuinedColumns(this, rng);
     if (mapDef.id !== 'zabulistan') scatterHeroProps(this, rng); // realistic weathered rock/deadwood/dry props (biome-routed, capped)
@@ -924,6 +926,96 @@ function buildWaterMill(map, rng) {
   }
   const mx = bankX + Math.cos(bankYaw + Math.PI) * 1.6, mz = bankZ + Math.sin(bankYaw + Math.PI) * 1.6;
   if (map._isClear(mx, mz, 0.8)) map.villagerSpots.push([mx, map.heightAt(mx, mz), mz, bankYaw]);
+}
+
+// Round 4 C2 — a working farmstead: plowed furrows, haystacks, a scarecrow, and an
+// ox plodding the field pulling a plough (the ox is a map.mover the game loop walks).
+function buildFarmstead(map, rng) {
+  // a clear patch off the road for the field (~14x11)
+  let cx, cz, found = false;
+  for (let tries = 0; tries < 36 && !found; tries++) {
+    const a = rng() * 6.28318, r = 20 + rng() * 34;
+    cx = Math.cos(a) * r; cz = Math.sin(a) * r;
+    if (map._isClear(cx, cz, 9) && (!map._clearOfFoliage || map._clearOfFoliage(cx, cz, 9))) found = true;
+  }
+  if (!found) return;
+  const yaw = rng() * 6.28318, cos = Math.cos(yaw), sin = Math.sin(yaw);
+  const cy = map.heightAt(cx, cz);
+  const L2W = (lx, lz) => [cx + lx * cos + lz * sin, cz - lx * sin + lz * cos];
+  const soil = new THREE.MeshLambertMaterial({ color: 0x5a4630 });
+  const soilLt = new THREE.MeshLambertMaterial({ color: 0x6e5638 });
+  const straw = new THREE.MeshLambertMaterial({ color: 0xc9a24a });
+  const woodM = new THREE.MeshLambertMaterial({ color: 0x6b4a2c });
+  const field = new THREE.Group();
+  // tilled bed + parallel furrow ridges running along local X
+  const bed = new THREE.Mesh(new THREE.BoxGeometry(14, 0.12, 11), soil);
+  bed.position.set(cx, cy + 0.06, cz); bed.rotation.y = yaw; bed.receiveShadow = true;
+  field.add(bed);
+  for (let i = -4; i <= 4; i++) {
+    const [rx, rz] = L2W(0, i * 1.15);
+    const ridge = new THREE.Mesh(new THREE.BoxGeometry(13.4, 0.16, 0.42), soilLt);
+    ridge.position.set(rx, cy + 0.14, rz); ridge.rotation.y = yaw; ridge.receiveShadow = true;
+    field.add(ridge);
+  }
+  // haystacks at a corner
+  for (let i = 0; i < 3; i++) {
+    const [hx, hz] = L2W(6.2 - i * 1.5, 6.0 + (i % 2) * 1.2);
+    const hay = new THREE.Mesh(new THREE.ConeGeometry(1.0 - i * 0.12, 1.6 - i * 0.15, 8), straw);
+    hay.position.set(hx, map.heightAt(hx, hz) + (0.8 - i * 0.07), hz); hay.castShadow = true;
+    field.add(hay);
+  }
+  // scarecrow at the field's heart
+  const [scx, scz] = L2W(-2, 0);
+  const scy = map.heightAt(scx, scz);
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.2, 5), woodM);
+  post.position.set(scx, scy + 1.1, scz);
+  const arms = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.6, 5), woodM);
+  arms.position.set(scx, scy + 1.7, scz); arms.rotation.z = Math.PI / 2;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 7, 6), straw);
+  head.position.set(scx, scy + 2.2, scz);
+  const smock = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.15), new THREE.MeshLambertMaterial({ color: 0x8a4a3a }));
+  smock.position.set(scx, scy + 1.5, scz);
+  for (const m of [post, arms, head, smock]) { m.castShadow = true; field.add(m); }
+  field.traverse((o) => { if (o.isMesh && o.castShadow === undefined) o.castShadow = true; });
+  map.kitGroup.add(field);
+  mergeStaticGroup(field, [head]); // furrows/hay/scarecrow collapse; keep parts intact enough
+
+  // the ox + plough, plodding along the outer furrow line
+  const ox = new THREE.Group();
+  const hide = new THREE.MeshLambertMaterial({ color: 0x8a7256 });
+  const hideDk = new THREE.MeshLambertMaterial({ color: 0x5c4a34 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 1.5), hide);
+  body.position.y = 0.85; ox.add(body);
+  const hump = new THREE.Mesh(new THREE.SphereGeometry(0.34, 7, 6), hide);
+  hump.position.set(0, 1.2, 0.35); hump.scale.set(1, 0.7, 1); ox.add(hump);
+  const headO = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.36, 0.5), hide);
+  headO.position.set(0, 0.9, 1.0); ox.add(headO);
+  for (const sx of [-0.16, 0.16]) {
+    const horn = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.4, 5), hideDk);
+    horn.position.set(sx, 1.15, 1.05); horn.rotation.z = sx > 0 ? -0.5 : 0.5; ox.add(horn);
+  }
+  const legs = [];
+  for (const lx of [-0.24, 0.24]) for (const lz of [-0.5, 0.5]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.06, 0.85, 5), hideDk);
+    leg.position.set(lx, 0.42, lz); leg.geometry.translate(0, -0.42, 0); leg.position.y = 0.85;
+    ox.add(leg); legs.push(leg);
+  }
+  // the plough dragged behind
+  const plough = new THREE.Group();
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.4, 5), woodM);
+  beam.rotation.x = Math.PI / 2.4; beam.position.set(0, 0.55, -0.9); plough.add(beam);
+  const blade = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.6, 4), hideDk);
+  blade.rotation.x = -1.9; blade.position.set(0, 0.18, -1.5); plough.add(blade);
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.7, 4), woodM);
+  handle.rotation.x = 0.6; handle.position.set(0, 0.7, -1.7); plough.add(handle);
+  ox.add(plough);
+  ox.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  map.group.add(ox);
+  const [ax, az] = L2W(-6, -3.5), [bx, bz] = L2W(6, -3.5); // a furrow line, ox faces +local-X
+  map.movers.push({ group: ox, legs, a: { x: ax, z: az }, b: { x: bx, z: bz }, t: rng(), dir: 1, speed: 0.09 });
+  // a farmer works the field
+  const [fx, fz] = L2W(-6.6, -3.5);
+  if (map._isClear(fx, fz, 0.8)) map.villagerSpots.push([fx, map.heightAt(fx, fz), fz, yaw]);
 }
 
 // River docks at non-bridge banks (Madayen / Sistan) with barrels & a ladder.
