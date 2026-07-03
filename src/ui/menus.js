@@ -153,24 +153,106 @@ export class Menus {
     const POS = Menus.MAP_POS;
     const pane = el('div', { id: 'campaignMap' });
     const NS = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('viewBox', '0 0 100 56');
-    svg.setAttribute('preserveAspectRatio', 'none');
-    svg.setAttribute('aria-hidden', 'true');
-    const seg = (pts, cls) => {
-      if (pts.length < 2) return;
-      const p = document.createElementNS(NS, 'path');
-      p.setAttribute('d', pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(' '));
-      p.setAttribute('class', cls);
-      svg.append(p);
+    const mk = (tag, attrs = {}, text = null) => {
+      const n = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+      if (text != null) n.textContent = text;
+      return n;
+    };
+    const svg = mk('svg', { viewBox: '0 0 100 56', preserveAspectRatio: 'none', 'aria-hidden': 'true' });
+
+    // ---- illustrated terrain (its own group so the pointer parallax can drift it) ----
+    const terrain = mk('g', { class: 'map-terrain' });
+    // seas: the Hyrcanian Sea (Caspian) up north, the Sea of Pars (Gulf) at the south-west
+    terrain.append(mk('path', { class: 'map-sea', d: 'M33 3 Q40 1 47 3.5 Q52 5.5 50 8.6 Q44 10.6 37.5 8.8 Q32.5 7 33 3 Z' }));
+    terrain.append(mk('path', { class: 'map-sea', d: 'M4 49 Q13 45.5 23 48.5 Q30 50.6 35 55.5 L4 55.5 Z' }));
+    for (const wd of ['M36 5 q2 -0.8 4 0', 'M40 7 q2 -0.8 4 0', 'M11 51 q2 -0.8 4 0', 'M18 52.5 q2 -0.8 4 0', 'M26 51.5 q2 -0.8 4 0']) {
+      terrain.append(mk('path', { class: 'map-wave', d: wd }));
+    }
+    // rivers: the Oxus dividing Iran from Turan, the Helmand feeding Sistan
+    terrain.append(mk('path', { class: 'map-river', d: 'M60 2.5 Q68 7 73 11.5 Q77 15.5 84 17.5' }));
+    terrain.append(mk('path', { class: 'map-river', d: 'M70 40 Q66 44 62.5 46.5' }));
+    // mountain chains: the Alborz wall across the north, the Zagros diagonal, Kabul heights
+    const ridge = (x0, y0, n, dx, s = 1) => {
+      let d = '';
+      for (let i = 0; i < n; i++) {
+        const x = x0 + i * dx, y = y0 + Math.sin(i * 2.1) * 0.7;
+        d += `M${x.toFixed(1)} ${y.toFixed(1)} l${1.1 * s} ${-2.1 * s} l${1.1 * s} ${2.1 * s}`;
+      }
+      return d;
+    };
+    terrain.append(mk('path', { class: 'map-ridge', d: ridge(30, 14, 9, 2.6) }));
+    terrain.append(mk('path', { class: 'map-ridge faint', d: ridge(32, 16.5, 7, 2.6, 0.6) }));
+    terrain.append(mk('path', { class: 'map-ridge', d: ridge(21, 24, 8, 2.2, 0.8) + ridge(26, 31, 6, 2.2, 0.8) + ridge(30, 38, 5, 2.2, 0.8) }));
+    terrain.append(mk('path', { class: 'map-ridge', d: ridge(70, 30, 5, 2.4, 0.9) }));
+    // the central deserts: a stipple of dunes
+    for (let i = 0; i < 16; i++) {
+      const dx2 = 42 + (i % 5) * 4.4 + ((i * 7) % 3), dy2 = 28 + Math.floor(i / 5) * 3.4 + (i % 2) * 1.4;
+      terrain.append(mk('path', { class: 'map-dune', d: `M${dx2} ${dy2} q1.5 -1 3 0` }));
+    }
+    // region calligraphy + a compass rose
+    terrain.append(mk('text', { class: 'map-region', x: 38, y: 36, 'text-anchor': 'middle' }, t('map.iran')));
+    terrain.append(mk('text', { class: 'map-region', x: 82, y: 6, 'text-anchor': 'middle' }, t('map.turan')));
+    terrain.append(mk('text', { class: 'map-region small', x: 42.5, y: 4.2, 'text-anchor': 'middle' }, t('map.caspian')));
+    terrain.append(mk('text', { class: 'map-region small', x: 16, y: 53.5, 'text-anchor': 'middle' }, t('map.gulf')));
+    const rose = mk('g', { class: 'map-rose', transform: 'translate(8.5 9)' });
+    rose.append(mk('path', { d: 'M0 -3.4 L0.8 -0.8 L3.4 0 L0.8 0.8 L0 3.4 L-0.8 0.8 L-3.4 0 L-0.8 -0.8 Z' }));
+    rose.append(mk('circle', { r: 0.55 }));
+    terrain.append(rose);
+    svg.append(terrain);
+
+    // ---- the campaign road: a smooth caravan route, not a surveyor's zigzag ----
+    const smooth = (pts) => {
+      if (pts.length < 2) return '';
+      let d = `M${pts[0][0]} ${pts[0][1]}`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+        d += `C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(2)} ${(p1[1] + (p2[1] - p0[1]) / 6).toFixed(2)} ` +
+          `${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(2)} ${(p2[1] - (p3[1] - p1[1]) / 6).toFixed(2)} ${p2[0]} ${p2[1]}`;
+      }
+      return d;
     };
     const all = sorted.map((m) => POS[m.id] || [50, 28]);
-    seg(all, 'journey-line');
-    // the conquered stretch of the road glows gold: prefix of completed stages (+1 frontier)
     let doneCount = 0;
     for (const m of sorted) { if (profile.completedMaps.includes(m.id)) doneCount++; else break; }
-    seg(all.slice(0, Math.min(doneCount + 1, all.length)), 'journey-line done');
+    const donePts = all.slice(0, Math.min(doneCount + 1, all.length));
+    // the road ahead is the faintest sketch; the conquered stretch is an inked gold road
+    svg.append(mk('path', { class: 'journey-line', d: smooth(all.slice(Math.max(0, donePts.length - 1))) }));
+    if (donePts.length >= 2) {
+      svg.append(mk('path', { class: 'journey-line done', id: 'journeyDone', d: smooth(donePts) }));
+      // the banner-bearer rides the conquered road, endlessly retelling the campaign
+      if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        const rider = mk('text', { class: 'map-traveler', 'font-size': '3.2', y: '-1' }, '⚑');
+        const motion = mk('animateMotion', { dur: `${Math.max(8, donePts.length * 4)}s`, repeatCount: 'indefinite', rotate: '0' });
+        const mp = mk('mpath', {});
+        mp.setAttribute('href', '#journeyDone');
+        motion.append(mp);
+        rider.append(motion);
+        svg.append(rider);
+      }
+    }
     pane.append(svg);
+
+    // ---- hover tooltip: the stage's chronicle card ----
+    const tip = el('div', { class: 'map-tooltip' });
+    pane.append(tip);
+    const showTip = (m, place, x, y, available, done) => {
+      clear(tip);
+      tip.append(el('b', {}, tName(place)));
+      tip.append(el('span', { class: 'tip-sub' }, tNameAlt(place)));
+      tip.append(el('span', {}, `${t('campaign.waves')}: ${tNum(m.waves)}`));
+      if (m.boss) {
+        const ch = bossChallengeDef(m.boss);
+        tip.append(el('span', { class: 'tip-saga' }, `◆ ${tOpt(ch.titleKey, t('bossSaga.campaign'))}`));
+      }
+      if (endlessPick && profile.bestEndless[m.id]) tip.append(el('span', {}, `∞ ${tNum(profile.bestEndless[m.id])}`));
+      if (!available) tip.append(el('span', { class: 'tip-locked' }, t('map.locked')));
+      else if (done) tip.append(el('span', { class: 'tip-done' }, '✓ ' + t('campaign.completed')));
+      tip.style.left = x + '%';
+      tip.style.top = (y / 56) * 100 + '%';
+      tip.classList.add('show');
+    };
+    const hideTip = () => tip.classList.remove('show');
 
     for (const m of sorted) {
       const place = PLACES_BY_ID[m.id];
@@ -185,16 +267,32 @@ export class Menus {
         class: `map-node ${state}`,
         style: { left: x + '%', top: (y / 56) * 100 + '%' },
         'aria-label': `${tName(place)}. ${t('campaign.waves')}: ${tNum(m.waves)}`,
-        title: `${tName(place)} — ${t('campaign.waves')}: ${tNum(m.waves)}`,
       },
         el('span', { class: 'map-node-medallion' },
           done ? '✪' : frontier ? '✦' : tNum(m.order)),
         m.boss ? el('span', { class: 'map-node-wax', 'aria-hidden': 'true' }) : null,
         el('span', { class: 'map-node-name' }, tName(place)),
       );
-      if (available) node.onclick = () => { audio.ui(); this.showMapIntro(m, endlessPick); };
-      else node.disabled = true;
+      // locked nodes stay hoverable (a disabled button swallows mouse events),
+      // they just refuse the click
+      if (available) node.onclick = () => { audio.ui(); hideTip(); this.showMapIntro(m, endlessPick); };
+      else node.setAttribute('aria-disabled', 'true');
+      for (const [evIn, evOut] of [['mouseenter', 'mouseleave'], ['focus', 'blur']]) {
+        node.addEventListener(evIn, () => showTip(m, place, x, y, available, done));
+        node.addEventListener(evOut, hideTip);
+      }
       pane.append(node);
+    }
+
+    // ---- pointer parallax: the terrain drifts under the nodes, the map feels deep ----
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      pane.addEventListener('mousemove', (e) => {
+        const r = pane.getBoundingClientRect();
+        const nx = (e.clientX - r.left) / r.width - 0.5;
+        const ny = (e.clientY - r.top) / r.height - 0.5;
+        terrain.style.transform = `translate(${(-nx * 1.4).toFixed(2)}px, ${(-ny * 1).toFixed(2)}px)`;
+      });
+      pane.addEventListener('mouseleave', () => { terrain.style.transform = ''; });
     }
     return pane;
   }

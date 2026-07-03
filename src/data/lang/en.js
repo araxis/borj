@@ -512,6 +512,11 @@ export const EN = {
   'codex.related': 'Related Entries',
   'codex.epigraph': 'In the name of the Lord of life and wisdom, beyond whom thought cannot soar.',
   'codex.sagas': 'Sagas',
+  'map.iran': 'IRĀN',
+  'map.turan': 'TURĀN',
+  'map.caspian': 'Hyrcanian Sea',
+  'map.gulf': 'Sea of Pārs',
+  'map.locked': 'Beyond the frontier — conquer the road first.',
   'codex.cost': 'Cost',
   'codex.hp': 'Vitality',
 

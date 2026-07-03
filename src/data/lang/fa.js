@@ -516,6 +516,11 @@ export const FA = {
   'codex.related': 'پیوندهای هم‌داستان',
   'codex.epigraph': '',
   'codex.sagas': 'حماسه‌ها',
+  'map.iran': 'ایران',
+  'map.turan': 'توران',
+  'map.caspian': 'دریای خزر',
+  'map.gulf': 'دریای پارس',
+  'map.locked': 'آن‌سوی مرز — نخست راه را بگشای.',
   'codex.cost': 'بها',
   'codex.hp': 'توان',
 
