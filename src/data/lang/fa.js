@@ -521,6 +521,8 @@ export const FA = {
   'map.caspian': 'دریای خزر',
   'map.gulf': 'دریای پارس',
   'map.locked': 'آن‌سوی مرز — نخست راه را بگشای.',
+  'kherad.gained': 'خردِ اندوخته: +{n}',
+  'kherad.total': 'گنج دانش: {n}',
   'codex.cost': 'بها',
   'codex.hp': 'توان',
 

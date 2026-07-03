@@ -517,6 +517,8 @@ export const EN = {
   'map.caspian': 'Hyrcanian Sea',
   'map.gulf': 'Sea of Pārs',
   'map.locked': 'Beyond the frontier — conquer the road first.',
+  'kherad.gained': 'Wisdom gathered: +{n} Kherad',
+  'kherad.total': 'Treasury of Knowledge: {n}',
   'codex.cost': 'Cost',
   'codex.hp': 'Vitality',
 

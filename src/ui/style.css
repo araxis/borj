@@ -3912,6 +3912,19 @@ body.rtl #codexDetail .rp-section .storyref { border-radius: 7px 0 0 7px; }
 .codexcard.saga .saga-state.hardened { color: #f0b8a0; border-color: rgba(142, 74, 51, 0.65); }
 .codexcard.saga.unclaimed { filter: saturate(0.6) brightness(0.85); }
 
+/* round 3 K1: wisdom gathered this battle, shown on the end screen */
+.end-kherad {
+  margin: -12px auto 16px;
+  padding: 5px 14px;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 169, 62, 0.45);
+  background: linear-gradient(180deg, rgba(58, 43, 20, 0.8), rgba(34, 26, 14, 0.85));
+  color: #ffe9a8;
+  font-size: 0.9rem;
+  box-shadow: 0 0 14px rgba(216, 169, 62, 0.2);
+}
+
 /* ============================================================
    C3b — the Map of Iran, illustrated & alive.
    Inked terrain (ranges, seas with moving waves, the Oxus, desert
