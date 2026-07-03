@@ -121,33 +121,56 @@ export const RIVER_WIDTH = 4.6;
 export function buildRiverMesh(river, group) {
   const { samples } = river;
   const half = RIVER_WIDTH / 2;
-  const verts = [], uvs = [], idx = [];
-  for (let i = 0; i < samples.length; i++) {
-    const s = samples[i];
-    const side = new THREE.Vector3(-s.tangent.z, 0, s.tangent.x).normalize();
-    const y = s.pos.y - 0.32; // water sits in the carved bed
-    verts.push(s.pos.x + side.x * half, y, s.pos.z + side.z * half,
-      s.pos.x - side.x * half, y, s.pos.z - side.z * half);
-    const v = s.dist / 7;
-    uvs.push(0, v, 1, v);
-    if (i > 0) {
-      const a = (i - 1) * 2;
-      idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+  // ribbon builder at a given width fraction + vertical drop
+  const ribbon = (wFrac, dy, vScale = 7) => {
+    const verts = [], uvs = [], idx = [];
+    for (let i = 0; i < samples.length; i++) {
+      const s = samples[i];
+      const side = new THREE.Vector3(-s.tangent.z, 0, s.tangent.x).normalize();
+      const y = s.pos.y - 0.32 + dy;
+      const w = half * wFrac;
+      verts.push(s.pos.x + side.x * w, y, s.pos.z + side.z * w,
+        s.pos.x - side.x * w, y, s.pos.z - side.z * w);
+      const v = s.dist / vScale;
+      uvs.push(0, v, 1, v);
+      if (i > 0) {
+        const a = (i - 1) * 2;
+        idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+      }
     }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geo.setIndex(idx);
-  geo.computeVertexNormals();
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return geo;
+  };
+  // Rivers 3.0 (round 3, L2): three living layers —
+  // 1. the deep channel: a dark opaque bed ribbon that grades the middle deeper
+  const deep = new THREE.Mesh(ribbon(0.62, -0.05), new THREE.MeshStandardMaterial({
+    color: 0x14424e, roughness: 0.6, metalness: 0.05,
+  }));
+  deep.receiveShadow = false;
+  group.add(deep);
+  // 2. the water sheet (scrolled by the game loop)
   const mat = new THREE.MeshStandardMaterial({
-    map: waterTexture(), transparent: true, opacity: 0.85,
-    roughness: 0.25, metalness: 0.15, color: 0xbfe8ef,
+    map: waterTexture(), transparent: true, opacity: 0.82,
+    roughness: 0.18, metalness: 0.2, color: 0xbfe8ef,
   });
-  const mesh = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(ribbon(1, 0), mat);
   mesh.receiveShadow = false;
   group.add(mesh);
-  return mat; // caller scrolls map.offset for flow
+  // 3. a tighter ripple sheet riding above at double repeat — scrolled by the same
+  // loop, the doubled texture density reads as a faster current down the center
+  const rippleTex = waterTexture();
+  rippleTex.repeat.set(2, 2.6);
+  const rippleMat = new THREE.MeshBasicMaterial({
+    map: rippleTex, transparent: true, opacity: 0.22, depthWrite: false, color: 0xdff6fa,
+  });
+  const ripple = new THREE.Mesh(ribbon(0.72, 0.045, 4), rippleMat);
+  ripple.renderOrder = 1;
+  group.add(ripple);
+  return [mat, rippleMat]; // caller scrolls every returned mat's map.offset for flow
 }
 
 // Round-2 sky-life: a proper bird — two-segment wings on pivots (inner + outer with a

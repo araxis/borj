@@ -168,7 +168,7 @@ export class GameMap {
     // river surface + bridges where roads cross it
     this.waterMats = [];
     if (this.river) {
-      this.waterMats.push(buildRiverMesh(this.river, this.group));
+      this.waterMats.push(...buildRiverMesh(this.river, this.group));
       // round-2 river dressing: scrolling foam edges (pushed into waterMats for flow),
       // wet bank strips, stones and reed tufts along the shoreline
       this.waterMats.push(...buildRiverDressing(this.river, this.group, (x, z) => this.heightAt(x, z), {
