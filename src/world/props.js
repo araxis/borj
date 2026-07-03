@@ -313,11 +313,20 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
   if (biomeProps.cypress) {
     const pts = place(biomeProps.cypress, 5);
     for (const p of pts) foliageSpots.push([p[0], p[2], 3]);
-    const trunkM = [], folM = [];
+    const trunkM = [], folM = [], tipM = [];
     for (const [x, y, z] of pts) {
       const s = 0.8 + rng() * 0.8;
-      trunkM.push(m4(x, y, z, rng() * 6.28, s));
-      folM.push(m4(x, y, z, rng() * 6.28, s));
+      // every sarv leans a breath off plumb — perfect verticals read as bowling pins
+      const e = new THREE.Euler((rng() - 0.5) * 0.1, rng() * 6.28, (rng() - 0.5) * 0.1, 'YXZ');
+      const mk = (sc, dy = 0) => {
+        const m = new THREE.Matrix4().makeRotationFromEuler(e);
+        m.scale(new THREE.Vector3(sc, sc, sc));
+        m.setPosition(x, y + dy, z);
+        return m;
+      };
+      trunkM.push(mk(s));
+      folM.push(mk(s));
+      tipM.push(mk(s * 0.62, 1.65 * s)); // inner spire rides up through the crown
     }
     const profile = [];
     for (let i = 0; i <= 8; i++) {
@@ -327,8 +336,18 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
       // and made the canopy look like a floating leaf on open biomes (snowfields).
       profile.push(new THREE.Vector2(Math.sin(Math.PI * Math.pow(t, 0.75)) * 0.62, 0.42 + t * 3.68));
     }
-    group.add(instanced(new THREE.CylinderGeometry(0.13, 0.2, 1.0, 7).translate(0, 0.5, 0), MATS().woodDark, trunkM));
-    group.add(instanced(new THREE.LatheGeometry(profile, 10), colorMat(0x2e4a2c, 0.95), folM));
+    group.add(instanced(new THREE.CylinderGeometry(0.13, 0.22, 1.1, 7).translate(0, 0.5, 0), MATS().woodDark, trunkM));
+    // faceted two-tone body: dark grounded teardrop + a lighter inner spire that
+    // catches the sun — a grove stops reading as cloned smooth cones
+    const body = instanced(new THREE.LatheGeometry(profile, 7), colorMat(0x2b4629, 0.95), folM);
+    group.add(body);
+    group.add(instanced(new THREE.LatheGeometry(profile, 6), colorMat(0x40603a, 0.95), tipM));
+    const cvar = new THREE.Color();
+    for (let i = 0; i < folM.length; i++) {
+      cvar.setRGB(1, 1, 1).offsetHSL((rng() - 0.5) * 0.03, 0, (rng() - 0.5) * 0.14);
+      body.setColorAt(i, cvar);
+    }
+    if (body.instanceColor) body.instanceColor.needsUpdate = true;
   }
   // trees — Quaternius kit foliage routed by biome (forest=twisted+dead+common, mountain=
   // pine+dead, steppe/desert=dead, the rest=common). Falls back to the procedural broadleaf
@@ -367,11 +386,27 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
         folM3.push(m4(x - 0.6 * s, y - 0.3 * s, z - 0.4 * s, ry, s * 0.66));
       }
       const leaf = colorMat(0x4a6e35, 0.95);
-      const leaf2 = colorMat(0x547a3a, 0.95);
-      treeTarget.add(instanced(new THREE.CylinderGeometry(0.14, 0.24, 1.7, 8).translate(0, 0.8, 0), MATS().wood, trunkM));
-      treeTarget.add(instanced(new THREE.SphereGeometry(1.3, 12, 9).translate(0, 2.7, 0), leaf, folM));
-      treeTarget.add(instanced(new THREE.SphereGeometry(1.0, 11, 8).translate(0, 2.5, 0), leaf2, folM2));
-      treeTarget.add(instanced(new THREE.SphereGeometry(0.85, 10, 8).translate(0, 2.3, 0), leaf, folM3));
+      const leaf2 = colorMat(0x5b7f3c, 0.95);
+      // taller trunk + two visible boughs, canopy as faceted clumps (icosahedra) with
+      // a top knuckle — chunky painterly foliage instead of smooth balloon spheres
+      treeTarget.add(instanced(new THREE.CylinderGeometry(0.14, 0.26, 1.9, 7).translate(0, 0.9, 0), MATS().wood, trunkM));
+      treeTarget.add(instanced(new THREE.CylinderGeometry(0.06, 0.1, 1.1, 5).translate(0, 0.55, 0).rotateZ(0.55).translate(0.28, 1.45, 0), MATS().wood, trunkM));
+      treeTarget.add(instanced(new THREE.CylinderGeometry(0.05, 0.09, 0.9, 5).translate(0, 0.45, 0).rotateZ(-0.5).translate(-0.24, 1.5, 0.15), MATS().wood, trunkM));
+      const clumps = [
+        instanced(new THREE.IcosahedronGeometry(1.3, 0).translate(0, 2.85, 0), leaf, folM),
+        instanced(new THREE.IcosahedronGeometry(0.95, 0).translate(0, 2.55, 0), leaf2, folM2),
+        instanced(new THREE.IcosahedronGeometry(0.82, 0).translate(0, 2.4, 0), leaf, folM3),
+        instanced(new THREE.IcosahedronGeometry(0.66, 0).translate(0, 3.55, 0), leaf2, folM),
+      ];
+      const lvar = new THREE.Color();
+      for (const cm of clumps) {
+        for (let i = 0; i < cm.count; i++) {
+          lvar.setRGB(1, 1, 1).offsetHSL((rng() - 0.5) * 0.04, 0, (rng() - 0.5) * 0.16);
+          cm.setColorAt(i, lvar);
+        }
+        if (cm.instanceColor) cm.instanceColor.needsUpdate = true;
+        treeTarget.add(cm);
+      }
     }
   }
   // forest-floor enrichment (Mazandaran + Manijeh Garden): realistic flowers / mushrooms / boulders +
@@ -394,21 +429,30 @@ export function scatterProps(rng, heightAt, isClear, biomeProps, group, biomeId 
   if (biomeProps.palm) {
     const pts = place(biomeProps.palm, 6);
     for (const p of pts) foliageSpots.push([p[0], p[2], 3.5]);
-    const trunkM = [], folM = [];
+    const trunkM = [], folM = [], dateM = [];
     for (const [x, y, z] of pts) {
       const s = 0.9 + rng() * 0.6;
-      trunkM.push(m4(x, y, z, rng() * 6.28, s));
-      for (let f = 0; f < 6; f++) {
-        const a = (f / 6) * Math.PI * 2 + rng();
-        const m = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0.85, a, 0, 'YXZ'));
-        m.scale(new THREE.Vector3(s, s, s));
+      const baseA = rng() * 6.28;
+      trunkM.push(m4(x, y, z, baseA, s));
+      // eight fronds in two rings: an upright inner crown and a drooping outer arch —
+      // the alternation is what makes the crown read as a real date palm
+      for (let f = 0; f < 8; f++) {
+        const a = baseA + (f / 8) * Math.PI * 2 + rng() * 0.35;
+        const droop = f % 2 ? 1.28 : 0.66;
+        const m = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(droop, a, 0, 'YXZ'));
+        m.scale(new THREE.Vector3(s * 0.95, s * (f % 2 ? 1.2 : 1.0), s * 0.5));
         m.setPosition(x, y + 3.25 * s, z);
         folM.push(m);
       }
+      dateM.push(m4(x, y + 3.0 * s, z, baseA, s * 0.55)); // the hanging date cluster
     }
-    group.add(instanced(new THREE.CylinderGeometry(0.12, 0.22, 3.2, 8).translate(0, 1.6, 0), MATS().wood, trunkM));
-    const frond = new THREE.ConeGeometry(0.22, 1.9, 6).translate(0, 0.95, 0);
-    group.add(instanced(frond, colorMat(0x5a7a30, 0.9), folM));
+    group.add(instanced(new THREE.CylinderGeometry(0.12, 0.24, 3.2, 8).translate(0, 1.6, 0), MATS().wood, trunkM));
+    // frond: a flattened tapered blade (the z-squash in the matrix thins it further)
+    const frond = new THREE.ConeGeometry(0.3, 2.3, 5).translate(0, 1.15, 0);
+    const fronds = instanced(frond, colorMat(0x5a7a30, 0.9), folM);
+    fronds.castShadow = false;
+    group.add(fronds);
+    group.add(instanced(new THREE.SphereGeometry(0.2, 7, 5), colorMat(0x9a6a2a, 0.9), dateM));
   }
   // reeds
   if (biomeProps.reeds) {
