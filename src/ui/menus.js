@@ -153,6 +153,13 @@ export class Menus {
   _buildIranMap(sorted, profile, endlessPick, sandboxPick) {
     const POS = Menus.MAP_POS;
     const pane = el('div', { id: 'campaignMap' });
+    // painted-map artwork: when the authored painting exists it becomes the terrain
+    // (public/assets/ui/map-iran.jpg, 100:56 — brief in memory/map-art-prompt.md) and
+    // the procedural inked doodles hide; a missing file falls back to the CSS parchment
+    const art = el('img', { class: 'map-art', src: 'assets/ui/map-iran.jpg', alt: '', draggable: 'false' });
+    art.onload = () => pane.classList.add('has-art');
+    art.onerror = () => art.remove();
+    pane.append(art);
     const NS = 'http://www.w3.org/2000/svg';
     const mk = (tag, attrs = {}, text = null) => {
       const n = document.createElementNS(NS, tag);
@@ -292,8 +299,10 @@ export class Menus {
         const nx = (e.clientX - r.left) / r.width - 0.5;
         const ny = (e.clientY - r.top) / r.height - 0.5;
         terrain.style.transform = `translate(${(-nx * 1.4).toFixed(2)}px, ${(-ny * 1).toFixed(2)}px)`;
+        // the painting drifts too (pre-scaled ~3% in CSS so edges never peek in)
+        art.style.transform = `scale(1.035) translate(${(-nx * 8).toFixed(1)}px, ${(-ny * 5).toFixed(1)}px)`;
       });
-      pane.addEventListener('mouseleave', () => { terrain.style.transform = ''; });
+      pane.addEventListener('mouseleave', () => { terrain.style.transform = ''; art.style.transform = ''; });
     }
     return pane;
   }

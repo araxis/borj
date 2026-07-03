@@ -3934,6 +3934,35 @@ body.rtl #codexDetail .rp-section .storyref { border-radius: 7px 0 0 7px; }
    ============================================================ */
 
 #campaignMap .map-terrain { transition: transform 0.25s ease-out; will-change: transform; }
+
+/* the authored painting (assets/ui/map-iran.jpg) — sits under the SVG roads/nodes */
+#campaignMap .map-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill; /* authored at the pane's exact 100:56 ratio */
+  transform: scale(1.035); /* head-room for the parallax drift */
+  transition: transform 0.25s ease-out;
+  will-change: transform;
+}
+/* with real painted terrain, the procedural inked doodles retire; calligraphy,
+   compass, roads and nodes stay composited on top */
+#campaignMap.has-art .map-sea, #campaignMap.has-art .map-wave, #campaignMap.has-art .map-river,
+#campaignMap.has-art .map-ridge, #campaignMap.has-art .map-dune { display: none; }
+#campaignMap.has-art .map-region { fill: rgba(42, 28, 10, 0.62); }
+/* reference-style cream dashed trails read on busy paint where faint ink vanishes */
+#campaignMap.has-art .journey-line {
+  stroke: rgba(244, 234, 205, 0.85);
+  stroke-width: 0.4;
+  filter: drop-shadow(0 0 0.5px rgba(30, 20, 8, 0.8));
+}
+#campaignMap.has-art .journey-line.done { stroke: rgba(244, 205, 110, 1); stroke-width: 0.62; }
+#campaignMap.has-art .map-node-name {
+  color: #ffefc6;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 5px rgba(0, 0, 0, 0.5);
+}
+#campaignMap.has-art .map-node.locked .map-node-name { color: #e8d5a8; opacity: 0.9; }
 #campaignMap .map-sea {
   fill: rgba(78, 128, 128, 0.3);
   stroke: rgba(60, 104, 104, 0.45);
