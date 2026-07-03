@@ -321,6 +321,10 @@ export class GameMap {
     buildCurtainWall(this, rng);
     if (['plains', 'steppe', 'valley', 'river', 'desert'].includes(biome)) buildVillage(this, rng);
     if (['plains', 'steppe', 'valley', 'river', 'desert'].includes(biome)) dressMarket(this, rng);
+    // round 4 A1: the living city quarter near the citadel (zabulistan has its authored kit)
+    if (mapDef.id !== 'zabulistan' && ['plains', 'steppe', 'valley', 'river', 'desert', 'highland'].includes(biome)) {
+      buildCityQuarter(this, rng);
+    }
     if (this.river) buildDocks(this, rng);
     if (mapDef.id !== 'zabulistan' && ['desert', 'steppe', 'highland', 'plains', 'river'].includes(biome)) buildRuinedColumns(this, rng);
     if (mapDef.id !== 'zabulistan') scatterHeroProps(this, rng); // realistic weathered rock/deadwood/dry props (biome-routed, capped)
@@ -654,6 +658,119 @@ function buildNowruzGarlands(map, rng, placed) {
     g.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; } });
     map.kitGroup.add(g);
   }
+}
+
+// Round 4 A1 — the City Quarter: a real town block near the citadel approach with a
+// bazaar lane, two side alleys, and a well square; buildings packed to FACE the
+// streets. The board anchors on a living city instead of scattered compounds.
+function buildCityQuarter(map, rng) {
+  if (!propReady('MudbrickHouse')) return; // town fabric GLBs not ready → skip (never-break)
+  const path = map.paths?.[0];
+  if (!path) return;
+  const CELL = 5.2, COLS = 6, ROWS = 5;
+  const halfW = (COLS * CELL) / 2;
+  // site: walk the final approach and score each flank by how clear its footprint is;
+  // take the LEAST-blocked site rather than demanding a perfectly empty one (these
+  // dense boards never have a fully-clear 23x20u pocket) — blocked cells just skip
+  // their building later, so a mostly-clear site still yields a convincing quarter.
+  let site = null, bestFree = -1;
+  for (const back of [24, 30, 36, 42, 48]) {
+    const s = path.samples[Math.max(0, path.samples.length - back)];
+    for (const side of [1, -1]) {
+      const cx = s.pos.x - s.tangent.z * side * (halfW + 8);
+      const cz = s.pos.z + s.tangent.x * side * (halfW + 8);
+      if (Math.hypot(cx, cz) > 66) continue;
+      let free = 0;
+      for (let gx = -2; gx <= 2; gx++) {
+        for (let gz = -2; gz <= 2; gz++) {
+          if (map._isClear(cx + gx * halfW * 0.42, cz + gz * halfW * 0.42, 2.6)) free++;
+        }
+      }
+      if (free > bestFree) { bestFree = free; site = { cx, cz, yaw: Math.atan2(s.tangent.x, s.tangent.z) }; }
+    }
+  }
+  if (!site || bestFree < 8) return; // even the best flank is too crowded — skip the quarter
+  const { cx, cz, yaw } = site;
+  const cos = Math.cos(yaw), sin = Math.sin(yaw);
+  const toWorld = (u, v) => {
+    const lx = (u - (COLS - 1) / 2) * CELL, lz = (v - (ROWS - 1) / 2) * CELL;
+    return [cx + lx * cos + lz * sin, cz - lx * sin + lz * cos];
+  };
+  // street plan: bazaar lane = middle row; alleys = columns 1 and 4; plaza = the two
+  // cells north of the lane between the alleys, with the town well at their heart
+  const LANE_V = 2;
+  const isStreet = (u, v) => v === LANE_V || u === 1 || u === 4;
+  const isPlaza = (u, v) => v === 1 && (u === 2 || u === 3);
+  let housesPlaced = 0;
+  for (let u = 0; u < COLS; u++) {
+    for (let v = 0; v < ROWS; v++) {
+      if (isStreet(u, v) || isPlaza(u, v)) continue;
+      if (rng() < 0.12) continue; // the odd courtyard garden gap
+      const [wx, wz] = toWorld(u, v);
+      if (!map._isClear(wx, wz, 2.2)) continue; // this cell is taken (road/prop) — skip it
+      // face the nearest street: the lane row first, else the nearer alley column
+      const [sx, sz] = Math.abs(v - LANE_V) <= Math.min(Math.abs(u - 1), Math.abs(u - 4))
+        ? toWorld(u, LANE_V) : toWorld(u < 2.5 ? 1 : 4, v);
+      const ry = Math.atan2(sx - wx, sz - wz);
+      if (placeBuilding(map, rng() < 0.62 ? 'MudbrickHouse' : 'BadgirHouse', wx, wz, ry, 4.6)) {
+        housesPlaced++;
+        if (housesPlaced === 2 || housesPlaced === 9) map.refugePoints.push([wx, wz]);
+      }
+    }
+  }
+  if (housesPlaced < 4) return; // too few fit to read as a quarter — leave it be
+  // market stalls hugging the bazaar lane's edges
+  for (const [u, sideV] of [[0, 0.52], [2, -0.52], [3, 0.52], [5, -0.52]]) {
+    const [wx, wz] = toWorld(u, LANE_V + sideV);
+    if (!map._isClear(wx, wz, 1.6)) continue;
+    const [lx, lz] = toWorld(u, LANE_V);
+    placeBuilding(map, 'MarketStall', wx, wz, Math.atan2(lx - wx, lz - wz), 2.9);
+  }
+  // the town well at the plaza's heart (nudge to a clear spot if the center is taken)
+  let [px, pz] = toWorld(2.5, 1);
+  if (!map._isClear(px, pz, 1.4)) { const alt = toWorld(2.5, 2); if (map._isClear(alt[0], alt[1], 1.4)) [px, pz] = alt; }
+  const py = map.heightAt(px, pz);
+  const stone = new THREE.MeshLambertMaterial({ color: 0x9a8d77 });
+  const woodM = new THREE.MeshLambertMaterial({ color: 0x6b4a2c });
+  const well = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.1, 0.7, 10), stone);
+  ring.position.y = 0.35;
+  const water = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.82, 0.06, 10), new THREE.MeshLambertMaterial({ color: 0x2e6f86 }));
+  water.position.y = 0.6;
+  well.add(ring, water);
+  for (const sx of [-1, 1]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 2.0, 6), woodM);
+    post.position.set(sx * 0.9, 1.0, 0);
+    well.add(post);
+  }
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(1.35, 0.7, 4), woodM);
+  roof.position.y = 2.25;
+  roof.rotation.y = Math.PI / 4;
+  well.add(roof);
+  well.position.set(px, py, pz);
+  well.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  map.kitGroup.add(well);
+  // lane lanterns burning at both ends of the bazaar
+  for (const u of [0, 5]) {
+    const [wx, wz] = toWorld(u, LANE_V);
+    const wy = map.heightAt(wx, wz);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 2.4, 6), woodM);
+    pole.position.set(wx, wy + 1.2, wz);
+    pole.castShadow = true;
+    map.kitGroup.add(pole);
+    const fl = makeFlame(0.42);
+    fl.position.set(wx, wy + 2.5, wz);
+    map.group.add(fl);
+    map.propFlames.push(fl);
+  }
+  // the quarter LIVES: villagers stand in the plaza and along the lane
+  for (const [u, v] of [[2.5, 0.8], [2.9, 1.2], [1.5, LANE_V], [3.6, LANE_V], [4.6, LANE_V]]) {
+    const [wx, wz] = toWorld(u, v);
+    if (map._isClear(wx, wz, 0.8)) {
+      map.villagerSpots.push([wx, map.heightAt(wx, wz), wz, rng() * 6.28318]);
+    }
+  }
+  map.refugePoints.push([px, pz]);
 }
 
 // River docks at non-bridge banks (Madayen / Sistan) with barrels & a ladder.
