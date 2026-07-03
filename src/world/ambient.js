@@ -965,7 +965,9 @@ export class Ambient {
     const CLOTHS = [0x7a5c3e, 0x8a6d3a, 0x6b5536, 0x9a7b46, 0x55614e, 0x46566a, 0x8a4a3a, 0xa8925e, 0x6a4a5a];
     // mobed fire-priests (tagged spots at the chahar-taq) always spawn; commoners fill the rest
     const allSpots = map.villagerSpots || [];
-    const lifeSpots = [...allSpots.filter((s) => s[4] === 'mobed'), ...allSpots.filter((s) => s[4] !== 'mobed').slice(0, 6)];
+    // more life in a living city — the quarter fills its lane and plaza (cap raised
+    // from 6 so the town reads as populated, not a ghost settlement)
+    const lifeSpots = [...allSpots.filter((s) => s[4] === 'mobed'), ...allSpots.filter((s) => s[4] !== 'mobed').slice(0, 14)];
     for (const [x, y, z, ry, kind] of lifeSpots) {
       const mobed = kind === 'mobed';
       const female = !mobed && rng() < 0.4;
@@ -985,7 +987,8 @@ export class Ambient {
       v.group.position.set(x, y, z);
       v.group.rotation.y = ry;
       this.group.add(v.group);
-      this.villagers.push({ rig: v.rig, group: v.group, phase: rng() * 6.28318, state: 'idle', t: 0, home: { x, z }, homeRy: ry });
+      // roughly half the townsfolk stroll their neighborhood (mobeds tend the fire and stay put)
+      this.villagers.push({ rig: v.rig, group: v.group, phase: rng() * 6.28318, state: 'idle', t: 0, home: { x, z }, homeRy: ry, canStroll: !mobed && rng() < 0.5, strollT: 2 + rng() * 7, strollTarget: null });
     }
   }
 
@@ -1242,9 +1245,23 @@ export class Ambient {
           pos.y = this.map.heightAt(pos.x, pos.z);
           animWalk(v.rig, time, 0.85);
         } else { v.group.rotation.y = v.homeRy; v.state = 'idle'; }
-      } else { // idle: breathe + slow look around
+      } else if (v.state === 'stroll') {
+        // amble to the chosen spot in the neighborhood, then loiter (back to idle)
+        const dx = v.strollTarget.x - pos.x, dz = v.strollTarget.z - pos.z, d = Math.hypot(dx, dz);
+        if (d > 0.4) {
+          v.group.rotation.y = Math.atan2(dx, dz);
+          pos.x += (dx / d) * 1.3 * dt; pos.z += (dz / d) * 1.3 * dt;
+          pos.y = this.map.heightAt(pos.x, pos.z);
+          animWalk(v.rig, time, 1.0);
+        } else { v.state = 'idle'; v.strollT = 5 + Math.random() * 7; }
+      } else { // idle: breathe + slow look around, and townsfolk occasionally wander off
         animIdle(v.rig, time + v.phase);
         if (v.rig.head) v.rig.head.rotation.y = Math.sin((time + v.phase) * 0.5) * 0.25;
+        if (v.canStroll && (v.strollT -= dt) <= 0) {
+          const a = Math.random() * 6.28318, rr = 2 + Math.random() * 6;
+          v.strollTarget = { x: v.home.x + Math.cos(a) * rr, z: v.home.z + Math.sin(a) * rr };
+          v.state = 'stroll';
+        }
       }
     }
 
