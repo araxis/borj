@@ -24,7 +24,7 @@ import { bossChallengeDef } from '../data/bosschallenges.js';
 import { hasPalace, loadPalace } from '../core/assets.js';
 import { makeRng } from '../world/noise.js';
 import { audio } from '../core/audio.js';
-import { loadProfile, markMapCompleted, unlockHero, recordEndless, getHeroRank, setHeroRank, recordBossSaga } from '../core/save.js';
+import { loadProfile, markMapCompleted, unlockHero, recordEndless, getHeroRank, setHeroRank, recordBossSaga, addKherad, hasResearch } from '../core/save.js';
 import { saveBattle, clearBattle } from '../core/battlesave.js';
 import { updateFire } from '../fx/fire.js';
 import { OathField } from '../fx/oathfield.js';
@@ -191,6 +191,7 @@ export class Game {
   buildTower(towerDefId, pad) {
     const def = TOWERS_BY_ID[towerDefId];
     if (!def || pad.tower || (pad.rubbleT || 0) > 0) return null;
+    if (def.research && !hasResearch(def.research)) return null; // not yet studied in the Ganj-e Danesh
     if (!this.canAfford(def.cost)) { this.emit('toast', 'hud.notEnoughGold'); return null; }
     this.gold -= def.cost;
     const tower = new Tower(this, def, pad);
@@ -4141,10 +4142,15 @@ export class Game {
     let income = 25 + this.waveIdx * 4;
     for (const t of this.towers) if (t.alive) income += Math.round(t.getStats().income || 0);
     this.gold += income;
+    // houses of learning bank wisdom for the ages — persists straight to the profile
+    // (not in sandbox: the QA state would farm the treasury)
+    let kherad = 0;
+    for (const t of this.towers) if (t.alive) kherad += Math.round(t.getStats().kherad || 0);
+    if (kherad > 0 && !this.sandbox) addKherad(kherad);
     this.audio.coin();
     this.audio.setIntensity(0.15);
     this.emit('goldChanged', this.gold);
-    this.emit('waveEnded', { wave: this.waveIdx, income });
+    this.emit('waveEnded', { wave: this.waveIdx, income, kherad: this.sandbox ? 0 : kherad });
     if (this.lives >= (this._waveStartLives ?? this.lives)) this.addFarr(10 + (this.waveMod ? 3 : 0), 'perfectWave');
 
     const isLastCampaignWave = !this.endlessMode && this.waveIdx >= this.mapDef.waves;

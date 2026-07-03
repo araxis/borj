@@ -523,6 +523,8 @@ export const FA = {
   'map.locked': 'آن‌سوی مرز — نخست راه را بگشای.',
   'kherad.gained': 'خردِ اندوخته: +{n}',
   'kherad.total': 'گنج دانش: {n}',
+  'role.wisdom': 'خرد',
+  'panel.kherad': 'خرد در هر موج',
   'codex.cost': 'بها',
   'codex.hp': 'توان',
 

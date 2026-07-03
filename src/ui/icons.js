@@ -5,7 +5,7 @@ import { el } from './dom.js';
 
 export const ROLE_ICONS = {
   archer: '🏹', siege: '🪨', fire: '🔥', magic: '📜', support: '🪶',
-  aura: '🚩', economy: '🪙', barracks: '🛡️', trap: '🕳️',
+  aura: '🚩', economy: '🪙', barracks: '🛡️', trap: '🕳️', wisdom: '📖',
 };
 export const ROLE_ICON_SRC = {
   archer: 'assets/ui/role-icons/archer.svg', siege: 'assets/ui/role-icons/siege.svg',

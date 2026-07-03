@@ -301,6 +301,7 @@ export class Tower {
       rate: d.rate || 0,
       splash: d.splash || 0,
       income: (d.income || 0) * (1 + this.ageIdx * 0.35),
+      kherad: (d.kherad || 0) * (1 + this.ageIdx * 0.5), // wisdom banked per wave (houses of learning)
       heal: d.heal ? { hps: d.heal.hps * age, radius: d.heal.radius } : null,
       repair: d.repair ? { hps: d.repair.hps * age, radius: d.repair.radius } : null,
       vsBoss: d.vsBoss || 1, vsDiv: d.vsDiv || 1, vsBeast: d.vsBeast || 1, vsFlying: d.vsFlying || 1,

@@ -519,6 +519,8 @@ export const EN = {
   'map.locked': 'Beyond the frontier — conquer the road first.',
   'kherad.gained': 'Wisdom gathered: +{n} Kherad',
   'kherad.total': 'Treasury of Knowledge: {n}',
+  'role.wisdom': 'Wisdom',
+  'panel.kherad': 'Wisdom / wave',
   'codex.cost': 'Cost',
   'codex.hp': 'Vitality',
 

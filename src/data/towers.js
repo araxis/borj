@@ -390,6 +390,31 @@ export const TOWERS = [
     model: 'coldKeep', vfx: 'snowGust',
     compatHeroes: ['esfandiyar', 'pashotan', 'kay-khosrow'],
   },
+  // ---- houses of learning (round 3): they fight with wisdom, not arrows.
+  // kherad = wisdom banked PER WAVE to the persistent profile (game._endWave) ----
+  {
+    id: 'ketabkhane', name: 'Ketabkhane Library', faName: 'کتابخانه',
+    sourceRef: "Praise of wisdom (Kherad) in Ferdowsi's exordium; the scribal tradition of the courts",
+    lore: 'A domed house of scrolls. Scribes copy what the war would burn; every wave it outlasts banks wisdom for the ages.',
+    loreFa: 'خانه‌ای گنبددار برای نسخه‌ها. هر موجی که از سر بگذراند، خردی برای آیندگان می‌اندوزد.',
+    role: 'wisdom', dmgType: null, cost: 120,
+    damage: 0, range: 0, rate: 0, splash: 0, kherad: 2,
+    affinity: ['wisdom', 'craft', 'sacred'], placeRef: null,
+    model: 'ketabkhane', vfx: null,
+    compatHeroes: ['zal', 'jamshid'],
+  },
+  {
+    id: 'daneshkade', name: 'Academy of Gondishapur', faName: 'دانشگاه گندی‌شاپور',
+    sourceRef: "Anushirvan's reign; Bozorgmehr and the seat of learning at Gondishapur",
+    lore: 'The great academy: physicians, astronomers, and translators under one dome. Wisdom flows faster where masters teach.',
+    loreFa: 'دانشگاه بزرگ: پزشکان و اخترشناسان و مترجمان زیر یک گنبد. آن‌جا که استادان درس می‌دهند، خرد تندتر می‌جوشد.',
+    role: 'wisdom', dmgType: null, cost: 260,
+    damage: 0, range: 0, rate: 0, splash: 0, kherad: 5,
+    research: 'learning-academy', // hidden until unlocked in the Ganj-e Danesh (K3)
+    affinity: ['wisdom', 'royal', 'craft', 'sasanian'], placeRef: null,
+    model: 'daneshkade', vfx: null,
+    compatHeroes: ['jamshid', 'kay-khosrow'],
+  },
 ];
 
 export const TOWERS_BY_ID = Object.fromEntries(TOWERS.map((t) => [t.id, t]));

@@ -15,6 +15,7 @@ import { palaceDef } from '../data/palaces.js';
 import { bossChallengeDef } from '../data/bosschallenges.js';
 import { FUSIONS } from '../data/fusions.js';
 import { heroBond } from '../entities/tower.js';
+import { hasResearch } from '../core/save.js';
 import { audio } from '../core/audio.js';
 
 // null-safe append: native DOM append() stringifies null into the text "null"
@@ -25,7 +26,10 @@ function put(parent, ...kids) {
 // Icon maps + crafted-SVG element helpers live in icons.js (shared with the codex).
 // Both card tabs filter by combat role; the role lists are derived from the data
 // at render time so they are always complete. TOWER_ROLE_ORDER only curates order.
-const TOWER_ROLE_ORDER = ['archer', 'siege', 'fire', 'magic', 'support', 'aura', 'economy', 'barracks', 'trap'];
+const TOWER_ROLE_ORDER = ['archer', 'siege', 'fire', 'magic', 'support', 'aura', 'economy', 'barracks', 'trap', 'wisdom'];
+
+// research-locked entries stay out of the catalog until studied in the Ganj-e Danesh
+const listableTowers = () => TOWERS.filter((d) => !d.research || hasResearch(d.research));
 
 const PALACE_ACTION_ICONS = {
   oath: 'assets/ui/palace-actions/oath.svg',
@@ -925,7 +929,7 @@ export class HUD {
     const active = this.filter[tab];
     // Derive the COMPLETE role set straight from the data so no role is ever
     // missing; TOWER_ROLE_ORDER only curates order, with any extras appended.
-    const source = tab === 'towers' ? TOWERS : HEROES;
+    const source = tab === 'towers' ? listableTowers() : HEROES;
     const icons = tab === 'towers' ? ROLE_ICONS : HERO_ICONS;
     const present = [...new Set(source.map((x) => x.role))];
     const curated = tab === 'towers' ? TOWER_ROLE_ORDER : [];
@@ -956,7 +960,7 @@ export class HUD {
     const grid = clear($('#cardGrid'));
     const f = this.filter[this.activeTab];
     if (this.activeTab === 'towers') {
-      for (const def of (f ? TOWERS.filter((d) => d.role === f) : TOWERS)) {
+      for (const def of (f ? listableTowers().filter((d) => d.role === f) : listableTowers())) {
         const card = el('div', { class: 'card', 'data-id': def.id, 'data-cost': def.cost, 'aria-label': `${tName(def)} ${t('hud.cost')} ${tNum(def.cost)}` });
         const portrait = el('div', { class: 'portrait' });
         const place = def.placeRef ? PLACES_BY_ID[def.placeRef] : null;
@@ -1484,6 +1488,7 @@ export class HUD {
       def.range ? [t('panel.range'), tNum(def.range)] : null,
       def.rate ? [t('panel.dps'), tNum(Math.round(def.damage * def.rate * 10) / 10)] : null,
       def.income ? [t('panel.income'), tNum(def.income)] : null,
+      def.kherad ? [t('panel.kherad'), tNum(def.kherad)] : null,
       def.garrison ? [t('panel.garrison'), tName(SOLDIERS_BY_ID[def.garrison.soldier])] : null,
       [t('hud.cost'), tNum(def.cost)],
     ].filter(Boolean);
@@ -1532,6 +1537,7 @@ export class HUD {
       stats.range ? [t('panel.range'), tNum(Math.round(stats.range * 10) / 10)] : null,
       stats.rate ? [t('panel.dps'), tNum(Math.round(stats.damage * stats.rate))] : null,
       stats.income ? [t('panel.income'), tNum(Math.round(stats.income))] : null,
+      stats.kherad ? [t('panel.kherad'), tNum(Math.round(stats.kherad))] : null,
       tower.palaceSynergyT > 0 ? [
         tOpt('palace.synergy', 'Palace-Commander Synergy'),
         tOpt('palace.synergyPanel', 'Answered the palace for {s}s').replace('{s}', tNum(Math.ceil(tower.palaceSynergyT))),

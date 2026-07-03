@@ -738,6 +738,48 @@ const RECIPES = {
     t.layers.crown.add(b.build());
     return t;
   },
+  // ---- houses of learning (round 3): wisdom buildings, not war towers ----
+  ketabkhane: (age) => {
+    // the domed library: turquoise dome over a drum of scroll-racks; scribes work
+    // by a low brazier that never goes out
+    const t = genericTower({ age, wallMat: 'plaster', baseMat: 'mudbrick', floors: 1, crown: 'dome', bannerColor: 'clothTeal', torches: 2 });
+    const b = new MeshBuilder();
+    for (const a of [0.4, Math.PI * 0.75, Math.PI * 1.4]) {
+      const x = Math.cos(a) * 1.52, z = Math.sin(a) * 1.52;
+      b.box(0.95, 1.35, 0.26, 'woodDark', x, 0.95, z, -a); // pigeonhole rack
+      for (let row = 0; row < 3; row++) {
+        // scroll bundles peeking from the shelves
+        b.box(0.78, 0.16, 0.3, 'plaster', x, 0.6 + row * 0.42, z, -a);
+      }
+    }
+    b.box(0.52, 0.08, 0.4, 'wood', 0.85, t.height + 0.4, 0.45, 0.5, 0, 0.35); // tilted lectern
+    t.layers.mid.add(b.build());
+    const flame = makeFlame(0.55);
+    flame.position.set(-0.85, t.height + 0.28, -0.5);
+    t.group.add(flame);
+    t.animated.flames.push(flame);
+    return t;
+  },
+  daneshkade: (age) => {
+    // the Academy of Gondishapur: colonnaded teaching hall under a dome, crowned
+    // by a golden astrolabe ring — physicians, astronomers, translators
+    const t = genericTower({ age, wallMat: 'stoneWhite', baseMat: 'stone', floors: 2, crown: 'dome', bannerColor: 'clothTeal', glowRelief: true });
+    const b = new MeshBuilder();
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      b.cyl(0.14, 0.17, 1.7, 7, 'stoneWhite', Math.cos(a) * 1.9, 0.85, Math.sin(a) * 1.9);
+      b.box(0.42, 0.14, 0.42, 'stone', Math.cos(a) * 1.9, 1.78, Math.sin(a) * 1.9, -a);
+    }
+    t.layers.base.add(b.build());
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.85, 0.05, 6, 22), MATS().gold);
+    ring.position.set(0, t.height + 1.5, 0);
+    ring.rotation.x = 0.9;
+    const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.04, 6, 18), MATS().gold);
+    ring2.position.copy(ring.position);
+    ring2.rotation.set(1.9, 0.7, 0);
+    t.group.add(ring, ring2);
+    return t;
+  },
 };
 
 // Crown FX the engine attaches to a bare tower GLB (the GLBs are modeled with empty
