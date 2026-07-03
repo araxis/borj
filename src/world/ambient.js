@@ -1073,6 +1073,10 @@ export class Ambient {
 
   update(dt, time, game) {
     if (settings.get('reducedMotion')) dt *= 0.3;
+    // round 4 B2: the town reacts to the battle — detect the wave-horn rising edge
+    const waveNow = !!game?.waveActive;
+    const waveStarted = waveNow && !this._waveWas;
+    this._waveWas = waveNow;
     for (const c of this.clouds) {
       c.sp.position.x += c.vx * dt;
       if (c.sp.position.x > 100) c.sp.position.x = -100;
@@ -1261,7 +1265,7 @@ export class Ambient {
           b.g.rotation.y += Math.sin(time * 0.8 + b.seed) * dt * 0.6;
         }
         F.t -= dt;
-        let scare = F.t <= 0;
+        let scare = F.t <= 0 || waveStarted; // the wave-horn startles the whole flock aloft
         if (!scare && game?.enemies) {
           for (const e of game.enemies) {
             if (e.alive && e.group.position.distanceToSquared(F.center) < 225) { scare = true; break; }
@@ -1418,7 +1422,8 @@ export class Ambient {
       } else { // idle: breathe + slow look around, and townsfolk occasionally wander off
         animIdle(v.rig, time + v.phase);
         if (v.rig.head) v.rig.head.rotation.y = Math.sin((time + v.phase) * 0.5) * 0.25;
-        if (v.canStroll && (v.strollT -= dt) <= 0) {
+        // townsfolk don't run errands during a wave — they stay close, watching the road
+        if (v.canStroll && !waveNow && (v.strollT -= dt) <= 0) {
           const a = Math.random() * 6.28318, rr = 2 + Math.random() * 6;
           v.strollTarget = { x: v.home.x + Math.cos(a) * rr, z: v.home.z + Math.sin(a) * rr };
           v.state = 'stroll';
