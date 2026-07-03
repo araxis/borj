@@ -337,6 +337,7 @@ export class Tower {
         if (m.hpMod) s.hpMod += m.hpMod;
         if (m.heal && s.heal) s.heal.hps *= 1 + m.heal;
         if (m.incomeFlat) s.income += m.incomeFlat;
+        if (m.burn) s.burn = s.burn ? { dps: s.burn.dps + m.burn.dps, dur: Math.max(s.burn.dur, m.burn.dur) } : { ...m.burn };
       }
     }
     if (this.hero) {
@@ -601,6 +602,13 @@ export class Tower {
         }
       }
       return;
+    }
+    // specialization procs: reed-storm rakes the line, storm-calling thunderclaps
+    const proc = this.path ? TOWER_PATHS[this.def.role]?.[this.path]?.proc : null;
+    if (proc === 'volley' && this.shotCount % 5 === 0) stats = { ...stats, pierce: stats.pierce + 2 };
+    if (proc === 'storm' && this.shotCount % 6 === 0) {
+      stats = { ...stats, splash: Math.max(stats.splash, 2.2), damage: stats.damage * 1.4 };
+      this.game.particles.burst(target.group.position.clone().setY(target.group.position.y + 1.5), 14, { speed: 3, life: 0.5, size: 0.45, color: [0.75, 0.85, 1], grav: 1 });
     }
     // twinArrow: every 5th arrow strikes two enemies in a line
     const pierce = stats.pierce + (this.hero?.special.key === 'twinArrow' && this.shotCount % 5 === 0 ? 2 : 0);

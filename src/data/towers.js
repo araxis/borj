@@ -430,11 +430,11 @@ export const PATH_COST = 160;
 
 export const TOWER_PATHS = {
   archer: {
-    A: { id: 'reedstorm', name: 'Reed-Storm Volleys', faName: 'رگبار نیزار', desc: 'A hail of shafts: +35% speed, −10% damage.', descFa: 'رگباری از تیر: +۳۵٪ شتاب، −۱۰٪ آسیب.', mods: { rate: 0.35, damage: -0.1 }, addon: 'crossbowBattery' },
+    A: { id: 'reedstorm', name: 'Reed-Storm Volleys', faName: 'رگبار نیزار', desc: 'A hail of shafts: +35% speed, −10% damage; every 5th volley rakes the whole line.', descFa: 'رگباری از تیر: +۳۵٪ شتاب، −۱۰٪ آسیب؛ هر پنجمین رگبار تمام صف را می‌روبد.', mods: { rate: 0.35, damage: -0.1 }, proc: 'volley', addon: 'crossbowBattery' },
     B: { id: 'gavpiercer', name: 'Gav-Piercer Bolts', faName: 'گاوشکاف', desc: 'Heavy bolts: +30% damage and each pierces one more foe.', descFa: 'تیرهای سنگین: +۳۰٪ آسیب و هر تیر یک دشمن بیشتر را می‌شکافد.', mods: { damage: 0.3, pierce: 1 }, addon: 'ballista' },
   },
   siege: {
-    A: { id: 'naft', name: 'Naft Firepots', faName: 'قره‌های نفت', desc: 'Wider blasts: +40% splash, +10% vs great enemies.', descFa: 'انفجار گسترده‌تر: +۴۰٪ دامنه، +۱۰٪ در برابر دشمنان بزرگ.', mods: { splash: 0.4, vsBoss: 0.1 }, addon: 'naftLauncher' },
+    A: { id: 'naft', name: 'Naft Firepots', faName: 'قره‌های نفت', desc: 'Wider blasts that set burning naft: +40% splash, +10% vs great enemies.', descFa: 'انفجار گسترده‌تر با نفت سوزان: +۴۰٪ دامنه، +۱۰٪ در برابر دشمنان بزرگ.', mods: { splash: 0.4, vsBoss: 0.1, burn: { dps: 6, dur: 2 } }, addon: 'naftLauncher' },
     B: { id: 'greatarm', name: 'The Great Arm', faName: 'بازوی بزرگ', desc: 'Mountain-breaking stones: +45% damage, −15% speed.', descFa: 'سنگ‌های کوه‌شکن: +۴۵٪ آسیب، −۱۵٪ شتاب.', mods: { damage: 0.45, rate: -0.15 }, addon: 'greatArm' },
   },
   fire: {
@@ -443,7 +443,7 @@ export const TOWER_PATHS = {
   },
   magic: {
     A: { id: 'binding', name: 'Binding Words', faName: 'کلام بند', desc: 'Spells shackle: +15% stun chance, +10% damage.', descFa: 'افسون‌ها می‌بندند: +۱۵٪ بخت میخکوب، +۱۰٪ آسیب.', mods: { stunChance: 0.15, damage: 0.1 }, addon: 'sealRing' },
-    B: { id: 'stormcall', name: 'Storm-Calling', faName: 'توفان‌خوانی', desc: 'The sky answers: +30% damage, +15% range.', descFa: 'آسمان پاسخ می‌دهد: +۳۰٪ آسیب، +۱۵٪ برد.', mods: { damage: 0.3, range: 0.15 }, addon: 'stormFinial' },
+    B: { id: 'stormcall', name: 'Storm-Calling', faName: 'توفان‌خوانی', desc: 'The sky answers: +30% damage, +15% range; every 6th bolt strikes as a thunderclap.', descFa: 'آسمان پاسخ می‌دهد: +۳۰٪ آسیب، +۱۵٪ برد؛ هر ششمین آذرخش چون تندر می‌کوبد.', mods: { damage: 0.3, range: 0.15 }, proc: 'storm', addon: 'stormFinial' },
   },
   support: {
     A: { id: 'mercy', name: 'Simurgh\'s Mercy', faName: 'مهر سیمرغ', desc: 'Healing feathers: +40% healing.', descFa: 'پرهای شفابخش: +۴۰٪ درمان.', mods: { heal: 0.4 }, addon: 'featherCrown' },
