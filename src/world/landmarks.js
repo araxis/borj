@@ -573,6 +573,64 @@ function buildFactionStandards(map, rng, group) {
   }
 }
 
+// a wrecked supply cart: tilted bed on a snapped axle, one wheel canted, one flat
+// in the dirt, cargo spilled at the low corner — the road's last load never made it
+function brokenCart() {
+  const M = MATS();
+  const g = new THREE.Group();
+  const wood = M.wood, dark = M.woodDark;
+  const bed = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.1, 1.05), wood);
+  bed.position.set(0, 0.42, 0);
+  bed.rotation.set(0.07, 0, 0.3);
+  g.add(bed);
+  for (const side of [-1, 1]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.16, 0.06), dark);
+    rail.position.set(0, 0.55, side * 0.52);
+    rail.rotation.set(0.07, 0, 0.3);
+    g.add(rail);
+  }
+  const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 1.4, 5), dark);
+  axle.rotation.x = Math.PI / 2;
+  axle.position.set(0.42, 0.3, 0);
+  g.add(axle);
+  const mkWheel = () => {
+    const w = new THREE.Group();
+    w.add(new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.055, 6, 12), dark));
+    for (let i = 0; i < 3; i++) {
+      const sp = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.05, 0.04), wood);
+      sp.rotation.z = (i * Math.PI) / 3;
+      w.add(sp);
+    }
+    return w;
+  };
+  const wOn = mkWheel();
+  wOn.position.set(0.42, 0.38, 0.72);
+  wOn.rotation.y = 0.15; // canted on the bent axle
+  g.add(wOn);
+  const wOff = mkWheel();
+  wOff.position.set(-1.1, 0.07, 1.0);
+  wOff.rotation.set(Math.PI / 2, 0, 0.5); // lying flat in the dirt
+  g.add(wOff);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.2, 5), wood);
+  shaft.position.set(-1.2, 0.34, -0.25);
+  shaft.rotation.set(0, 0, 1.05);
+  g.add(shaft);
+  const stub = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.4, 5), wood);
+  stub.position.set(-0.95, 0.5, 0.15);
+  stub.rotation.set(0.4, 0, 1.5);
+  g.add(stub);
+  const c1 = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.34), dark);
+  c1.position.set(0.9, 0.17, 0.55); c1.rotation.y = 0.5;
+  const c2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), wood);
+  c2.position.set(1.25, 0.15, 0.1); c2.rotation.y = 1.1;
+  const sack = new THREE.Mesh(new THREE.SphereGeometry(0.22, 7, 5), new THREE.MeshLambertMaterial({ color: 0x8a7048 }));
+  sack.scale.set(1.2, 0.7, 1);
+  sack.position.set(1.0, 0.12, -0.45);
+  g.add(c1, c2, sack);
+  g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
+
 // every map: the war is HERE — scorched earth and spent arrows around the spawns,
 // fresh sharpened stakes on the citadel approach. All static and cheap (instanced).
 function buildAftermath(map, rng, group) {
@@ -616,6 +674,20 @@ function buildAftermath(map, rng, group) {
         o.updateMatrix();
         arrowMats.push(o.matrix.clone());
       }
+    }
+  }
+  // one wrecked cart abandoned near the first spawn — the crows peck around it
+  const g0 = (map.gates || [])[0];
+  if (g0) {
+    for (let tries = 0; tries < 6; tries++) {
+      const a = rng() * Math.PI * 2, r = 5 + rng() * 5;
+      const x = g0.position.x + Math.cos(a) * r, z = g0.position.z + Math.sin(a) * r;
+      if (!map._isClear(x, z, 1.6)) continue;
+      const cart = brokenCart();
+      cart.position.set(x, map.heightAt(x, z), z);
+      cart.rotation.y = rng() * Math.PI * 2;
+      group.add(cart);
+      break;
     }
   }
   if (arrowMats.length) {
