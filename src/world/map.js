@@ -320,6 +320,7 @@ export class GameMap {
     this.refugePoints = []; // compound/temple doorsteps that panicking villagers run INSIDE
     this.spinners = []; // round 4: rotating set-piece parts { mesh, axis, rate } spun by the game loop
     this.movers = []; // round 4: back-and-forth walkers { group, legs, a, b, t, dir, speed } (the plough ox)
+    this.chimneys = []; // round 4: rooftop smoke emitter points [x, y, z] (cook-fires of a lived-in town)
     const biome = this.place?.biome || 'plains';
     buildCurtainWall(this, rng);
     if (['plains', 'steppe', 'valley', 'river', 'desert'].includes(biome)) buildVillage(this, rng);
@@ -721,6 +722,7 @@ function buildCityQuarter(map, rng) {
       if (placeBuilding(map, rng() < 0.62 ? 'MudbrickHouse' : 'BadgirHouse', wx, wz, ry, 4.6)) {
         housesPlaced++;
         if (housesPlaced === 2 || housesPlaced === 9) map.refugePoints.push([wx, wz]);
+        if (rng() < 0.5) map.chimneys.push([wx, map.heightAt(wx, wz) + 4.4, wz]); // cook-fire smoke
       }
     }
   }
@@ -880,6 +882,7 @@ function buildWaterMill(map, rng) {
   house.add(door);
   house.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   map.kitGroup.add(house);
+  map.chimneys.push([bankX, bankY + 4.2, bankZ]); // the miller's hearth
   // the paddle wheel, hung over the water on an axle from the mill wall
   const R = 1.9;
   const wcx = s.pos.x + side.x * (RIVER_WIDTH / 2 - 0.2);

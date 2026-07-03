@@ -4535,6 +4535,14 @@ export class Game {
           (Math.random() - 0.5) * 0.3, 1.1, (Math.random() - 0.5) * 0.3, 2.2, 0.85, 0.45, 0.42, 0.4, -0.25, 0.4);
       }
     }
+    // rooftop cook-fire smoke — a lived-in town breathes
+    for (const ch of this.map.chimneys || []) {
+      if (Math.random() < dt * 2.2) {
+        this.particles.spawn(ch[0] + (Math.random() - 0.5) * 0.3, ch[1], ch[2] + (Math.random() - 0.5) * 0.3,
+          (Math.random() - 0.5) * 0.14, 0.6 + Math.random() * 0.4, (Math.random() - 0.5) * 0.14,
+          3.2 + Math.random() * 1.6, 0.42, 0.58, 0.56, 0.52, -0.1, 0.82);
+      }
+    }
 
     // flowing rivers + ambient wildlife/clouds/birds/mist
     for (const m of this.map.waterMats || []) if (m.map) m.map.offset.y -= dt * 0.22;
