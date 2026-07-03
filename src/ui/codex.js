@@ -55,19 +55,39 @@ export class Codex {
     const profile = loadProfile();
     const defs = [
       ['heroes', t('codex.heroes')], ['enemies', t('codex.enemies')], ['places', t('codex.places')],
-      ['towers', t('codex.towers')], ['soldiers', t('codex.soldiers')],
+      ['towers', t('codex.towers')], ['soldiers', t('codex.soldiers')], ['sagas', t('codex.sagas')],
     ];
     for (const [id, label] of defs) {
-      // per-chapter chronicle progress: entries read at least once
-      const items = Codex.ITEMS[id];
-      const seen = items.filter((it) => profile.codexSeen.includes(`${id}:${it.id}`)).length;
+      // per-chapter chronicle progress: entries read at least once.
+      // The sagas chapter counts CONQUESTS instead — sagas whose boss fell.
+      let seen, total;
+      if (id === 'sagas') {
+        const sagas = this._sagaList();
+        total = sagas.length;
+        seen = sagas.filter((s) => profile.bossSagas?.[s.bossId]?.defeated).length;
+      } else {
+        const items = Codex.ITEMS[id];
+        total = items.length;
+        seen = items.filter((it) => profile.codexSeen.includes(`${id}:${it.id}`)).length;
+      }
       const b = el('button', { class: 'tabbtn' + (this.tab === id ? ' active' : '') },
         label,
-        el('span', { class: 'tabcount' + (seen >= items.length ? ' complete' : '') }, `${tNum(seen)}/${tNum(items.length)}`),
+        el('span', { class: 'tabcount' + (seen >= total ? ' complete' : '') }, `${tNum(seen)}/${tNum(total)}`),
       );
       b.onclick = () => { this.tab = id; audio.ui(); this._renderTabs(); this._renderGrid(); };
       tabs.append(b);
     }
+  }
+
+  // every boss saga in campaign order (twin sagas included, deduped)
+  _sagaList() {
+    const list = [];
+    for (const mm of [...MAPS].sort((a, b) => a.order - b.order)) {
+      for (const bid of [mm.boss, mm.twinBoss]) {
+        if (bid && !list.some((s) => s.bossId === bid)) list.push({ bossId: bid, mapId: mm.id });
+      }
+    }
+    return list;
   }
 
   _renderGrid() {
@@ -75,6 +95,7 @@ export class Codex {
     $('#codexDetail').classList.remove('visible');
     grid.style.display = 'grid';
     const profile = loadProfile();
+    if (this.tab === 'sagas') { this._renderSagaGrid(grid, profile); return; }
     const items = this.tab === 'heroes' ? HEROES
       : this.tab === 'enemies' ? ENEMIES
         : this.tab === 'places' ? PLACES
@@ -97,6 +118,33 @@ export class Codex {
         unread ? el('span', { class: 'unread-pip', 'aria-hidden': 'true' }) : null,
       );
       wireAction(card, () => { audio.codex(); this._renderDetail(item); });
+      grid.append(card);
+    }
+  }
+
+  // the Sagas chapter: one wax-sealed card per boss saga, in campaign order.
+  // A card opens the adversary's folio, which carries the full saga record.
+  _renderSagaGrid(grid, profile) {
+    for (const s of this._sagaList()) {
+      const ch = bossChallengeDef(s.bossId);
+      const saga = ch.saga || {};
+      const enemy = ENEMIES.find((e) => e.id === s.bossId);
+      const place = PLACES_BY_ID[s.mapId];
+      const rec = profile.bossSagas?.[s.bossId] || null;
+      const cls = rec?.defeated ? 'defeated' : rec?.best === 'broken' ? 'broken' : rec?.best === 'hardened' ? 'hardened' : 'unclaimed';
+      const label = rec?.defeated ? t('bossSaga.defeated')
+        : rec?.best === 'broken' ? t('bossSaga.broken')
+          : rec?.best === 'hardened' ? t('bossSaga.hardened') : t('bossSaga.unclaimed');
+      const card = el('div', {
+        class: `codexcard saga ${cls}`,
+        'aria-label': `${tOpt(ch.titleKey, t('bossChallenge.default.title'))}. ${label}`,
+      },
+        el('span', { class: `boss-saga-seal big tone-${saga.tone || 'banner'}`, 'aria-hidden': 'true' }, saga.sealIcon || '◆'),
+        el('div', { class: 'cname' }, tOpt(ch.titleKey, t('bossChallenge.default.title'))),
+        el('div', { class: 'saga-place' }, place ? tName(place) : ''),
+        el('div', { class: `saga-state ${cls}` }, `${rec?.defeated || rec?.best === 'broken' ? '✓ ' : ''}${label}`),
+      );
+      if (enemy) wireAction(card, () => { audio.codex(); this.tab = 'enemies'; this._renderDetail(enemy); this._renderTabs(); });
       grid.append(card);
     }
   }

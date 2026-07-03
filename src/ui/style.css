@@ -3885,3 +3885,29 @@ body:not(.rtl) #codexDetail .lore-folio p:first-of-type::first-letter {
   color: #cbb98d;
 }
 body.rtl #codexDetail .rp-section .storyref { border-radius: 7px 0 0 7px; }
+
+/* --- C4c: the Sagas chapter — wax-sealed saga cards --- */
+.codexcard.saga {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 14px 8px 12px;
+  background:
+    radial-gradient(ellipse 130% 70% at 50% 0%, rgba(216, 169, 62, 0.08), transparent 60%),
+    var(--card-bg);
+}
+.codexcard.saga .boss-saga-seal.big { margin: 2px 0 3px; }
+.codexcard.saga .cname { padding: 0 4px; }
+.codexcard.saga .saga-place { font-size: 0.68rem; color: #9d8a64; }
+.codexcard.saga .saga-state {
+  margin-top: 2px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  border: 1px solid rgba(160, 107, 46, 0.4);
+  color: #b09668;
+}
+.codexcard.saga .saga-state.defeated { color: #ffe9a8; border-color: var(--gold); background: rgba(122, 90, 29, 0.45); }
+.codexcard.saga .saga-state.broken { color: #9fe0dc; border-color: rgba(47, 167, 160, 0.6); }
+.codexcard.saga .saga-state.hardened { color: #f0b8a0; border-color: rgba(142, 74, 51, 0.65); }
+.codexcard.saga.unclaimed { filter: saturate(0.6) brightness(0.85); }

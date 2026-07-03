@@ -511,6 +511,7 @@ export const EN = {
   'codex.lockedEntry': 'Defend more of the land to reveal this entry.',
   'codex.related': 'Related Entries',
   'codex.epigraph': 'In the name of the Lord of life and wisdom, beyond whom thought cannot soar.',
+  'codex.sagas': 'Sagas',
   'codex.cost': 'Cost',
   'codex.hp': 'Vitality',
 

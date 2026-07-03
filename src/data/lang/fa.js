@@ -515,6 +515,7 @@ export const FA = {
   'codex.lockedEntry': 'برای باز شدن این صفحه، از بخش‌های بیشتری از سرزمین دفاع کن.',
   'codex.related': 'پیوندهای هم‌داستان',
   'codex.epigraph': '',
+  'codex.sagas': 'حماسه‌ها',
   'codex.cost': 'بها',
   'codex.hp': 'توان',
 
