@@ -3979,6 +3979,22 @@ body.rtl .research-disc { letter-spacing: 0; }
 .research-node.sealed { opacity: 0.55; filter: saturate(0.4); }
 .research-node.sealed .rn-foot { color: #c9a06a; font-style: italic; border-color: rgba(142, 74, 51, 0.5); }
 
+/* round 3 H1/H2: hero mastery chips (Kherad-funded, persistent) */
+.mastery-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.mastery-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 169, 62, 0.4);
+  background: linear-gradient(180deg, rgba(58, 43, 20, 0.85), rgba(34, 26, 14, 0.9));
+  color: var(--parchment);
+  font-size: 0.74rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.mastery-chip.ready { cursor: pointer; border-color: var(--gold); }
+.mastery-chip.ready:hover { border-color: var(--gold-bright); box-shadow: 0 0 10px rgba(216, 169, 62, 0.35); color: #ffe9b0; }
+.mastery-chip.owned { color: #ffe9a8; border-color: var(--gold); background: rgba(122, 90, 29, 0.5); }
+.mastery-chip.locked { opacity: 0.55; filter: saturate(0.5); }
+
 /* round 3 T1: specialization fork buttons on the tower panel */
 .path-btn {
   display: grid;

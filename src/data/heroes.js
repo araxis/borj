@@ -26,6 +26,29 @@ export const HERO_RANKS = [
   { id: 'legend', mult: 2.1, cost: 1400 },
 ];
 
+// Hero mastery (round 3, H1): persistent per-hero studies bought with Kherad
+// (wisdom), on top of the gold-bought rank ladder. Stored in profile.heroMastery.
+export const HERO_MASTERY = [
+  {
+    id: 'command', cost: 10,
+    name: 'Steward of War', faName: 'سالار جنگ',
+    desc: "Command strength +15%: the hero's gifts grip the tower harder.",
+    descFa: 'نیروی فرماندهی +۱۵٪: موهبت‌های پهلوان محکم‌تر بر برج می‌نشیند.',
+  },
+  {
+    id: 'signature', cost: 15,
+    name: 'Signature Perfected', faName: 'شگرد بی‌نقص',
+    desc: 'The signature gift strikes one shot sooner.',
+    descFa: 'شگردِ ویژه یک تیر زودتر می‌رسد.',
+  },
+  {
+    id: 'legend', cost: 25, requires: ['command', 'signature'],
+    name: 'Living Legend', faName: 'اسطوره‌ی زنده',
+    desc: 'The tale itself fights: a further +10% command strength.',
+    descFa: 'خودِ افسانه می‌جنگد: +۱۰٪ نیروی فرماندهی دیگر.',
+  },
+];
+
 export const HEROES = [
   {
     id: 'rostam', name: 'Rostam', faName: 'رستم', atlas: { col: 1, row: 1 },

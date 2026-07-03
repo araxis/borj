@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { buildTower, animateBanner } from '../models/towerkit.js';
 import { AGES, TOWER_PATHS, PATH_FORK_AGE } from '../data/towers.js';
 import { HERO_RANKS } from '../data/heroes.js';
-import { getHeroRank } from '../core/save.js';
+import { getHeroRank, getHeroMastery } from '../core/save.js';
 import { SOLDIERS_BY_ID } from '../data/soldiers.js';
 import { Squad } from './soldier.js';
 import { Projectile, lashEffect } from './projectile.js';
@@ -344,8 +344,12 @@ export class Tower {
       const bond = heroBond(this.hero, d, this.ageIdx);
       s.bond = bond;
       s.heroRank = getHeroRank(this.hero.id);
-      // rank ladder multiplies how strongly the commander's gifts apply
-      const k = (0.6 + bond) * HERO_RANKS[s.heroRank].mult;
+      // rank ladder multiplies how strongly the commander's gifts apply;
+      // Kherad-bought mastery studies stack on top (round 3, H1)
+      const mastery = getHeroMastery(this.hero.id);
+      let k = (0.6 + bond) * HERO_RANKS[s.heroRank].mult;
+      if (mastery.includes('command')) k *= 1.15;
+      if (mastery.includes('legend')) k *= 1.1;
       const m = this.hero.mods;
       if (m.damage) s.damage *= 1 + m.damage * k;
       if (m.range) s.range *= 1 + m.range * k;
@@ -591,7 +595,9 @@ export class Tower {
     this.lastTargetT = this.game?._time || 0;
     this.lastTargetKind = vfx || role || this.def.id || null;
     // hero signature: Rostam's mace shockwave every 6th shot
-    if (this.hero?.special.key === 'maceShockwave' && this.shotCount % 6 === 0) {
+    // 'Signature Perfected' mastery: the hero's signature gift strikes one shot sooner
+    const sigStep = (n) => (this.hero && getHeroMastery(this.hero.id).includes('signature') ? Math.max(2, n - 1) : n);
+    if (this.hero?.special.key === 'maceShockwave' && this.shotCount % sigStep(6) === 0) {
       this.game.particles.burst(this.pos, 22, { speed: 5, up: 0.5, life: 0.6, size: 0.6, color: FXC.gold, grav: 2, spread: 3 });
       this.game.audio.mace();
       this.game.engine.addShake(0.15);
@@ -611,7 +617,7 @@ export class Tower {
       this.game.particles.burst(target.group.position.clone().setY(target.group.position.y + 1.5), 14, { speed: 3, life: 0.5, size: 0.45, color: [0.75, 0.85, 1], grav: 1 });
     }
     // twinArrow: every 5th arrow strikes two enemies in a line
-    const pierce = stats.pierce + (this.hero?.special.key === 'twinArrow' && this.shotCount % 5 === 0 ? 2 : 0);
+    const pierce = stats.pierce + (this.hero?.special.key === 'twinArrow' && this.shotCount % sigStep(5) === 0 ? 2 : 0);
 
     if (role === 'fire') {
       // cone spray

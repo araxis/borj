@@ -11,6 +11,7 @@ const DEFAULT_PROFILE = {
   kheradEarned: 0,          // lifetime wisdom (Kherad) gathered — round-3 meta currency
   kheradSpent: 0,           // wisdom invested in the Ganj-e Danesh research tree
   research: [],             // unlocked research node ids
+  heroMastery: {},          // heroId -> mastery node ids (Kherad-bought, persistent)
 };
 
 let profile = null;
@@ -24,8 +25,9 @@ export function loadProfile() {
     profile = { ...DEFAULT_PROFILE };
   }
   // pre-Kherad saves lack these fields: the spread would alias DEFAULT_PROFILE's
-  // array, and pushing into it would corrupt the defaults — always own the copy
+  // array/object, and mutating it would corrupt the defaults — always own the copy
   profile.research = [...(profile.research || [])];
+  profile.heroMastery = { ...(profile.heroMastery || {}) };
   return profile;
 }
 
@@ -35,7 +37,7 @@ export function saveProfile() {
 }
 
 export function resetProfile() {
-  profile = { ...DEFAULT_PROFILE, completedMaps: [], unlockedHeroes: [], codexSeen: [], bestEndless: {}, heroRanks: {}, bossSagas: {}, kheradEarned: 0, kheradSpent: 0, research: [] };
+  profile = { ...DEFAULT_PROFILE, completedMaps: [], unlockedHeroes: [], codexSeen: [], bestEndless: {}, heroRanks: {}, bossSagas: {}, kheradEarned: 0, kheradSpent: 0, research: [], heroMastery: {} };
   saveProfile();
 }
 
@@ -84,6 +86,20 @@ export function unlockResearch(id, cost = 0) {
   if (p.research.includes(id)) return false;
   if (!spendKherad(cost)) return false;
   p.research.push(id);
+  saveProfile();
+  return true;
+}
+
+export function getHeroMastery(heroId) {
+  return loadProfile().heroMastery[heroId] || [];
+}
+
+export function unlockHeroMastery(heroId, nodeId, cost = 0) {
+  const p = loadProfile();
+  const arr = (p.heroMastery[heroId] ||= []);
+  if (arr.includes(nodeId)) return false;
+  if (!spendKherad(cost)) return false;
+  arr.push(nodeId);
   saveProfile();
   return true;
 }

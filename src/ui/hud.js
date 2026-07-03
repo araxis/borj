@@ -6,7 +6,7 @@ import { ROLE_ICONS, HERO_ICONS, roleIconEl, heroIconEl, statIconEl } from './ic
 import { t, tf, tName, tNameAlt, tNum, tOpt, onLangChange, toggleLang } from '../core/i18n.js';
 import { applyAtlasCell } from '../core/atlas.js';
 import { TOWERS, AGES, TOWER_PATHS, PATH_COST } from '../data/towers.js';
-import { HEROES, HERO_RANKS } from '../data/heroes.js';
+import { HEROES, HERO_RANKS, HERO_MASTERY } from '../data/heroes.js';
 import { PLACES_BY_ID, PLACE_ATLAS } from '../data/places.js';
 import { HERO_ATLAS } from '../data/heroes.js';
 import { ENEMY_ATLAS } from '../data/enemies.js';
@@ -15,7 +15,7 @@ import { palaceDef } from '../data/palaces.js';
 import { bossChallengeDef } from '../data/bosschallenges.js';
 import { FUSIONS } from '../data/fusions.js';
 import { heroBond } from '../entities/tower.js';
-import { hasResearch } from '../core/save.js';
+import { hasResearch, getHeroMastery, unlockHeroMastery, kheradBalance } from '../core/save.js';
 import { audio } from '../core/audio.js';
 
 // null-safe append: native DOM append() stringifies null into the text "null"
@@ -1588,6 +1588,23 @@ export class HUD {
       } else {
         actions.append(el('div', { class: 'rp-note' }, `★ ${tName(tower.hero)} — ${tOpt('hud.maxRank', 'max rank')}`));
       }
+      // Kherad-bought mastery studies (round 3): persistent, per-hero, wisdom-funded
+      const mastery = getHeroMastery(tower.hero.id);
+      const mRow = el('div', { class: 'mastery-row' });
+      for (const node of HERO_MASTERY) {
+        const owned = mastery.includes(node.id);
+        const reqMet = !node.requires || node.requires.every((q) => mastery.includes(q));
+        const afford = kheradBalance() >= node.cost;
+        const chip = el('button', {
+          class: 'mastery-chip' + (owned ? ' owned' : reqMet && afford ? ' ready' : ' locked'),
+          title: tf(node, 'desc'),
+        }, owned ? `✓ ${tName(node)}` : `${tName(node)} · 📖${tNum(node.cost)}`);
+        if (!owned && reqMet && afford) {
+          chip.onclick = () => { if (unlockHeroMastery(tower.hero.id, node.id, node.cost)) { audio.codex(); this.showTower(tower); } };
+        } else if (!owned) chip.setAttribute('aria-disabled', 'true');
+        mRow.append(chip);
+      }
+      actions.append(mRow);
       const hKey = tower.hero.special?.key || 'default';
       const activeLabel = tOpt('heroActive.' + hKey, tOpt('heroActive.default', 'Hero Command'));
       heroCommand = this._heroCommandPanel(tower, activeLabel);
