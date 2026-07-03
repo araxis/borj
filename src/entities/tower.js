@@ -103,7 +103,8 @@ export class Tower {
   _computeMaxHp() {
     const base = 380 * (this.def.hpBonus || 1) * AGES[this.ageIdx].mult;
     const stats = this.getStats();
-    return Math.round(base * (1 + (stats.hpMod || 0)));
+    const masons = this.game.research?.has('war-masons') ? 1.15 : 1; // Kayanian stonework
+    return Math.round(base * (1 + (stats.hpMod || 0)) * masons);
   }
 
   _buildModel() {
@@ -295,13 +296,15 @@ export class Tower {
   getStats() {
     const d = this.def;
     const age = AGES[this.ageIdx].mult;
+    const research = this.game.research;
     const s = {
-      damage: (d.damage || 0) * age,
+      damage: (d.damage || 0) * age * (research?.has('war-drill') ? 1.05 : 1),
       range: d.range || 0,
       rate: d.rate || 0,
       splash: d.splash || 0,
       income: (d.income || 0) * (1 + this.ageIdx * 0.35),
-      kherad: (d.kherad || 0) * (1 + this.ageIdx * 0.5), // wisdom banked per wave (houses of learning)
+      // wisdom banked per wave (houses of learning); royal archives copy every scroll twice
+      kherad: ((d.kherad || 0) + (d.kherad && research?.has('learning-archives') ? 1 : 0)) * (1 + this.ageIdx * 0.5),
       heal: d.heal ? { hps: d.heal.hps * age, radius: d.heal.radius } : null,
       repair: d.repair ? { hps: d.repair.hps * age, radius: d.repair.radius } : null,
       vsBoss: d.vsBoss || 1, vsDiv: d.vsDiv || 1, vsBeast: d.vsBeast || 1, vsFlying: d.vsFlying || 1,

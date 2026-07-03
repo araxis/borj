@@ -7,7 +7,8 @@ import { PLACES_BY_ID, PLACE_ATLAS } from '../data/places.js';
 import { HEROES, HERO_ATLAS } from '../data/heroes.js';
 import { ENEMIES_BY_ID } from '../data/enemies.js';
 import { bossChallengeDef } from '../data/bosschallenges.js';
-import { loadProfile, takeSessionKherad, kheradBalance } from '../core/save.js';
+import { loadProfile, takeSessionKherad, kheradBalance, hasResearch, unlockResearch } from '../core/save.js';
+import { RESEARCH, RESEARCH_DISCIPLINES, RESEARCH_BY_ID } from '../data/research.js';
 import { audio } from '../core/audio.js';
 import { loadPalace } from '../core/assets.js';
 import { loadForestTrees, loadForestEnrich } from '../core/props3d.js';
@@ -31,6 +32,7 @@ export class Menus {
         el('div', { class: 'menu-actions' },
           el('button', { class: 'gbtn primary', id: 'mmCampaign' }, t('menu.newCampaign')),
           el('button', { class: 'gbtn', id: 'mmEndless' }, t('menu.endless')),
+          el('button', { class: 'gbtn', id: 'mmResearch' }, t('menu.research')),
           el('button', { class: 'gbtn', id: 'mmCodex' }, t('menu.codex')),
           el('button', { class: 'gbtn', id: 'mmSettings' }, t('menu.settings')),
           el('button', { class: 'gbtn', id: 'mmLang' }, t('menu.language')),
@@ -63,6 +65,16 @@ export class Menus {
         ),
       ),
     );
+    // the Ganj-e Danesh: spend banked Kherad on persistent research
+    this.researchMenu = el('div', { class: 'overlay', id: 'researchMenu' },
+      el('div', { class: 'dialog frame' },
+        backMedallion({ id: 'rsBack', 'aria-label': t('settings.back') }),
+        el('h2', { class: 'ornament-title', id: 'rsTitle' }, t('research.title')),
+        el('p', { class: 'subtitle', id: 'rsSub' }, t('research.subtitle')),
+        el('div', { class: 'research-balance', id: 'rsBalance' }),
+        el('div', { id: 'researchBody' }),
+      ),
+    );
     this.endScreen = el('div', { class: 'overlay', id: 'endScreen' },
       el('div', { class: 'dialog frame', style: { textAlign: 'center', minWidth: 'min(560px, 90vw)' } },
         el('div', { class: 'endtitle', id: 'endTitle' }),
@@ -72,10 +84,12 @@ export class Menus {
         el('div', { class: 'end-actions', id: 'endActions' }),
       ),
     );
-    document.body.append(this.mainMenu, this.campaignMenu, this.mapIntro, this.endScreen);
+    document.body.append(this.mainMenu, this.campaignMenu, this.mapIntro, this.researchMenu, this.endScreen);
 
     $('#mmCampaign').onclick = () => { audio.unlock(); audio.ui(); this.showCampaign(false); };
     $('#mmEndless').onclick = () => { audio.unlock(); audio.ui(); this.showCampaign(true); };
+    $('#mmResearch').onclick = () => { audio.unlock(); audio.ui(); this.showResearch(); };
+    $('#rsBack').onclick = () => { audio.ui(); this.showMain(); };
     $('#mmCodex').onclick = () => { audio.unlock(); this.cb.onCodex(); };
     $('#mmSettings').onclick = () => { audio.unlock(); this.cb.onSettings(); };
     $('#mmLang').onclick = () => { toggleLang(); };
@@ -93,7 +107,50 @@ export class Menus {
     $('#mmCredit').textContent = t('menu.credit');
     $('#cmTitle').textContent = t('campaign.title');
     $('#cmHint').textContent = t('campaign.endlessHint');
+    $('#mmResearch').textContent = t('menu.research');
+    $('#rsTitle').textContent = t('research.title');
+    $('#rsSub').textContent = t('research.subtitle');
     if (this.campaignMenu.classList.contains('visible')) this.showCampaign(this._endlessPick);
+    if (this.researchMenu.classList.contains('visible')) this.showResearch();
+  }
+
+  // ---- the Ganj-e Danesh: spend banked Kherad on persistent research ----
+  showResearch() {
+    this.hideAll();
+    this.researchMenu.classList.add('visible');
+    const balance = kheradBalance();
+    $('#rsBalance').textContent = `📖 ${t('kherad.total', { n: tNum(balance) })}`;
+    const body = clear($('#researchBody'));
+    for (const disc of RESEARCH_DISCIPLINES) {
+      const nodes = RESEARCH.filter((r) => r.disc === disc.id);
+      if (!nodes.length) continue;
+      const grid = el('div', { class: 'research-grid' });
+      for (const node of nodes) {
+        const owned = hasResearch(node.id);
+        const reqMet = !node.requires || hasResearch(node.requires);
+        const affordable = balance >= node.cost;
+        const state = owned ? 'owned' : !reqMet ? 'sealed' : affordable ? 'ready' : 'costly';
+        const card = el('button', { class: `research-node ${state}` },
+          el('span', { class: 'rn-glyph' }, owned ? '✪' : !reqMet ? '🔒' : disc.icon),
+          el('b', { class: 'rn-name' }, tName(node)),
+          el('span', { class: 'rn-desc' }, tf(node, 'desc')),
+          el('span', { class: 'rn-foot' },
+            owned ? t('research.owned')
+              : !reqMet ? t('research.requires', { name: tName(RESEARCH_BY_ID[node.requires]) })
+                : `📖 ${tNum(node.cost)}`),
+        );
+        if (state === 'ready') {
+          card.onclick = () => {
+            if (unlockResearch(node.id, node.cost)) { audio.codex(); this.showResearch(); }
+          };
+        } else card.setAttribute('aria-disabled', 'true');
+        grid.append(card);
+      }
+      body.append(
+        el('h3', { class: 'research-disc' }, `${disc.icon} ${t('research.disc.' + disc.id)}`),
+        grid,
+      );
+    }
   }
 
   showMain() { this.hideAll(); this.mainMenu.classList.add('visible'); }
@@ -447,6 +504,6 @@ export class Menus {
   }
 
   hideAll() {
-    for (const o of [this.mainMenu, this.campaignMenu, this.mapIntro, this.endScreen]) o.classList.remove('visible');
+    for (const o of [this.mainMenu, this.campaignMenu, this.mapIntro, this.researchMenu, this.endScreen]) o.classList.remove('visible');
   }
 }

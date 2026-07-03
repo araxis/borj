@@ -123,7 +123,10 @@ export class Game {
     // difficulty: 'normal' is ×1 everywhere (tuned baseline); easy/hard scale gold, lives, enemy HP.
     const dm = diffMods();
     this.diffHpMult = dm.hp; // read by Enemy() to scale spawn HP
+    // studied wisdom, read once per battle (empty set = the game exactly as before round 3)
+    this.research = new Set(loadProfile().research || []);
     this.gold = sandbox ? 999999 : Math.round((mapDef.startGold + (endless ? 200 : 0)) * dm.gold);
+    if (!sandbox && this.research.has('state-provisions')) this.gold += 50; // war provisions
     this.lives = sandbox ? mapDef.lives : Math.max(1, Math.round(mapDef.lives * dm.lives));
     this.waveIdx = 0;
     this.waveActive = false;
@@ -4141,6 +4144,7 @@ export class Game {
     // income from economy towers + base wave reward
     let income = 25 + this.waveIdx * 4;
     for (const t of this.towers) if (t.alive) income += Math.round(t.getStats().income || 0);
+    if (this.research.has('state-tribute')) income = Math.round(income * 1.1); // tribute roads
     this.gold += income;
     // houses of learning bank wisdom for the ages — persists straight to the profile
     // (not in sandbox: the QA state would farm the treasury)
