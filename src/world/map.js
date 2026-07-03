@@ -1052,6 +1052,26 @@ function buildDocks(map, rng) {
     for (const tn of ['Crate_Wooden', 'Barrel', 'Rope_1', 'Bucket_Wooden_1', 'FarmCrate_Apple']) {
       if (rng() < 0.55) placeThing(map, tn, bx + (rng() - 0.5) * 2.4, y + 0.4, bz + (rng() - 0.5) * 2.4, rng() * 6.28);
     }
+    // round 4 C3: fishing life — a fisherman on the deck facing the water + a drying net
+    if (built === 0) {
+      const fx = bx + side.x * 0.7, fz = bz + side.z * 0.7; // out on the deck toward the river
+      map.villagerSpots.push([fx, y + 0.4, fz, Math.atan2(s.pos.x - fx, s.pos.z - fz)]);
+      const woodM = new THREE.MeshLambertMaterial({ color: 0x6b4a2c });
+      const rack = new THREE.Group();
+      for (const px of [-1.0, 1.0]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.6, 5), woodM);
+        post.position.set(px, 0.8, 0);
+        rack.add(post);
+      }
+      const net = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.1, 7, 4), new THREE.MeshBasicMaterial({ color: 0x2f3a2c, wireframe: true }));
+      net.position.set(0, 0.95, 0); net.rotation.x = 0.18;
+      rack.add(net);
+      const nx = bx + side.x * 2.6, nz = bz + side.z * 2.6; // on the bank behind the deck
+      rack.position.set(nx, map.heightAt(nx, nz), nz);
+      rack.rotation.y = ry;
+      rack.traverse((o) => { if (o.isMesh && !o.material.wireframe) { o.castShadow = true; o.receiveShadow = true; } });
+      map.kitGroup.add(rack);
+    }
     built++;
     i += 14; // space docks apart
   }
