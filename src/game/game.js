@@ -10,7 +10,7 @@ import { ParticleSystem, FXC } from '../fx/particles.js';
 import { DebrisSystem } from '../physics/debris.js';
 import { makeWave } from './waves.js';
 import { ENEMIES_BY_ID } from '../data/enemies.js';
-import { TOWERS_BY_ID } from '../data/towers.js';
+import { TOWERS_BY_ID, TOWER_PATHS, PATH_COST } from '../data/towers.js';
 import { HEROES, HERO_RANKS } from '../data/heroes.js';
 import { findFusion } from '../data/fusions.js';
 import { animateBanner } from '../models/towerkit.js';
@@ -213,6 +213,7 @@ export class Game {
     this._restoring = true; // suppress build particles/audio during the bulk restore
     const tower = new Tower(this, def, pad);
     while (tower.ageIdx < (ts.ageIdx || 0) && tower.canUpgrade()) tower.upgrade();
+    if (ts.path) { tower.path = ts.path; tower._buildModel(); }
     if (ts.heroId) { const h = HERODEFS.find((x) => x.id === ts.heroId); if (h) this.assignHero(h, tower); }
     tower.invested = ts.invested ?? tower.invested;
     tower.hp = Math.min(tower.maxHp, ts.hp ?? tower.maxHp);
@@ -275,6 +276,24 @@ export class Game {
     tower.upgrade();
     this.emit('goldChanged', this.gold);
     this.emit('towersChanged');
+    return true;
+  }
+
+  // one-time specialization fork (round 3, T1): a sidegrade, not raw power
+  chooseTowerPath(tower, key) {
+    if (!tower?.canChoosePath() || !TOWER_PATHS[tower.def.role]?.[key]) return false;
+    if (!this.canAfford(PATH_COST)) { this.emit('toast', 'hud.notEnoughGold'); return false; }
+    this.gold -= PATH_COST;
+    tower.path = key;
+    tower.invested += PATH_COST;
+    const frac = tower.hp / tower.maxHp;
+    tower._buildModel();
+    tower.maxHp = tower._computeMaxHp();
+    tower.hp = tower.maxHp * frac;
+    this.emit('goldChanged', this.gold);
+    this.emit('towersChanged');
+    this.audio.forgeHammer();
+    this.particles.burst(tower.pos.clone().setY(tower.pos.y + 2), 22, { speed: 2.5, life: 0.9, size: 0.5, color: [0.95, 0.8, 0.42], grav: 2 });
     return true;
   }
 

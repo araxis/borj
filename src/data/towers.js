@@ -418,3 +418,55 @@ export const TOWERS = [
 ];
 
 export const TOWERS_BY_ID = Object.fromEntries(TOWERS.map((t) => [t.id, t]));
+
+// ---- specialization paths (round 3, T1) ----
+// At Kayanian age (ageIdx >= PATH_FORK_AGE) every tower may take ONE of its role's
+// two paths — a sidegrade fork, not raw power (ages stay the power spine).
+// mods: fractional multipliers on damage/rate/range/splash/income/kherad/heal and
+// vsBoss/vsDiv/vsBeast; flat adders on pierce/stunChance/armorShred/hpMod.
+// addon: the T2 visual weapon-part key this path will mount.
+export const PATH_FORK_AGE = 2;
+export const PATH_COST = 160;
+
+export const TOWER_PATHS = {
+  archer: {
+    A: { id: 'reedstorm', name: 'Reed-Storm Volleys', faName: 'رگبار نیزار', desc: 'A hail of shafts: +35% speed, −10% damage.', descFa: 'رگباری از تیر: +۳۵٪ شتاب، −۱۰٪ آسیب.', mods: { rate: 0.35, damage: -0.1 }, addon: 'crossbowBattery' },
+    B: { id: 'gavpiercer', name: 'Gav-Piercer Bolts', faName: 'گاوشکاف', desc: 'Heavy bolts: +30% damage and each pierces one more foe.', descFa: 'تیرهای سنگین: +۳۰٪ آسیب و هر تیر یک دشمن بیشتر را می‌شکافد.', mods: { damage: 0.3, pierce: 1 }, addon: 'ballista' },
+  },
+  siege: {
+    A: { id: 'naft', name: 'Naft Firepots', faName: 'قره‌های نفت', desc: 'Wider blasts: +40% splash, +10% vs great enemies.', descFa: 'انفجار گسترده‌تر: +۴۰٪ دامنه، +۱۰٪ در برابر دشمنان بزرگ.', mods: { splash: 0.4, vsBoss: 0.1 }, addon: 'naftLauncher' },
+    B: { id: 'greatarm', name: 'The Great Arm', faName: 'بازوی بزرگ', desc: 'Mountain-breaking stones: +45% damage, −15% speed.', descFa: 'سنگ‌های کوه‌شکن: +۴۵٪ آسیب، −۱۵٪ شتاب.', mods: { damage: 0.45, rate: -0.15 }, addon: 'greatArm' },
+  },
+  fire: {
+    A: { id: 'eternal', name: 'Eternal Naphtha', faName: 'نفت جاودان', desc: 'The flame clings: +25% damage, +15% vs divs.', descFa: 'شعله می‌چسبد: +۲۵٪ آسیب، +۱۵٪ در برابر دیوها.', mods: { damage: 0.25, vsDiv: 0.15 }, addon: 'brazierCrown' },
+    B: { id: 'sadeh', name: 'Sadeh Festival Fire', faName: 'آتش جشن سده', desc: 'The sacred cone widens: +30% splash, +10% speed.', descFa: 'مخروط مقدس پهن‌تر می‌شود: +۳۰٪ دامنه، +۱۰٪ شتاب.', mods: { splash: 0.3, rate: 0.1 }, addon: 'fireWings' },
+  },
+  magic: {
+    A: { id: 'binding', name: 'Binding Words', faName: 'کلام بند', desc: 'Spells shackle: +15% stun chance, +10% damage.', descFa: 'افسون‌ها می‌بندند: +۱۵٪ بخت میخکوب، +۱۰٪ آسیب.', mods: { stunChance: 0.15, damage: 0.1 }, addon: 'sealRing' },
+    B: { id: 'stormcall', name: 'Storm-Calling', faName: 'توفان‌خوانی', desc: 'The sky answers: +30% damage, +15% range.', descFa: 'آسمان پاسخ می‌دهد: +۳۰٪ آسیب، +۱۵٪ برد.', mods: { damage: 0.3, range: 0.15 }, addon: 'stormFinial' },
+  },
+  support: {
+    A: { id: 'mercy', name: 'Simurgh\'s Mercy', faName: 'مهر سیمرغ', desc: 'Healing feathers: +40% healing.', descFa: 'پرهای شفابخش: +۴۰٪ درمان.', mods: { heal: 0.4 }, addon: 'featherCrown' },
+    B: { id: 'farsight', name: 'Farsight Watch', faName: 'دیده‌بانی دوربین', desc: 'Nothing hides: +25% range, +10% damage.', descFa: 'هیچ‌چیز پنهان نمی‌ماند: +۲۵٪ برد، +۱۰٪ آسیب.', mods: { range: 0.25, damage: 0.1 }, addon: 'watchLantern' },
+  },
+  aura: {
+    A: { id: 'warbanner', name: 'War Banner', faName: 'درفش جنگ', desc: 'The standard blazes: +20% damage, +10% range.', descFa: 'درفش می‌درخشد: +۲۰٪ آسیب، +۱۰٪ برد.', mods: { damage: 0.2, range: 0.1 }, addon: 'greatBanner' },
+    B: { id: 'wardbanner', name: 'Warding Banner', faName: 'درفش پناه', desc: 'The cloth shields: +25% structure, +10% healing.', descFa: 'پرچم پناه می‌دهد: +۲۵٪ تاب، +۱۰٪ درمان.', mods: { hpMod: 0.25, heal: 0.1 }, addon: 'wardBanner' },
+  },
+  economy: {
+    A: { id: 'mint', name: 'Royal Mint', faName: 'ضراب‌خانه شاهی', desc: 'Coin begets coin: +35% income.', descFa: 'زر زر می‌آورد: +۳۵٪ درآمد.', mods: { income: 0.35 }, addon: 'mintPress' },
+    B: { id: 'bazaar', name: 'Grand Bazaar', faName: 'بازار بزرگ', desc: 'Trade and tolls: +20% income, +15% structure.', descFa: 'داد و ستد و باج: +۲۰٪ درآمد، +۱۵٪ تاب.', mods: { income: 0.2, hpMod: 0.15 }, addon: 'bazaarAwnings' },
+  },
+  barracks: {
+    A: { id: 'shieldwall', name: 'Shield Wall', faName: 'دیوار سپر', desc: 'Lines that hold: +25% structure, +10% healing.', descFa: 'صف‌هایی که می‌ایستند: +۲۵٪ تاب، +۱۰٪ درمان.', mods: { hpMod: 0.25, heal: 0.1 }, addon: 'shieldRack' },
+    B: { id: 'lancers', name: 'Lancer Sally', faName: 'یورش نیزه‌داران', desc: 'Steel answers steel: +25% damage.', descFa: 'پولاد پاسخ پولاد است: +۲۵٪ آسیب.', mods: { damage: 0.25 }, addon: 'lanceRack' },
+  },
+  trap: {
+    A: { id: 'deeppit', name: 'Deeper Pits', faName: 'گودال‌های ژرف‌تر', desc: 'They do not climb out: +20% stun chance, +15% splash.', descFa: 'بیرون نمی‌آیند: +۲۰٪ بخت میخکوب، +۱۵٪ دامنه.', mods: { stunChance: 0.2, splash: 0.15 }, addon: 'stakeRing' },
+    B: { id: 'barbed', name: 'Barbed Snares', faName: 'دام‌های خاردار', desc: 'Iron teeth: +35% damage, +20% vs beasts.', descFa: 'دندان‌های آهنین: +۳۵٪ آسیب، +۲۰٪ در برابر دَدان.', mods: { damage: 0.35, vsBeast: 0.2 }, addon: 'ironJaws' },
+  },
+  wisdom: {
+    A: { id: 'scriptorium', name: 'Grand Scriptorium', faName: 'نسخه‌خانه بزرگ', desc: 'More hands, more scrolls: +50% wisdom per wave.', descFa: 'دستان بیشتر، نسخه‌های بیشتر: +۵۰٪ خرد در هر موج.', mods: { kherad: 0.5 }, addon: 'scrollSpires' },
+    B: { id: 'waqf', name: 'Endowment Court', faName: 'دیوان موقوفه', desc: 'Learning pays its way: +20% wisdom, +15 gold income.', descFa: 'دانش هزینه‌ی خود را می‌پردازد: +۲۰٪ خرد، +۱۵ زر درآمد.', mods: { kherad: 0.2, incomeFlat: 15 }, addon: 'endowmentDome' },
+  },
+};

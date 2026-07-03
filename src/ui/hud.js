@@ -5,7 +5,7 @@ import { el, $, clear, wireAction } from './dom.js';
 import { ROLE_ICONS, HERO_ICONS, roleIconEl, heroIconEl, statIconEl } from './icons.js';
 import { t, tf, tName, tNameAlt, tNum, tOpt, onLangChange, toggleLang } from '../core/i18n.js';
 import { applyAtlasCell } from '../core/atlas.js';
-import { TOWERS, AGES } from '../data/towers.js';
+import { TOWERS, AGES, TOWER_PATHS, PATH_COST } from '../data/towers.js';
 import { HEROES, HERO_RANKS } from '../data/heroes.js';
 import { PLACES_BY_ID, PLACE_ATLAS } from '../data/places.js';
 import { HERO_ATLAS } from '../data/heroes.js';
@@ -1533,6 +1533,7 @@ export class HUD {
     const hpFrac = Math.max(0, tower.hp / tower.maxHp);
     const rows = [
       [t('panel.age'), t('age.' + AGES[tower.ageIdx].id)],
+      tower.path ? [t('panel.path'), tName(TOWER_PATHS[tower.def.role][tower.path])] : null,
       stats.damage ? [t('panel.damage'), tNum(Math.round(stats.damage))] : null,
       stats.range ? [t('panel.range'), tNum(Math.round(stats.range * 10) / 10)] : null,
       stats.rate ? [t('panel.dps'), tNum(Math.round(stats.damage * stats.rate))] : null,
@@ -1553,6 +1554,27 @@ export class HUD {
     upBtn.disabled = !tower.canUpgrade() || this.game.gold < tower.upgradeCost();
     upBtn.onclick = () => { if (this.game.upgradeTower(tower)) this.showTower(tower); };
     actions.append(upBtn);
+    // specialization fork: at Kayanian age the tower takes ONE of its role's two paths
+    if (tower.canChoosePath()) {
+      const P = TOWER_PATHS[tower.def.role];
+      for (const key of ['A', 'B']) {
+        const p = P[key];
+        if (!p) continue;
+        const btn = el('button', { class: 'gbtn path-btn', title: tf(p, 'desc') },
+          el('span', { class: `path-glyph p${key}` }, key === 'A' ? '⚔' : '✦'),
+          el('span', { class: 'path-copy' },
+            el('b', {}, tName(p)),
+            el('small', {}, tf(p, 'desc')),
+          ),
+          el('span', { class: 'path-cost' }, `${tNum(PATH_COST)} 🪙`),
+        );
+        btn.disabled = this.game.gold < PATH_COST;
+        btn.onclick = () => { if (this.game.chooseTowerPath(tower, key)) this.showTower(tower); };
+        actions.append(btn);
+      }
+    } else if (!tower.path && TOWER_PATHS[tower.def.role]) {
+      actions.append(el('div', { class: 'rp-note' }, t('panel.pathLocked')));
+    }
     // hero assign / recall + PROMOTE the commander's rank directly from the tower
     if (tower.hero) {
       const rankCost = this.game.heroRankUpCost(tower.hero.id);

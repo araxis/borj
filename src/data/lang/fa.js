@@ -533,6 +533,8 @@ export const FA = {
   'research.disc.learning': 'دانش',
   'research.disc.statecraft': 'کشورداری',
   'research.disc.war': 'آیین جنگ',
+  'panel.path': 'راه',
+  'panel.pathLocked': 'برای گزینش راهِ چیرگی به عصر کیانی برس.',
   'codex.cost': 'بها',
   'codex.hp': 'توان',
 

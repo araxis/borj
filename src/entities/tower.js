@@ -2,7 +2,7 @@
 // auras, attacks, and staged physical destruction (crack → crown collapse → ruin).
 import * as THREE from 'three';
 import { buildTower, animateBanner } from '../models/towerkit.js';
-import { AGES } from '../data/towers.js';
+import { AGES, TOWER_PATHS, PATH_FORK_AGE } from '../data/towers.js';
 import { HERO_RANKS } from '../data/heroes.js';
 import { getHeroRank } from '../core/save.js';
 import { SOLDIERS_BY_ID } from '../data/soldiers.js';
@@ -60,6 +60,7 @@ export class Tower {
     this.def = def;
     this.pad = pad;
     this.ageIdx = 0;
+    this.path = null;          // specialization: 'A' | 'B', chosen once at Kayanian age
     this.hero = null;          // HeroDef
     this.alive = true;
     this.pos = pad.pos.clone();
@@ -112,7 +113,7 @@ export class Tower {
       this._removePalacePulseFx();
       this.group?.removeFromParent();
     }
-    this.model = buildTower(this.def.model, this.ageIdx);
+    this.model = buildTower(this.def.model, this.ageIdx, this.path);
     this.group = this.model.group;
     this.group.position.copy(this.pos);
     this.group.rotation.y = this.pad.rot + Math.PI; // iwan faces the road
@@ -323,6 +324,20 @@ export class Tower {
       aura: d.aura ? { ...d.aura } : null,
       bond: 0,
     };
+    // specialization path: a sidegrade fork applied before the commander's gifts
+    if (this.path) {
+      const m = TOWER_PATHS[d.role]?.[this.path]?.mods;
+      if (m) {
+        for (const k of ['damage', 'rate', 'range', 'splash', 'income', 'kherad']) if (m[k]) s[k] *= 1 + m[k];
+        for (const k of ['vsBoss', 'vsDiv', 'vsBeast']) if (m[k]) s[k] *= 1 + m[k];
+        if (m.pierce) s.pierce += m.pierce;
+        if (m.stunChance) s.stunChance += m.stunChance;
+        if (m.armorShred) s.armorShred += m.armorShred;
+        if (m.hpMod) s.hpMod += m.hpMod;
+        if (m.heal && s.heal) s.heal.hps *= 1 + m.heal;
+        if (m.incomeFlat) s.income += m.incomeFlat;
+      }
+    }
     if (this.hero) {
       const bond = heroBond(this.hero, d, this.ageIdx);
       s.bond = bond;
@@ -408,6 +423,8 @@ export class Tower {
   }
 
   canUpgrade() { return this.ageIdx < AGES.length - 1; }
+
+  canChoosePath() { return !this.path && this.ageIdx >= PATH_FORK_AGE && !!TOWER_PATHS[this.def.role]; }
   upgradeCost() {
     let c = Math.round(this.def.cost * AGES[Math.min(this.ageIdx + 1, AGES.length - 1)].costMult);
     if (this.game.courtGraceAt(this.pos)) c = Math.round(c * 0.85);

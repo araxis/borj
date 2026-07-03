@@ -529,6 +529,8 @@ export const EN = {
   'research.disc.learning': 'Learning',
   'research.disc.statecraft': 'Statecraft',
   'research.disc.war': 'Art of War',
+  'panel.path': 'Path',
+  'panel.pathLocked': 'Reach the Kayanian age to choose a specialization path.',
   'codex.cost': 'Cost',
   'codex.hp': 'Vitality',
 

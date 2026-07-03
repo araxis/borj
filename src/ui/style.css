@@ -3979,6 +3979,24 @@ body.rtl .research-disc { letter-spacing: 0; }
 .research-node.sealed { opacity: 0.55; filter: saturate(0.4); }
 .research-node.sealed .rn-foot { color: #c9a06a; font-style: italic; border-color: rgba(142, 74, 51, 0.5); }
 
+/* round 3 T1: specialization fork buttons on the tower panel */
+.path-btn {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: start;
+  padding: 0.5em 0.8em;
+}
+.path-btn .path-glyph { font-size: 1.15rem; }
+.path-btn .path-glyph.pA { color: #ffb06b; }
+.path-btn .path-glyph.pB { color: #7fe7dc; }
+.path-btn .path-copy { display: grid; gap: 1px; min-width: 0; }
+.path-btn .path-copy b { font-size: 0.88rem; }
+.path-btn .path-copy small { font-size: 0.68rem; color: #b09668; line-height: 1.25; white-space: normal; }
+.path-btn .path-cost { font-size: 0.78rem; color: #f0d996; white-space: nowrap; }
+
 /* round 3 K1: wisdom gathered this battle, shown on the end screen */
 .end-kherad {
   margin: -12px auto 16px;

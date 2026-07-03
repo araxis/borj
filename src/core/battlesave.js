@@ -53,6 +53,7 @@ export function serializeBattle(game) {
       defId: t.def.id,
       padIndex: pads.indexOf(t.pad),
       ageIdx: t.ageIdx,
+      path: t.path || null,
       hp: Math.round(t.hp),
       invested: t.invested,
       heroId: t.hero?.id || null,

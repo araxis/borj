@@ -853,11 +853,35 @@ export function assetTower(modelKey, ageIdx = 0) {
   return { group, layers: { base: new THREE.Group(), mid: new THREE.Group(), crown }, animated, height: targetH, radius };
 }
 
-export function buildTower(modelKey, ageIdx = 0) {
+// specialization sigil (T1): a war-pennant + emblem ring marks the chosen path on
+// any tower body — path A burns red/gold (aggression), path B flies teal/silver
+// (craft). T2 swaps these for real per-path weapon addon geometry.
+function attachPathSigil(t, path) {
+  const mats = MATS();
+  const h = (t.height || 3.6) + 0.4;
+  const banner = makeBanner(path === 'A' ? 'clothRed' : 'clothTeal', 0.55, 0.9, h + 1.4);
+  banner.position.set(0.95, 0, 0.95);
+  t.group.add(banner);
+  if (t.animated?.banners) t.animated.banners.push(banner);
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.42, 0.05, 6, 16),
+    path === 'A' ? mats.gold : (mats.turquoise || mats.gold),
+  );
+  ring.position.set(0.95, h + 1.55, 0.95);
+  ring.rotation.x = Math.PI / 2;
+  t.group.add(ring);
+}
+
+export function buildTower(modelKey, ageIdx = 0, path = null) {
   const a = assetTower(modelKey, ageIdx);           // GLB body if loaded, else procedural
-  if (a) { a.group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); return a; }
+  if (a) {
+    if (path) attachPathSigil(a, path);
+    a.group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    return a;
+  }
   const recipe = RECIPES[modelKey] || RECIPES.watchtower;
   const t = recipe(ageIdx);
+  if (path) attachPathSigil(t, path);
   t.group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return t;
 }
