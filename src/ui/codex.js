@@ -21,6 +21,11 @@ export class Codex {
       el('div', { class: 'dialog frame', style: { width: 'min(960px, 92vw)' } },
         backMedallion({ id: 'codexClose', 'aria-label': t('settings.back') }),
         el('h2', { class: 'ornament-title', id: 'codexTitle' }, t('codex.title')),
+        // Ferdowsi's opening line — the book begins as the Book of Kings begins
+        el('div', { class: 'codex-epigraph' },
+          el('div', { class: 'verse-fa', lang: 'fa', dir: 'rtl' }, 'به نام خداوند جان و خرد — کزین برتر اندیشه برنگذرد'),
+          el('div', { class: 'verse-en', id: 'codexEpigraphEn' }, t('codex.epigraph')),
+        ),
         el('div', { id: 'codexTabs' }),
         el('div', { id: 'codexGrid' }),
         el('div', { id: 'codexDetail' }),
@@ -45,6 +50,8 @@ export class Codex {
   _renderTabs() {
     const tabs = clear($('#codexTabs'));
     $('#codexTitle').textContent = t('codex.title');
+    const epi = $('#codexEpigraphEn');
+    if (epi) { epi.textContent = t('codex.epigraph'); epi.hidden = !t('codex.epigraph'); }
     const profile = loadProfile();
     const defs = [
       ['heroes', t('codex.heroes')], ['enemies', t('codex.enemies')], ['places', t('codex.places')],
@@ -123,7 +130,7 @@ export class Codex {
             el('h4', {}, t('panel.storyRef')),
             el('p', { class: 'storyref' }, item.sourceRef ? tOpt('storyref.' + item.id, item.sourceRef) : '—'),
           ),
-          el('div', { class: 'rp-section' },
+          el('div', { class: 'rp-section lore-folio' },
             el('h4', {}, t('panel.lore')),
             el('p', {}, tf(item, 'short')),
             el('p', { style: { marginTop: '8px' } }, tf(item, 'detail') || tf(item, 'lore')),
