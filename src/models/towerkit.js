@@ -853,35 +853,186 @@ export function assetTower(modelKey, ageIdx = 0) {
   return { group, layers: { base: new THREE.Group(), mid: new THREE.Group(), crown }, animated, height: targetH, radius };
 }
 
-// specialization sigil (T1): a war-pennant + emblem ring marks the chosen path on
-// any tower body — path A burns red/gold (aggression), path B flies teal/silver
-// (craft). T2 swaps these for real per-path weapon addon geometry.
-function attachPathSigil(t, path) {
-  const mats = MATS();
-  const h = (t.height || 3.6) + 0.4;
-  const banner = makeBanner(path === 'A' ? 'clothRed' : 'clothTeal', 0.55, 0.9, h + 1.4);
-  banner.position.set(0.95, 0, 0.95);
-  t.group.add(banner);
-  if (t.animated?.banners) t.animated.banners.push(banner);
-  const ring = new THREE.Mesh(
-    new THREE.TorusGeometry(0.42, 0.05, 6, 16),
-    path === 'A' ? mats.gold : (mats.turquoise || mats.gold),
-  );
-  ring.position.set(0.95, h + 1.55, 0.95);
-  ring.rotation.x = Math.PI / 2;
-  t.group.add(ring);
+// ---- specialization addon parts (round 3, T2) ----
+// Real bolt-on weapon/craft geometry per path — the tower's silhouette changes with
+// its choice, not just its numbers. Each builder mounts at the crown (t.height).
+const ADDONS = {
+  // archer A: a battery of three mounted crossbows fanning over the parapet
+  crossbowBattery: (t, b, h) => {
+    for (const [a, x, z] of [[-0.5, -0.7, 0.9], [0, 0, 1.05], [0.5, 0.7, 0.9]]) {
+      b.box(0.14, 0.12, 0.7, 'woodDark', x, h + 0.32, z, -a);
+      b.box(0.8, 0.07, 0.09, 'wood', x, h + 0.36, z + 0.22, -a); // bow arms
+      b.cyl(0.05, 0.07, 0.34, 5, 'iron', x, h + 0.18, z);
+    }
+  },
+  // archer B: one great ballista on a swivel post
+  ballista: (t, b, h) => {
+    b.cyl(0.16, 0.22, 0.5, 7, 'woodDark', 0, h + 0.25, 0);
+    b.box(0.2, 0.16, 1.5, 'wood', 0, h + 0.58, 0.15, 0, -0.18);
+    for (const s of [-1, 1]) b.box(0.9, 0.09, 0.1, 'woodDark', s * 0.28, h + 0.62, 0.75, s * 0.5);
+    b.cyl(0.03, 0.03, 1.3, 4, 'iron', 0, h + 0.66, 0.2, -0.18); // the bolt
+  },
+  // siege A: naft fire-pot rack + a burning pitch cauldron
+  naftLauncher: (t, b, h) => {
+    b.box(1.1, 0.1, 0.5, 'woodDark', 0.5, h + 0.25, -0.5);
+    for (let i = 0; i < 3; i++) b.sphere(0.16, 7, 5, 'brickRed', 0.15 + i * 0.36, h + 0.42, -0.5);
+    b.cyl(0.3, 0.24, 0.3, 8, 'iron', -0.7, h + 0.35, 0.4);
+    t._addonFlame = { x: -0.7, y: h + 0.62, z: 0.4, s: 0.55 };
+  },
+  // siege B: the Great Arm — a taller counterweighted throwing beam
+  greatArm: (t, b, h) => {
+    for (const s of [-1, 1]) b.box(0.14, 1.3, 0.14, 'woodDark', s * 0.4, h + 0.65, 0);
+    b.box(0.12, 0.12, 2.6, 'wood', 0, h + 1.28, -0.2, 0, -0.5);
+    b.box(0.5, 0.5, 0.5, 'stoneDark', 0, h + 0.75, -1.15); // counterweight
+  },
+  // fire A: an iron brazier crown — four undying flames ring the roof
+  brazierCrown: (t, b, h) => {
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.4;
+      const x = Math.cos(a) * 1.05, z = Math.sin(a) * 1.05;
+      b.cyl(0.14, 0.1, 0.22, 6, 'iron', x, h + 0.3, z);
+      t._addonFlames = t._addonFlames || [];
+      t._addonFlames.push({ x, y: h + 0.5, z, s: 0.45 });
+    }
+  },
+  // fire B: flared gold fire-wings around a festival flame
+  fireWings: (t, b, h) => {
+    for (const s of [-1, 1]) {
+      b.box(0.9, 0.5, 0.06, 'gold', s * 0.62, h + 0.55, 0, 0, 0, s * 0.5);
+    }
+    t._addonFlame = { x: 0, y: h + 0.55, z: 0, s: 0.8 };
+  },
+  // magic A: a floating seal ring of graven ward-stones
+  sealRing: (t, b, h) => {
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      b.box(0.22, 0.3, 0.1, 'stoneWhite', Math.cos(a) * 0.85, h + 0.75, Math.sin(a) * 0.85, -a);
+    }
+    b.cyl(0.04, 0.04, 0.9, 5, 'bronze', 0, h + 0.45, 0);
+  },
+  // magic B: the storm-caller's rod — a tall finial of gathered sky
+  stormFinial: (t, b, h) => {
+    b.cyl(0.05, 0.08, 1.6, 6, 'iron', 0, h + 0.8, 0);
+    b.sphere(0.14, 8, 6, 'gold', 0, h + 1.68, 0);
+    for (const s of [-1, 1]) b.sphere(0.08, 6, 5, 'gold', s * 0.3, h + 1.3, 0);
+  },
+  // support A: splayed Simurgh feathers crown the nest
+  featherCrown: (t, b, h) => {
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      b.box(0.12, 0.85, 0.04, 'turquoise', Math.cos(a) * 0.6, h + 0.62, Math.sin(a) * 0.6, -a, 0, (i % 2 ? 1 : -1) * 0.3);
+    }
+  },
+  // support B: the far-watch lantern on its high hook
+  watchLantern: (t, b, h) => {
+    b.cyl(0.05, 0.06, 1.1, 5, 'woodDark', 0.7, h + 0.55, 0.7, 0, -0.3);
+    b.box(0.26, 0.34, 0.26, 'gold', 0.95, h + 1.0, 0.95);
+    t._addonFlame = { x: 0.95, y: h + 1.0, z: 0.95, s: 0.35 };
+  },
+  // aura A/B: the great war banner / twin warding banners (animated cloth)
+  greatBanner: (t, b, h, T) => {
+    const big = makeBanner('clothGold', 1.2, 1.9, h + 2.2);
+    big.position.set(0.5, 0, 0.5);
+    T.group.add(big);
+    T.animated?.banners?.push(big);
+  },
+  wardBanner: (t, b, h, T) => {
+    for (const s of [-1, 1]) {
+      const bn = makeBanner('clothWhite', 0.6, 1.1, h + 1.3);
+      bn.position.set(s * 0.85, 0, 0.85);
+      T.group.add(bn);
+      T.animated?.banners?.push(bn);
+    }
+  },
+  // economy A: the mint press and its stacked coin blanks
+  mintPress: (t, b, h) => {
+    b.box(0.5, 0.6, 0.5, 'iron', 0.55, h + 0.3, 0.4);
+    for (let i = 0; i < 3; i++) b.cyl(0.16, 0.16, 0.07, 10, 'gold', -0.4 - (i % 2) * 0.28, h + 0.12 + Math.floor(i / 2) * 0.09, 0.45 + (i % 2) * 0.1);
+  },
+  // economy B: striped bazaar awnings skirt the gallery
+  bazaarAwnings: (t, b, h) => {
+    for (const [s, mat] of [[-1, 'clothRed'], [1, 'clothTeal']]) {
+      b.box(1.3, 0.05, 0.7, mat, s * 0.75, h - 0.4, 0.95, 0, 0.4);
+      for (const e of [-0.55, 0.55]) b.cyl(0.03, 0.03, 0.7, 4, 'wood', s * 0.75 + e, h - 0.7, 1.25);
+    }
+  },
+  // barracks A: the shield wall — a rail of round shields
+  shieldRack: (t, b, h) => {
+    b.box(1.9, 0.08, 0.08, 'woodDark', 0, h + 0.15, 1.0);
+    for (let i = 0; i < 4; i++) b.cyl(0.24, 0.24, 0.06, 10, i % 2 ? 'bronze' : 'brickRed', -0.72 + i * 0.48, h + 0.15, 1.05, Math.PI / 2);
+  },
+  // barracks B: a rack of sally lances angled at the road
+  lanceRack: (t, b, h) => {
+    for (let i = 0; i < 5; i++) {
+      const x = -0.6 + i * 0.3;
+      b.cyl(0.025, 0.035, 1.6, 4, 'wood', x, h + 0.7, 0.8, -0.5);
+      b.cone(0.06, 0.22, 5, 'steel', x, h + 1.42, 1.16);
+    }
+  },
+  // trap A: a ring of sharpened stakes guards the pit rim
+  stakeRing: (t, b, h) => {
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      b.cone(0.09, 0.7, 5, 'woodDark', Math.cos(a) * 1.5, 0.35, Math.sin(a) * 1.5, 0, 0, 0);
+    }
+  },
+  // trap B: iron jaws — toothed snap-traps flank the pit
+  ironJaws: (t, b, h) => {
+    for (const s of [-1, 1]) {
+      b.box(0.7, 0.1, 0.4, 'iron', s * 1.1, 0.1, 0.6);
+      for (let i = 0; i < 4; i++) b.cone(0.05, 0.22, 4, 'steel', s * 1.1 - 0.24 + i * 0.16, 0.25, 0.6);
+    }
+  },
+  // wisdom A: turquoise scroll-spires rise from the scriptorium
+  scrollSpires: (t, b, h) => {
+    for (const [x, z] of [[-0.7, 0.7], [0.7, 0.7], [0, -0.9]]) {
+      b.cyl(0.14, 0.17, 0.9, 7, 'plaster', x, h + 0.45, z);
+      b.sphere(0.19, 8, 6, 'turquoise', x, h + 0.98, z, 0.8);
+    }
+  },
+  // wisdom B: the endowment dome and its tithe coins
+  endowmentDome: (t, b, h) => {
+    b.sphere(0.5, 10, 7, 'gold', 0.7, h + 0.35, -0.6, 0.7);
+    for (let i = 0; i < 3; i++) b.cyl(0.13, 0.13, 0.06, 10, 'gold', -0.5 + i * 0.3, h + 0.1, 0.75);
+  },
+};
+
+// mounts the chosen path's addon geometry (plus its flames/banners) on the built tower
+function attachPathAddon(t, spec) {
+  const b = new MeshBuilder();
+  const h = t.height || 3.6;
+  const builder = ADDONS[spec.addon];
+  if (builder) builder(t, b, h, t);
+  else { // unknown key: a simple path pennant so the choice always shows
+    const bn = makeBanner(spec.path === 'A' ? 'clothRed' : 'clothTeal', 0.55, 0.9, h + 1.4);
+    bn.position.set(0.95, 0, 0.95);
+    t.group.add(bn);
+    t.animated?.banners?.push(bn);
+  }
+  const built = b.build();
+  (t.layers?.crown || t.group).add(built);
+  // addon flames (naft cauldron, braziers, lantern) pulse with the rest of the tower
+  const flames = [...(t._addonFlames || []), ...(t._addonFlame ? [t._addonFlame] : [])];
+  for (const f of flames) {
+    const fl = makeFlame(f.s);
+    fl.position.set(f.x, f.y, f.z);
+    t.group.add(fl);
+    t.animated?.flames?.push(fl);
+  }
+  delete t._addonFlames;
+  delete t._addonFlame;
 }
 
-export function buildTower(modelKey, ageIdx = 0, path = null) {
+export function buildTower(modelKey, ageIdx = 0, spec = null) {
   const a = assetTower(modelKey, ageIdx);           // GLB body if loaded, else procedural
   if (a) {
-    if (path) attachPathSigil(a, path);
+    if (spec) attachPathAddon(a, spec);
     a.group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     return a;
   }
   const recipe = RECIPES[modelKey] || RECIPES.watchtower;
   const t = recipe(ageIdx);
-  if (path) attachPathSigil(t, path);
+  if (spec) attachPathAddon(t, spec);
   t.group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return t;
 }

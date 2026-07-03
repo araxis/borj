@@ -113,7 +113,8 @@ export class Tower {
       this._removePalacePulseFx();
       this.group?.removeFromParent();
     }
-    this.model = buildTower(this.def.model, this.ageIdx, this.path);
+    const pathDef = this.path ? TOWER_PATHS[this.def.role]?.[this.path] : null;
+    this.model = buildTower(this.def.model, this.ageIdx, pathDef ? { path: this.path, addon: pathDef.addon } : null);
     this.group = this.model.group;
     this.group.position.copy(this.pos);
     this.group.rotation.y = this.pad.rot + Math.PI; // iwan faces the road
