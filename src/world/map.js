@@ -321,13 +321,14 @@ export class GameMap {
     this.spinners = []; // round 4: rotating set-piece parts { mesh, axis, rate } spun by the game loop
     this.movers = []; // round 4: back-and-forth walkers { group, legs, a, b, t, dir, speed } (the plough ox)
     this.chimneys = []; // round 4: rooftop smoke emitter points [x, y, z] (cook-fires of a lived-in town)
+    this._cityQuarterRetry = null;
     const biome = this.place?.biome || 'plains';
     buildCurtainWall(this, rng);
     if (['plains', 'steppe', 'valley', 'river', 'desert'].includes(biome)) buildVillage(this, rng);
     if (['plains', 'steppe', 'valley', 'river', 'desert'].includes(biome)) dressMarket(this, rng);
-    // round 4 A1: the living city quarter near the citadel (zabulistan has its authored kit)
+    // round 4 A1: the living city quarter in the far dressing band (zabulistan has its authored kit)
     if (mapDef.id !== 'zabulistan' && ['plains', 'steppe', 'valley', 'river', 'desert', 'highland'].includes(biome)) {
-      buildCityQuarter(this, rng);
+      scheduleCityQuarter(this, makeRng('map:' + mapDef.id + ':city-quarter'));
     }
     if (this.river) buildDocks(this, rng);
     if (this.river && mapDef.id !== 'zabulistan') buildWaterMill(this, rng); // round 4 C1
@@ -400,6 +401,7 @@ export class GameMap {
 
   dispose() {
     this._disposed = true; // guard async swaps (forest trees) firing after the map is gone
+    if (this._cityQuarterRetry) clearTimeout(this._cityQuarterRetry);
     this.backdrop?.userData?.dispose?.();
     this.scene.remove(this.group);
     this.group.traverse((o) => {
@@ -668,36 +670,34 @@ function buildNowruzGarlands(map, rng, placed) {
   }
 }
 
-// Round 4 A1 — the City Quarter: a real town block near the citadel approach with a
-// bazaar lane, two side alleys, and a well square; buildings packed to FACE the
-// streets. The board anchors on a living city instead of scattered compounds.
+// Round 4 A1 — the City Quarter: a real distant town block with a bazaar lane,
+// two side alleys, and a well square; buildings packed to FACE the streets.
+// The board reads as a living city beyond the playfield instead of scattered compounds.
 function buildCityQuarter(map, rng) {
-  if (!propReady('MudbrickHouse')) return; // town fabric GLBs not ready → skip (never-break)
-  const path = map.paths?.[0];
-  if (!path) return;
+  if (map._cityQuarterBuilt) return true;
+  if (!propReady('MudbrickHouse')) return false; // town fabric GLBs not ready → retry/skip (never-break)
+  if (!map.paths?.[0]) return true;
   const CELL = 5.2, COLS = 6, ROWS = 5;
   const halfW = (COLS * CELL) / 2;
-  // site: walk the final approach and score each flank by how clear its footprint is;
-  // take the LEAST-blocked site rather than demanding a perfectly empty one (these
-  // dense boards never have a fully-clear 23x20u pocket) — blocked cells just skip
-  // their building later, so a mostly-clear site still yields a convincing quarter.
+  // Decorative background, not a play object: scan the far dressing band so the
+  // town stays readable without crowding roads, pads, or the palace approach.
+  const bandR = Math.min(94, (map.visualBoard?.radius ?? 112) - 16);
   let site = null, bestFree = -1;
-  for (const back of [24, 30, 36, 42, 48]) {
-    const s = path.samples[Math.max(0, path.samples.length - back)];
-    for (const side of [1, -1]) {
-      const cx = s.pos.x - s.tangent.z * side * (halfW + 8);
-      const cz = s.pos.z + s.tangent.x * side * (halfW + 8);
-      if (Math.hypot(cx, cz) > 66) continue;
-      let free = 0;
-      for (let gx = -2; gx <= 2; gx++) {
-        for (let gz = -2; gz <= 2; gz++) {
-          if (map._isClear(cx + gx * halfW * 0.42, cz + gz * halfW * 0.42, 2.6)) free++;
+  for (let k = 0; k < 24; k++) {
+    const a = (k / 24) * Math.PI * 2;
+    const cx = Math.cos(a) * bandR, cz = Math.sin(a) * bandR;
+    let free = 0;
+    for (let gx = -2; gx <= 2; gx++) {
+      for (let gz = -2; gz <= 2; gz++) {
+        const tx = cx + gx * halfW * 0.42, tz = cz + gz * halfW * 0.42;
+        if (Math.hypot(tx, tz) < (map.visualBoard?.radius ?? 112) - 4 && !map._nearRoad(tx, tz, ROAD_WIDTH + 3)) {
+          free++;
         }
       }
-      if (free > bestFree) { bestFree = free; site = { cx, cz, yaw: Math.atan2(s.tangent.x, s.tangent.z) }; }
     }
+    if (free > bestFree) { bestFree = free; site = { cx, cz, yaw: Math.atan2(-cx, -cz) }; }
   }
-  if (!site || bestFree < 8) return; // even the best flank is too crowded — skip the quarter
+  if (!site || bestFree < 20) return true; // no clear distant arc; skip the quarter
   const { cx, cz, yaw } = site;
   const cos = Math.cos(yaw), sin = Math.sin(yaw);
   const toWorld = (u, v) => {
@@ -727,7 +727,7 @@ function buildCityQuarter(map, rng) {
       }
     }
   }
-  if (housesPlaced < 4) return; // too few fit to read as a quarter — leave it be
+  if (housesPlaced < 4) return true; // too few fit to read as a quarter — leave it be
   // market stalls hugging the bazaar lane's edges
   for (const [u, sideV] of [[0, 0.52], [2, -0.52], [3, 0.52], [5, -0.52]]) {
     const [wx, wz] = toWorld(u, LANE_V + sideV);
@@ -831,6 +831,18 @@ function buildCityQuarter(map, rng) {
   wallG.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   mergeStaticGroup(wallG); // ~120 static mudbrick boxes → 2 meshes (one per material)
   map.kitGroup.add(wallG);
+  map._cityQuarterBuilt = true;
+  return true;
+}
+
+function scheduleCityQuarter(map, rng, attempt = 0) {
+  if (map._disposed || map._cityQuarterBuilt) return;
+  if (buildCityQuarter(map, rng)) return;
+  if (attempt >= 240) return;
+  map._cityQuarterRetry = setTimeout(() => {
+    map._cityQuarterRetry = null;
+    scheduleCityQuarter(map, rng, attempt + 1);
+  }, 250);
 }
 
 // Round 4 C1 — a working watermill on the river: a mudbrick mill house on the bank

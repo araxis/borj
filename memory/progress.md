@@ -2834,3 +2834,21 @@ and Shahnameh-only language.
 - Added small feedback beats for age 2/3 tower upgrades, specialization path choices, player-sold tower demolition, and
   commander recall. These are presentation-only cues; combat math, saves, assets, waves, economy, and manifests remain
   unchanged.
+
+## 2026-07-05 - Distant living settlement review package
+
+- Repackaged the distant settlement slice from current `main` on `work/round5-distant-settlement-review`. The decorative
+  city quarter now scans the far circular dressing band, chooses a clear arc away from roads, faces inward, and keeps the
+  existing wall, well, market, chimney, flame, and townsfolk construction.
+- Ambient villagers keep movement and state updates at all distances, but skip procedural rig animation and optional
+  townsfolk mixer updates when they are more than 60 units from the camera focus. The optional `tf_*` path and procedural
+  fallback behavior remain unchanged.
+- Verification passed: `node --check src/world/map.js`, `node --check src/world/ambient.js`, `npm run build`,
+  `npm run audit:assets`, and `git diff --check`. Build warnings remained the accepted existing ones.
+- Focused Zabulistan browser QA passed for `opening-build`, `combined-combat-readability`,
+  `combined-combat-readability-rtl`, `palace-contact-terrain`, and `gate-hold-state`: each reported `ok: true`, no
+  overflow, no broken images, and five loaded Zabulistan backdrop layers, with the known two visual-kit artifact reports
+  unchanged.
+- Madayen settlement smoke passed with the quarter built in the distant band: five far villager spots, fourteen far kit
+  meshes, zero road overlaps, nearest far pad at about 67 units, eight loaded Madayen backdrop layers, no overflow, no
+  broken images, and no page or console errors.

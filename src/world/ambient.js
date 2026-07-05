@@ -1130,6 +1130,8 @@ export class Ambient {
     const waveNow = !!game?.waveActive;
     const waveStarted = waveNow && !this._waveWas;
     this._waveWas = waveNow;
+    const camFocus = game?.engine?.rtsCamera?.target || null;
+    const animFar = (p) => camFocus ? ((p.x - camFocus.x) ** 2 + (p.z - camFocus.z) ** 2) > 3600 : false;
     for (const c of this.clouds) {
       c.sp.position.x += c.vx * dt;
       if (c.sp.position.x > 100) c.sp.position.x = -100;
@@ -1403,6 +1405,7 @@ export class Ambient {
     for (const v of this.villagers) {
       v.t -= dt;
       const pos = v.group.position;
+      const far = animFar(pos);
       if (this._threatT <= 0 && game && v.state !== 'flee' && v.state !== 'fleeIn' && v.state !== 'inside') {
         for (const e of game.enemies) {
           if (e.alive && e.group.position.distanceToSquared(pos) < 121) { // ~11u panic radius
@@ -1431,7 +1434,7 @@ export class Ambient {
           v.group.rotation.y = Math.atan2(dx, dz);
           pos.x += (dx / d) * 4.4 * dt; pos.z += (dz / d) * 4.4 * dt;
           pos.y = this.map.heightAt(pos.x, pos.z);
-          if (!animateTownsperson(v, 'run', dt, 1.25)) animWalk(v.rig, time, 1.7); // running for the door
+          if (!far && !animateTownsperson(v, 'run', dt, 1.25)) animWalk(v.rig, time, 1.7); // running for the door
         } else {
           v.group.visible = false; // slipped inside
           v.state = 'inside';
@@ -1453,7 +1456,7 @@ export class Ambient {
         pos.addScaledVector(dir, 4.4 * dt);
         pos.x = THREE.MathUtils.clamp(pos.x, -72, 72); pos.z = THREE.MathUtils.clamp(pos.z, -72, 72);
         pos.y = this.map.heightAt(pos.x, pos.z);
-        if (!animateTownsperson(v, 'run', dt, 1.25)) animWalk(v.rig, time, 1.7); // running cycle
+        if (!far && !animateTownsperson(v, 'run', dt, 1.25)) animWalk(v.rig, time, 1.7); // running cycle
         if (v.t <= 0) v.state = 'return';
       } else if (v.state === 'return') {
         const dx = v.home.x - pos.x, dz = v.home.z - pos.z, d = Math.hypot(dx, dz);
@@ -1461,7 +1464,7 @@ export class Ambient {
           v.group.rotation.y = Math.atan2(dx, dz);
           pos.x += (dx / d) * 1.7 * dt; pos.z += (dz / d) * 1.7 * dt;
           pos.y = this.map.heightAt(pos.x, pos.z);
-          if (!animateTownsperson(v, 'walk', dt, 0.95)) animWalk(v.rig, time, 0.85);
+          if (!far && !animateTownsperson(v, 'walk', dt, 0.95)) animWalk(v.rig, time, 0.85);
         } else { v.group.rotation.y = v.homeRy; v.state = 'idle'; }
       } else if (v.state === 'stroll') {
         // amble to the chosen spot in the neighborhood, then loiter (back to idle)
@@ -1470,10 +1473,10 @@ export class Ambient {
           v.group.rotation.y = Math.atan2(dx, dz);
           pos.x += (dx / d) * 1.3 * dt; pos.z += (dz / d) * 1.3 * dt;
           pos.y = this.map.heightAt(pos.x, pos.z);
-          if (!animateTownsperson(v, 'walk', dt, 0.75)) animWalk(v.rig, time, 1.0);
+          if (!far && !animateTownsperson(v, 'walk', dt, 0.75)) animWalk(v.rig, time, 1.0);
         } else { v.state = 'idle'; v.strollT = 5 + Math.random() * 7; }
       } else { // idle: breathe + slow look around, and townsfolk occasionally wander off
-        if (!animateTownsperson(v, 'idle', dt, 1)) {
+        if (!far && !animateTownsperson(v, 'idle', dt, 1)) {
           animIdle(v.rig, time + v.phase);
           if (v.rig.head) v.rig.head.rotation.y = Math.sin((time + v.phase) * 0.5) * 0.25;
         }
