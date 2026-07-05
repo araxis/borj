@@ -549,6 +549,7 @@ export const EN = {
   'settings.accessibility': 'Accessibility',
   'settings.reducedMotion': 'Reduced Motion',
   'settings.screenShake': 'Screen Shake',
+  'settings.damageNumbers': 'Damage Numbers',
   'settings.uiScale': 'UI Scale',
   'settings.language': 'Language',
   'settings.resetSave': 'Erase All Progress',

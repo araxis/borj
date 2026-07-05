@@ -2807,3 +2807,19 @@ and Shahnameh-only language.
 - Verification for this clean package: `node --check` on touched JS files, `npm run build`, `npm run audit:assets`, and
   `git diff --check` passed. Build warnings stayed limited to the existing runtime splash asset, mixed import placement,
   and large bundle warning.
+
+## 2026-07-05 - Combat feedback floaters packaged
+
+- Packaged the combat floater slice on `work/round5-combat-floaters`. Hits now emit pooled DOM damage numbers projected
+  from enemy world positions, with rapid hits folded into one readable value and heavy or killing blows emphasized.
+- Enemy deaths now emit a matching `+gold` bounty pop through the same layer. The floater system clears on battle
+  cleanup and silently no-ops until attached at app boot.
+- Added the `damageNumbers` setting, defaulted on, with English/Farsi Settings labels and a toggle that suppresses both
+  damage and bounty floaters when off.
+- Verification for this package: `node --check src/ui/floaters.js`, `node --check src/entities/enemy.js`,
+  `node --check src/main.js`, `npm run build`, `npm run audit:assets`, and `git diff --check` passed. Build warnings
+  stayed limited to the existing runtime splash asset, mixed import placement, and large bundle warning.
+- Browser smoke passed for English/Farsi Settings labels, toggle persistence, normal/heavy/kill/reward floaters, and
+  disabled-state suppression. Focused Zabulistan QA routes `opening-build`, `combined-combat-readability`,
+  `combined-combat-readability-rtl`, `palace-contact-terrain`, and `gate-hold-state` all reported `ok: true`, no
+  overflow, no broken images, and five loaded backdrop layers. The known two visual-kit artifact reports were unchanged.

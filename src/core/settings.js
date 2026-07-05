@@ -10,6 +10,7 @@ const DEFAULTS = {
   bloom: true,
   reducedMotion: false,
   screenShake: true,
+  damageNumbers: true,
   uiScale: 1.0,
   difficulty: 'normal', // easy | normal | hard
 };

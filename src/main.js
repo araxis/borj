@@ -18,6 +18,7 @@ import { HUD } from './ui/hud.js';
 import { Menus } from './ui/menus.js';
 import { Codex } from './ui/codex.js';
 import { SettingsUI } from './ui/settingsui.js';
+import { floaters } from './ui/floaters.js';
 import { $ } from './ui/dom.js';
 import { zabulistanVisualProfile } from './data/zabulistanVisualProfile.js';
 
@@ -2126,6 +2127,7 @@ function startBattle(mapDef, endless, sandbox = false, snapshot = null) {
 
 function cleanupBattle() {
   audio.setScene('menu');
+  floaters.clear();
   if (gameUpdateOff) { gameUpdateOff(); gameUpdateOff = null; }
   if (hud) { hud.destroy(); hud = null; }
   if (game) { game.dispose(); game = null; }
@@ -2156,6 +2158,7 @@ if (bootQaPreset) {
   loadPalace('zabulistan');
   loadZabulistanProps();
 }
+floaters.attach(engine);
 preloadAssets(); // GLTF characters/animals load in the background; procedural fallback until ready
 loadAllProps(); // static building kit (curtain walls, village, docks…) warm before first map build
 import('./models/materials.js').then((m) => m.enhanceMaterials());

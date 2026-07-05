@@ -1367,6 +1367,51 @@ body.rtl .hcc-kicker { letter-spacing: 0; }
   z-index: 6;
   pointer-events: none;
 }
+.float-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  overflow: hidden;
+}
+.floatnum {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-weight: 800;
+  font-size: 1.05rem;
+  line-height: 1;
+  white-space: nowrap;
+  color: #ffe9b0;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.92), 0 0 8px rgba(0,0,0,0.55);
+  font-variant-numeric: tabular-nums;
+  animation: floatRise 0.72s cubic-bezier(.15,.7,.3,1) forwards;
+  will-change: transform, opacity;
+}
+.floatnum.t-fire { color: #ff9a4d; }
+.floatnum.t-magic { color: #7fe0ff; }
+.floatnum.t-impact { color: #ffc879; }
+.floatnum.t-true { color: #ff7a6a; }
+.floatnum.big {
+  font-size: 1.55rem;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.95), 0 0 14px currentColor;
+}
+.floatnum.t-gold,
+.floatnum.big.t-gold {
+  color: #ffd75e;
+  font-size: 1.15rem;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 12px rgba(255,200,70,0.55);
+}
+@keyframes floatRise {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+  16% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+  30% { transform: translate(-50%, calc(-50% + var(--rise) * 0.35)) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% + var(--rise))) scale(0.92); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .floatnum { animation: floatFade 0.6s ease-out forwards; }
+  @keyframes floatFade { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
+}
 .palace-action-rail {
   position: absolute;
   width: 302px;
