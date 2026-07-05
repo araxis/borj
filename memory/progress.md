@@ -2852,3 +2852,22 @@ and Shahnameh-only language.
 - Madayen settlement smoke passed with the quarter built in the distant band: five far villager spots, fourteen far kit
   meshes, zero road overlaps, nearest far pad at about 67 units, eight loaded Madayen backdrop layers, no overflow, no
   broken images, and no page or console errors.
+
+## 2026-07-05 - Tower age weapon silhouettes review package
+
+- Adapted the next preserved-stack feature package from current `main` on `work/round5-tower-age-weapons-review`. Tower
+  model rebuilds now pass the tower role into the renderer factory so later ages can mount default role weapon
+  silhouettes.
+- `buildTower` now keeps specialization path addons as the winner, otherwise maps role plus age to the existing addon
+  library: Kayanian towers receive their first role weapon and Sasanian/mastery towers receive the stronger silhouette.
+  This is visual-only; tower stats, paths, waves, saves, and asset manifests are unchanged.
+- Verification passed: `node --check src/models/towerkit.js`, `node --check src/entities/tower.js`,
+  `npm run build`, `npm run audit:assets`, and `git diff --check`. No future `tf_*` or `a_twrpart_*` asset keys were
+  registered.
+- Focused Zabulistan browser QA passed for `opening-build`, `combined-combat-readability`,
+  `combined-combat-readability-rtl`, `palace-contact-terrain`, and `gate-hold-state`: each reported `ok: true`, no
+  overflow, no broken images, and five loaded Zabulistan backdrop layers, with the known two visual-kit artifact reports
+  unchanged.
+- Targeted tower smoke passed for archer, siege, fire, magic, wisdom, and barracks representatives: age 2 and age 4
+  each mounted role addon geometry with distinct geometry fingerprints, and an archer specialization path replaced the
+  default age weapon without double-mounting it.

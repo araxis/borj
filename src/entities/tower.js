@@ -114,7 +114,7 @@ export class Tower {
       this.group?.removeFromParent();
     }
     const pathDef = this.path ? TOWER_PATHS[this.def.role]?.[this.path] : null;
-    this.model = buildTower(this.def.model, this.ageIdx, pathDef ? { path: this.path, addon: pathDef.addon } : null);
+    this.model = buildTower(this.def.model, this.ageIdx, pathDef ? { path: this.path, addon: pathDef.addon } : null, this.def.role);
     this.group = this.model.group;
     this.group.position.copy(this.pos);
     this.group.rotation.y = this.pad.rot + Math.PI; // iwan faces the road
