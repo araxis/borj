@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { MATS } from '../models/materials.js';
 import { colorMat, buildHumanoid, animIdle, animWalk } from '../models/humanoid.js';
-import { buildQuad, animQuad } from '../models/creature.js';
+import { assetCharacter, buildQuad, animQuad } from '../models/creature.js';
 import { spawnAsset, rotFix } from '../core/assets.js';
 import { getProp, propReady, propBase, KIT_UNIT } from '../core/props3d.js';
 
@@ -28,8 +28,56 @@ const WILD_HEIGHT = {
   a_horse: 1.7, a_horse_white: 1.7, a_donkey: 1.3,
   a_cow: 1.5, a_bull: 1.6, a_husky: 0.7,
 };
+const TOWNSFOLK_HEIGHT = {
+  tf_water_carrier: 1.72,
+  tf_bread_seller: 1.7,
+  tf_potter: 1.72,
+  tf_porter: 1.78,
+  tf_elder: 1.66,
+  tf_woman_basket: 1.6,
+  tf_shepherd: 1.74,
+  tf_mobed: 1.74,
+  tf_farmer: 1.74,
+  tf_spice_seller: 1.72,
+};
+const COMMON_TOWNSFOLK = [
+  ['tf_water_carrier', 2.2],
+  ['tf_bread_seller', 2.0],
+  ['tf_spice_seller', 1.4],
+  ['tf_potter', 1.1],
+  ['tf_porter', 1.1],
+  ['tf_elder', 1.0],
+  ['tf_shepherd', 0.9],
+  ['tf_farmer', 0.9],
+];
 import { samplePath } from './road.js';
 import { settings } from '../core/settings.js';
+
+function weightedTownsperson(rng, entries) {
+  const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
+  let pick = rng() * total;
+  for (const [key, weight] of entries) {
+    pick -= weight;
+    if (pick <= 0) return key;
+  }
+  return entries[entries.length - 1]?.[0] || 'tf_water_carrier';
+}
+
+function chooseTownspersonKey({ mobed, female, rng }) {
+  if (mobed) return 'tf_mobed';
+  if (female) return 'tf_woman_basket';
+  return weightedTownsperson(rng, COMMON_TOWNSFOLK);
+}
+
+function animateTownsperson(v, action, dt, timeScale = 1) {
+  if (!v.anim) return false;
+  const hasAction = (name) => !!v.anim.actions?.[name];
+  const clip = action === 'run' && !hasAction('run') ? 'walk' : action;
+  if (!hasAction(clip)) return false;
+  v.anim.play(clip, { timeScale });
+  v.anim.mixer.update(dt);
+  return true;
+}
 
 function softBlobTexture(rgb = '255,255,255') {
   const c = document.createElement('canvas');
@@ -1038,8 +1086,8 @@ export class Ambient {
       }
     }
 
-    // idle civilian villagers at the settlement/bazaar spots — procedural robed commoners
-    // (buildHumanoid with no armor/helmet/weapon; texture-free). They just stand and breathe.
+    // Idle civilian villagers at settlement/bazaar spots. Future tf_* assets are optional:
+    // if a key is not registered/loaded, the procedural commoner remains the live fallback.
     this.villagers = [];
     const CLOTHS = [0x7a5c3e, 0x8a6d3a, 0x6b5536, 0x9a7b46, 0x55614e, 0x46566a, 0x8a4a3a, 0xa8925e, 0x6a4a5a];
     // mobed fire-priests (tagged spots at the chahar-taq) always spawn; commoners fill the rest
@@ -1050,16 +1098,21 @@ export class Ambient {
     for (const [x, y, z, ry, kind] of lifeSpots) {
       const mobed = kind === 'mobed';
       const female = !mobed && rng() < 0.4;
-      const v = buildHumanoid({
-        armor: 'none', helmet: 'none', weapon: 'none', shield: false, hairStyle: 'none', // covered below
-        clothColor: mobed ? 0xece4d0 : CLOTHS[(rng() * CLOTHS.length) | 0],
-        beard: mobed || (!female && rng() < 0.5) ? 'full' : 'none',
-        cloak: mobed || rng() < 0.45, cloakColor: mobed ? 0xdcd2b8 : CLOTHS[(rng() * CLOTHS.length) | 0],
-        female, scale: female ? 0.94 : 1.0,
-      });
-      v.rig.head.add(makeHeadwear(rng, female, mobed)); // turban / skullcap / headscarf (white for mobeds)
-      // basket/jug in hand — attach to the forearm so it tracks the elbow (arms now bend)
-      if (!mobed && rng() < 0.5) { const it = makeCarry(rng); const h = v.rig.foreL || v.rig.armL; it.position.set(0, v.rig.foreL ? -0.26 : -0.6, 0.06); h.add(it); }
+      const assetKey = chooseTownspersonKey({ mobed, female, rng });
+      let v = assetCharacter(assetKey, { height: TOWNSFOLK_HEIGHT[assetKey] || 1.7 });
+      const assetSource = !!v;
+      if (!v) {
+        v = buildHumanoid({
+          armor: 'none', helmet: 'none', weapon: 'none', shield: false, hairStyle: 'none', // covered below
+          clothColor: mobed ? 0xece4d0 : CLOTHS[(rng() * CLOTHS.length) | 0],
+          beard: mobed || (!female && rng() < 0.5) ? 'full' : 'none',
+          cloak: mobed || rng() < 0.45, cloakColor: mobed ? 0xdcd2b8 : CLOTHS[(rng() * CLOTHS.length) | 0],
+          female, scale: female ? 0.94 : 1.0,
+        });
+        v.rig.head.add(makeHeadwear(rng, female, mobed)); // turban / skullcap / headscarf (white for mobeds)
+        // basket/jug in hand — attach to the forearm so it tracks the elbow (arms now bend)
+        if (!mobed && rng() < 0.5) { const it = makeCarry(rng); const h = v.rig.foreL || v.rig.armL; it.position.set(0, v.rig.foreL ? -0.26 : -0.6, 0.06); h.add(it); }
+      }
       // ambient background figures skip the shadow pass (~30 meshes each) — keep it for gameplay
       // objects (towers/enemies/citadel/trees). They still RECEIVE shadows cast onto them.
       v.group.traverse((o) => { if (o.isMesh) o.castShadow = false; });
@@ -1067,7 +1120,7 @@ export class Ambient {
       v.group.rotation.y = ry;
       this.group.add(v.group);
       // roughly half the townsfolk stroll their neighborhood (mobeds tend the fire and stay put)
-      this.villagers.push({ rig: v.rig, group: v.group, phase: rng() * 6.28318, state: 'idle', t: 0, home: { x, z }, homeRy: ry, canStroll: !mobed && rng() < 0.5, strollT: 2 + rng() * 7, strollTarget: null });
+      this.villagers.push({ rig: v.rig, anim: v.anim || null, assetKey: assetSource ? assetKey : null, group: v.group, phase: rng() * 6.28318, state: 'idle', t: 0, home: { x, z }, homeRy: ry, canStroll: !mobed && rng() < 0.5, strollT: 2 + rng() * 7, strollTarget: null });
     }
   }
 
@@ -1378,7 +1431,7 @@ export class Ambient {
           v.group.rotation.y = Math.atan2(dx, dz);
           pos.x += (dx / d) * 4.4 * dt; pos.z += (dz / d) * 4.4 * dt;
           pos.y = this.map.heightAt(pos.x, pos.z);
-          animWalk(v.rig, time, 1.7); // running for the door
+          if (!animateTownsperson(v, 'run', dt, 1.25)) animWalk(v.rig, time, 1.7); // running for the door
         } else {
           v.group.visible = false; // slipped inside
           v.state = 'inside';
@@ -1400,7 +1453,7 @@ export class Ambient {
         pos.addScaledVector(dir, 4.4 * dt);
         pos.x = THREE.MathUtils.clamp(pos.x, -72, 72); pos.z = THREE.MathUtils.clamp(pos.z, -72, 72);
         pos.y = this.map.heightAt(pos.x, pos.z);
-        animWalk(v.rig, time, 1.7); // running cycle
+        if (!animateTownsperson(v, 'run', dt, 1.25)) animWalk(v.rig, time, 1.7); // running cycle
         if (v.t <= 0) v.state = 'return';
       } else if (v.state === 'return') {
         const dx = v.home.x - pos.x, dz = v.home.z - pos.z, d = Math.hypot(dx, dz);
@@ -1408,7 +1461,7 @@ export class Ambient {
           v.group.rotation.y = Math.atan2(dx, dz);
           pos.x += (dx / d) * 1.7 * dt; pos.z += (dz / d) * 1.7 * dt;
           pos.y = this.map.heightAt(pos.x, pos.z);
-          animWalk(v.rig, time, 0.85);
+          if (!animateTownsperson(v, 'walk', dt, 0.95)) animWalk(v.rig, time, 0.85);
         } else { v.group.rotation.y = v.homeRy; v.state = 'idle'; }
       } else if (v.state === 'stroll') {
         // amble to the chosen spot in the neighborhood, then loiter (back to idle)
@@ -1417,11 +1470,13 @@ export class Ambient {
           v.group.rotation.y = Math.atan2(dx, dz);
           pos.x += (dx / d) * 1.3 * dt; pos.z += (dz / d) * 1.3 * dt;
           pos.y = this.map.heightAt(pos.x, pos.z);
-          animWalk(v.rig, time, 1.0);
+          if (!animateTownsperson(v, 'walk', dt, 0.75)) animWalk(v.rig, time, 1.0);
         } else { v.state = 'idle'; v.strollT = 5 + Math.random() * 7; }
       } else { // idle: breathe + slow look around, and townsfolk occasionally wander off
-        animIdle(v.rig, time + v.phase);
-        if (v.rig.head) v.rig.head.rotation.y = Math.sin((time + v.phase) * 0.5) * 0.25;
+        if (!animateTownsperson(v, 'idle', dt, 1)) {
+          animIdle(v.rig, time + v.phase);
+          if (v.rig.head) v.rig.head.rotation.y = Math.sin((time + v.phase) * 0.5) * 0.25;
+        }
         // townsfolk don't run errands during a wave — they stay close, watching the road
         if (v.canStroll && !waveNow && (v.strollT -= dt) <= 0) {
           const a = Math.random() * 6.28318, rr = 2 + Math.random() * 6;
@@ -1495,6 +1550,7 @@ export class Ambient {
       // mesh materials are shared (MATS/colorMat) — do NOT dispose
     });
     for (const a of this.animals) { const mx = a.fox?.mixer; if (mx) mx.stopAllAction(); }
+    for (const v of this.villagers) { const mx = v.anim?.mixer; if (mx) mx.stopAllAction(); }
     this.villagers.length = 0;
     this.animals.length = 0;
   }

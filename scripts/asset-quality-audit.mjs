@@ -29,7 +29,8 @@ function parseGltfJson(filePath) {
 }
 
 function isActor(entry) {
-  if (entry.key.startsWith('a_twr_') || entry.key.startsWith('a_wpn_')) return false;
+  if (entry.key.startsWith('a_twr_') || entry.key.startsWith('a_twrpart_') || entry.key.startsWith('a_wpn_')) return false;
+  if (entry.key.startsWith('tf_')) return true;
   if (entry.key.startsWith('Hero_')) return true;
   if (entry.key.startsWith('a_')) return /assets\/(animals|models)\//.test(entry.url);
   return ['q_knight', 'q_snake', 'q_snake_angry', 'q_wolf', 'q_stag', 'q_deer', 'q_horse', 'q_horse_white', 'q_bull', 'fox', 'horse'].includes(entry.key);

@@ -853,12 +853,29 @@ export function assetTower(modelKey, ageIdx = 0) {
   return { group, layers: { base: new THREE.Group(), mid: new THREE.Group(), crown }, animated, height: targetH, radius };
 }
 
+function mountAddonAsset(t, key, h, { targetH = 1.4, x = 0, z = 0, ry = 0 } = {}) {
+  const scene = cloneAssetScene(key);
+  if (!scene) return false;
+  scene.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(scene);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const s = targetH / Math.max(size.y || 0, 0.001);
+  scene.scale.setScalar(s);
+  scene.rotation.y = ry;
+  scene.position.set(x - center.x * s, h - box.min.y * s, z - center.z * s);
+  scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  (t.layers?.crown || t.group).add(scene);
+  return true;
+}
+
 // ---- specialization addon parts (round 3, T2) ----
 // Real bolt-on weapon/craft geometry per path — the tower's silhouette changes with
 // its choice, not just its numbers. Each builder mounts at the crown (t.height).
 const ADDONS = {
   // archer A: a battery of three mounted crossbows fanning over the parapet
   crossbowBattery: (t, b, h) => {
+    if (mountAddonAsset(t, 'a_twrpart_crossbowBattery', h, { targetH: 1.25, z: 0.45 })) return;
     for (const [a, x, z] of [[-0.5, -0.7, 0.9], [0, 0, 1.05], [0.5, 0.7, 0.9]]) {
       b.box(0.14, 0.12, 0.7, 'woodDark', x, h + 0.32, z, -a);
       b.box(0.8, 0.07, 0.09, 'wood', x, h + 0.36, z + 0.22, -a); // bow arms
@@ -881,12 +898,17 @@ const ADDONS = {
   },
   // siege B: the Great Arm — a taller counterweighted throwing beam
   greatArm: (t, b, h) => {
+    if (mountAddonAsset(t, 'a_twrpart_greatArm', h, { targetH: 1.65, z: -0.1 })) return;
     for (const s of [-1, 1]) b.box(0.14, 1.3, 0.14, 'woodDark', s * 0.4, h + 0.65, 0);
     b.box(0.12, 0.12, 2.6, 'wood', 0, h + 1.28, -0.2, 0, -0.5);
     b.box(0.5, 0.5, 0.5, 'stoneDark', 0, h + 0.75, -1.15); // counterweight
   },
   // fire A: an iron brazier crown — four undying flames ring the roof
   brazierCrown: (t, b, h) => {
+    if (mountAddonAsset(t, 'a_twrpart_brazierCrown', h, { targetH: 1.25 })) {
+      t._addonFlames = [{ x: 0, y: h + 0.88, z: 0, s: 0.68 }];
+      return;
+    }
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2 + 0.4;
       const x = Math.cos(a) * 1.05, z = Math.sin(a) * 1.05;
@@ -904,6 +926,7 @@ const ADDONS = {
   },
   // magic A: a floating seal ring of graven ward-stones
   sealRing: (t, b, h) => {
+    if (mountAddonAsset(t, 'a_twrpart_sealRing', h, { targetH: 1.45 })) return;
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
       b.box(0.22, 0.3, 0.1, 'stoneWhite', Math.cos(a) * 0.85, h + 0.75, Math.sin(a) * 0.85, -a);
@@ -963,6 +986,7 @@ const ADDONS = {
   },
   // barracks B: a rack of sally lances angled at the road
   lanceRack: (t, b, h) => {
+    if (mountAddonAsset(t, 'a_twrpart_lanceRack', h, { targetH: 1.55, z: 0.45 })) return;
     for (let i = 0; i < 5; i++) {
       const x = -0.6 + i * 0.3;
       b.cyl(0.025, 0.035, 1.6, 4, 'wood', x, h + 0.7, 0.8, -0.5);
@@ -985,6 +1009,7 @@ const ADDONS = {
   },
   // wisdom A: turquoise scroll-spires rise from the scriptorium
   scrollSpires: (t, b, h) => {
+    if (mountAddonAsset(t, 'a_twrpart_scrollSpires', h, { targetH: 1.45 })) return;
     for (const [x, z] of [[-0.7, 0.7], [0.7, 0.7], [0, -0.9]]) {
       b.cyl(0.14, 0.17, 0.9, 7, 'plaster', x, h + 0.45, z);
       b.sphere(0.19, 8, 6, 'turquoise', x, h + 0.98, z, 0.8);
