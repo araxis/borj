@@ -48,7 +48,7 @@ function weaponModel(kind) {
 // GLTF character upgrade: spawn a skeletally-animated character (CC0) and put one
 // of our Persian weapons in its hand bone. Returns null when the asset isn't
 // loaded → callers fall back to the procedural humanoid.
-function assetCharacter(assetKey, { tint = null, height = 1.7, weapon = null, weaponScale = 1.1, walkStride = null } = {}) {
+export function assetCharacter(assetKey, { tint = null, height = 1.7, weapon = null, weaponScale = 1.1, walkStride = null } = {}) {
   const inst = spawnAsset(assetKey, { height, tint, walkStride });
   if (!inst) return null;
   const group = new THREE.Group();

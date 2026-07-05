@@ -2789,3 +2789,21 @@ and Shahnameh-only language.
   and Animated Dragon Asset Repair are now the shipped `main` baseline. `a_azhdaha_actor` remains the preferred runtime
   dragon actor, while `a_dragon` is animation-ready fallback/source material. Asset audit should report
   `readyActors: 52`, `blockers: []`, and `sourceOnly: []`.
+
+## 2026-07-05 - Round 5 asset-ready clean review branch
+
+- Reapplied the Round 5 asset-ready wiring directly onto the remote main baseline for a clean single-commit review
+  branch. The existing animated-character factory is exported so ambient life can request future `tf_*` townsfolk
+  through the same loaded-asset path as heroes and enemies.
+- Ambient settlement life now chooses planned `tf_*` townsfolk keys by role/variant, but keeps the existing procedural
+  commoner as the live fallback when a key is unregistered or not loaded. Asset villagers advance idle/walk clips and
+  stop their mixers during ambient disposal; fallback villagers keep headwear, carried props, and procedural animation.
+- Tower age/path addon builders now try optional `a_twrpart_*` crown assets first for crossbow battery, great arm,
+  brazier crown, seal ring, lance rack, and scroll spires. Missing assets keep the existing procedural geometry, and the
+  brazier asset path still feeds the live flame hook.
+- Asset audit now treats registered `tf_*` keys as animated actors and registered `a_twrpart_*` keys as static tower
+  parts. No future keys were registered without files, so the fallback state keeps a clean audit and avoids intentional
+  missing-file requests.
+- Verification for this clean package: `node --check` on touched JS files, `npm run build`, `npm run audit:assets`, and
+  `git diff --check` passed. Build warnings stayed limited to the existing runtime splash asset, mixed import placement,
+  and large bundle warning.
