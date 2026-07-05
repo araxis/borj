@@ -82,6 +82,7 @@ export class SettingsUI {
       el('h4', { style: { color: 'var(--gold)', margin: '14px 0 4px' } }, t('settings.accessibility')),
       this._toggle('reducedMotion', t('settings.reducedMotion')),
       this._toggle('screenShake', t('settings.screenShake')),
+      this._toggle('damageNumbers', t('settings.damageNumbers')),
       el('div', { class: 'setrow' }, el('label', {}, t('settings.uiScale')), uiScale),
       el('div', { class: 'setrow' }, el('label', {}, t('settings.language')), langSel),
       el('div', { style: { marginTop: '16px', textAlign: 'center' } }, reset),

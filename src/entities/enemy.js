@@ -8,6 +8,7 @@ import { pointAt } from '../world/road.js';
 import { FXC } from '../fx/particles.js';
 import { settings } from '../core/settings.js';
 import { createBossVisualKit } from './bossvisuals.js';
+import { floaters } from '../ui/floaters.js';
 
 const barGeo = new THREE.PlaneGeometry(1.2, 0.13);
 const barBgMat = new THREE.MeshBasicMaterial({ color: 0x1a1410, transparent: true, opacity: 0.75, depthWrite: false });
@@ -179,6 +180,7 @@ export class Enemy {
     if (this.def.id === 'salm' && this.feudBrokenT <= 0 && this.game.enemies.some((e) => e.alive && e.def.id === 'tur')) dmg *= 0.6;
     this.hp -= dmg;
     this.dmgFlash = Math.max(this.dmgFlash, 0.12);
+    floaters.hit(this, dmg, dmgType, this.hp <= 0);
     this._registerHitReaction(dmg, dmgType, opts);
     if (!this.guiseBroken) { this.guiseBroken = true; this.buffSpeed *= 1.6; }
     this._checkWoundBeat(prevHp, dmgType);
@@ -618,6 +620,7 @@ export class Enemy {
     if (this.blockedBy) { this.blockedBy.target = null; this.blockedBy = null; }
     this.game.onEnemyKilled(this);
     const p = this.group.position;
+    floaters.reward(p, this.def.bounty);
     const col = this.def.class === 'div' ? FXC.shadow : this.def.class === 'serpent' ? FXC.venom : FXC.dust;
     this.game.particles.burst(p, this.boss ? 36 : 14, { speed: 2.5, life: 0.9, size: 0.5, color: col, grav: 3 });
     if (this.boss) {

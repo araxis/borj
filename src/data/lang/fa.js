@@ -553,6 +553,7 @@ export const FA = {
   'settings.accessibility': 'دسترس‌پذیری',
   'settings.reducedMotion': 'کاهش حرکت',
   'settings.screenShake': 'لرزش تصویر',
+  'settings.damageNumbers': 'اعداد آسیب',
   'settings.uiScale': 'اندازه‌ی رابط کاربری',
   'settings.language': 'زبان',
   'settings.resetSave': 'پاک کردن همه‌ی پیشرفت',
