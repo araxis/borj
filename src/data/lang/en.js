@@ -33,6 +33,7 @@ export const EN = {
 
   'hud.gold': 'Gold',
   'hud.lives': 'Lives',
+  'hud.citadelPeril': 'The citadel stands in peril!',
   'hud.wave': 'Wave',
   'hud.nextWave': 'Send Next Wave',
   'hud.sendNow': 'Call Now',
@@ -67,6 +68,9 @@ export const EN = {
   'hud.locked': 'Locked',
   'hud.bossIncoming': 'A great enemy approaches…',
   'hud.waveIncoming': 'Wave {n} marches',
+  'hud.waveCleared': 'Wave {n} repelled',
+  'hud.waveClearedGeneric': 'Wave repelled',
+  'hud.flawless': 'Flawless — not a soul lost',
   'hud.victory': 'The Land Stands — Victory',
   'hud.defeat': 'The Road Has Fallen',
   'hud.endlessWave': 'Endless — Wave {n}',

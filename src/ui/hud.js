@@ -113,6 +113,13 @@ export class HUD {
       this._combatFlowAcc = 0;
       this.updateCombatFlow();
     });
+    this._perilOff = this.game.engine.onUpdate((dt) => {
+      if (!this._livesCritical || !this.game.waveActive) { this._perilAcc = 0; return; }
+      this._perilAcc = (this._perilAcc || 0) + dt;
+      if (this._perilAcc < 1.6) return;
+      this._perilAcc = 0;
+      this.game.audio.peril?.();
+    });
     if (!game.waveActive) this._updateWaveBtn(game.waveCountdown, game.earlyBonus());
     this._langOff = onLangChange(() => {
       if (!this.root?.isConnected || !$('#tabTowers')) return;
@@ -529,6 +536,8 @@ export class HUD {
         el('button', { class: 'iconbtn', id: 'menuBtn', title: t('hud.menu'), 'aria-label': t('hud.menu') }, '⌂'),
       ),
       el('div', { id: 'challengeChip', class: 'challenge-chip', 'aria-live': 'polite', style: { display: 'none' } }),
+      el('div', { id: 'dangerVignette', 'aria-hidden': 'true' }),
+      el('div', { id: 'waveBanner', 'aria-live': 'polite' }),
       el('div', { id: 'quickBuildTray', class: 'quick-build-tray', role: 'toolbar', 'aria-label': t('hud.towers') }),
       el('button', { id: 'palaceContextChip', class: 'palace-context-chip', type: 'button', style: { display: 'none' }, 'aria-live': 'polite' },
         el('span', { class: 'palace-context-mark', 'aria-hidden': 'true' }, '🏛'),
@@ -621,12 +630,13 @@ export class HUD {
       btn.textContent = t('hud.waveInProgress');
       this._syncHudState();
     });
-    g.on('waveEnded', () => {
+    g.on('waveEnded', ({ wave, income, flawless, final }) => {
       this.updateTop();
       this._combatKills = 0;
       this._combatWaveTotal = 0;
       this.updateCombatFlow();
       this._setWaveMod(null);
+      if (!final) this.waveClearedBanner(wave, income, flawless);
       const btn = $('#waveBtn');
       btn.disabled = false;
       document.body.classList.remove('wave-active');
@@ -744,7 +754,8 @@ export class HUD {
 
   updateTop() {
     $('#goldVal').textContent = tNum(this.game.gold);
-    $('#livesVal').textContent = tNum(Math.max(0, this.game.lives));
+    const lives = Math.max(0, this.game.lives);
+    $('#livesVal').textContent = tNum(lives);
     const w = this.game.endlessMode ? `${tNum(this.game.waveIdx)}∞` : `${tNum(this.game.waveIdx)}/${tNum(this.game.mapDef.waves)}`;
     $('#waveVal').textContent = w;
     $('#goldLbl').textContent = t('hud.gold');
@@ -752,6 +763,16 @@ export class HUD {
     $('#waveLbl').textContent = t('hud.wave');
     const tools = $('#sandboxTools');
     if (tools) tools.style.display = this.game.sandbox ? '' : 'none';
+    const maxLives = this.game.maxLives || lives || 1;
+    const critical = lives > 0 && lives <= Math.max(3, Math.ceil(maxLives * 0.25));
+    if (critical !== this._livesCritical) {
+      this._livesCritical = critical;
+      document.body.classList.toggle('lives-critical', critical);
+      if (critical) {
+        this.toast(t('hud.citadelPeril'));
+        this.game.engine?.addShake?.(0.4);
+      }
+    }
   }
 
   updateCombatFlow() {
@@ -2311,6 +2332,25 @@ export class HUD {
     this._commandBannerTimer = setTimeout(() => b.classList.remove('show'), 3300);
   }
 
+  waveClearedBanner(wave, income, flawless) {
+    const b = $('#waveBanner');
+    if (!b) return;
+    clearTimeout(this._waveBannerTimer);
+    b.className = 'wave-banner' + (flawless ? ' flawless' : '');
+    clear(b);
+    b.append(
+      el('div', { class: 'wave-banner-mark', 'aria-hidden': 'true' }, flawless ? '✦' : '⚔'),
+      el('div', { class: 'wave-banner-copy' },
+        el('div', { class: 'wave-banner-title' }, wave != null ? t('hud.waveCleared', { n: tNum(wave) }) : t('hud.waveClearedGeneric')),
+        income ? el('div', { class: 'wave-banner-reward' }, `+${tNum(Math.round(income))} 🪙`) : null,
+      ),
+      flawless ? el('div', { class: 'wave-banner-flawless' }, t('hud.flawless')) : null,
+    );
+    void b.offsetWidth;
+    b.classList.add('show');
+    this._waveBannerTimer = setTimeout(() => b.classList.remove('show'), 2600);
+  }
+
   palaceCommandBanner({ kind = 'boon', palace, type = 'default', unit = null, count = 0, targetCount = 0, synergyCount = 0 } = {}) {
     const b = $('#commandBanner');
     if (!b || !palace) return;
@@ -2417,6 +2457,7 @@ export class HUD {
     clearTimeout(this._bossChallengeBannerTimer);
     clearTimeout(this._challengeRevealTimer);
     clearTimeout(this._commandBannerTimer);
+    clearTimeout(this._waveBannerTimer);
     this._clearHeroCommandTimer();
     this.game.clearHeroCommandPreview?.();
     this.game.clearPalaceCommandPreview?.();
@@ -2424,11 +2465,12 @@ export class HUD {
     if (this._markerOff) { this._markerOff(); this._markerOff = null; }
     if (this._gateOmenOff) { this._gateOmenOff(); this._gateOmenOff = null; }
     if (this._combatFlowOff) { this._combatFlowOff(); this._combatFlowOff = null; }
+    if (this._perilOff) { this._perilOff(); this._perilOff = null; }
     if (this.heroMarkerLayer) { this.heroMarkerLayer.remove(); this.heroMarkerLayer = null; }
     if (this.palaceActionLayer) { this.palaceActionLayer.remove(); this.palaceActionLayer = null; }
     this._heroMarkers = null;
     if (this._autoCollapsedPanel) document.body.classList.remove('panel-hidden');
-    document.body.classList.remove('boss-challenge-active', 'boss-arrival-active', 'hud-low-chrome', 'wave-active', 'visual-qa-capture', 'hud-combat-mode', 'hud-build-mode', 'hud-palace-selected', 'hud-drawer-open');
+    document.body.classList.remove('boss-challenge-active', 'boss-arrival-active', 'hud-low-chrome', 'wave-active', 'visual-qa-capture', 'hud-combat-mode', 'hud-build-mode', 'hud-palace-selected', 'hud-drawer-open', 'lives-critical');
     clear(this.root);
   }
 }

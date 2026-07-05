@@ -280,6 +280,11 @@ export const audio = {
     noise(0.8, sfxBus, { hp: 150, lp: 900, gain: 0.12, attack: 0.05 });
   },
   hiss() { if (!started) return; noise(0.6, sfxBus, { hp: 4000, lp: 10000, gain: 0.07, attack: 0.04 }); },
+  peril() {
+    if (!started) return;
+    tone(62, 0.16, sfxBus, { type: 'sine', gain: 0.14, attack: 0.005, glide: 0.1, f1: 40 });
+    setTimeout(() => tone(58, 0.14, sfxBus, { type: 'sine', gain: 0.1, attack: 0.005, glide: 0.08, f1: 36 }), 180);
+  },
   shimmer() {
     if (!started) return;
     [7, 9, 11].forEach((d, i) => setTimeout(() => tone(freq(d % SHUR.length, 3), 0.5, sfxBus, { type: 'sine', gain: 0.04, attack: 0.02 }), i * 70));
