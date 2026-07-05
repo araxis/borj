@@ -128,6 +128,7 @@ export class Game {
     this.gold = sandbox ? 999999 : Math.round((mapDef.startGold + (endless ? 200 : 0)) * dm.gold);
     if (!sandbox && this.research.has('state-provisions')) this.gold += 50; // war provisions
     this.lives = sandbox ? mapDef.lives : Math.max(1, Math.round(mapDef.lives * dm.lives));
+    this.maxLives = this.lives;
     this.waveIdx = 0;
     this.waveActive = false;
     this.phase = 'build'; // build | combat | won | lost
@@ -293,12 +294,21 @@ export class Game {
     this.emit('goldChanged', this.gold);
     this.emit('towersChanged');
     this.audio.forgeHammer();
-    this.particles.burst(tower.pos.clone().setY(tower.pos.y + 2), 22, { speed: 2.5, life: 0.9, size: 0.5, color: [0.95, 0.8, 0.42], grav: 2 });
+    this.audio.shimmer();
+    const pathColor = key === 'A' ? [1.0, 0.69, 0.42] : [0.5, 0.9, 0.86];
+    this.particles.burst(tower.pos.clone().setY(tower.pos.y + 2), 22, { speed: 2.5, life: 0.9, size: 0.5, color: pathColor, grav: 2 });
+    this.engine.bloomPulse?.(0.3);
     return true;
   }
 
   sellTower(tower) {
     this.gold += tower.sellRefund();
+    const anchor = tower.pos.clone();
+    const lift = Math.max(1.2, (tower.model?.height || 4) * 0.45);
+    this.particles.burst(anchor.clone().setY(anchor.y + 1.2), 18, { speed: 2.3, life: 0.8, size: 0.55, color: FXC.dust, grav: 2.2, spread: 1.6 });
+    this.debris.explode(anchor.clone().setY(anchor.y + lift), tower._debrisMats?.() || [], 6, 0.75);
+    this.audio.stoneBreak();
+    this.engine.addShake?.(0.15);
     tower.pad.tower = null;
     tower.alive = false;
     tower.destroy();
@@ -4172,11 +4182,13 @@ export class Game {
     if (kherad > 0 && !this.sandbox) addKherad(kherad);
     this.audio.coin();
     this.audio.setIntensity(0.15);
-    this.emit('goldChanged', this.gold);
-    this.emit('waveEnded', { wave: this.waveIdx, income, kherad: this.sandbox ? 0 : kherad });
-    if (this.lives >= (this._waveStartLives ?? this.lives)) this.addFarr(10 + (this.waveMod ? 3 : 0), 'perfectWave');
-
+    const flawless = this.lives >= (this._waveStartLives ?? this.lives);
     const isLastCampaignWave = !this.endlessMode && this.waveIdx >= this.mapDef.waves;
+    this.emit('goldChanged', this.gold);
+    this.emit('waveEnded', { wave: this.waveIdx, income, kherad: this.sandbox ? 0 : kherad, flawless, final: isLastCampaignWave });
+    if (flawless) this.addFarr(10 + (this.waveMod ? 3 : 0), 'perfectWave');
+    if (!isLastCampaignWave) this.engine.bloomPulse?.(0.4);
+
     if (isLastCampaignWave && this.phase !== 'lost') {
       this.phase = 'won';
       markMapCompleted(this.mapDef.id);

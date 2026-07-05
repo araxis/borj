@@ -36,6 +36,7 @@ export const FA = {
 
   'hud.gold': 'طلا',
   'hud.lives': 'جان',
+  'hud.citadelPeril': 'دژ در خطر است!',
   'hud.wave': 'موج',
   'hud.nextWave': 'ارسال موج بعدی',
   'hud.sendNow': 'هم‌اکنون فرابخوان',
@@ -70,6 +71,9 @@ export const FA = {
   'hud.locked': 'قفل',
   'hud.bossIncoming': 'دشمنی بزرگ در راه است…',
   'hud.waveIncoming': 'موج {n} به راه افتاد',
+  'hud.waveCleared': 'موج {n} دفع شد',
+  'hud.waveClearedGeneric': 'موج دفع شد',
+  'hud.flawless': 'بی‌خدشه — بی هیچ تلفات',
   'hud.victory': 'پیروزی — سرزمین پابرجاست',
   'hud.defeat': 'شکست — دشمن از راه گذشت',
   'hud.endlessWave': 'بی‌پایان — موج {n}',

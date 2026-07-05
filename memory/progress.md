@@ -2823,3 +2823,14 @@ and Shahnameh-only language.
   disabled-state suppression. Focused Zabulistan QA routes `opening-build`, `combined-combat-readability`,
   `combined-combat-readability-rtl`, `palace-contact-terrain`, and `gate-hold-state` all reported `ok: true`, no
   overflow, no broken images, and five loaded backdrop layers. The known two visual-kit artifact reports were unchanged.
+
+## 2026-07-05 - Combat stakes feedback packaged
+
+- Packaged the combat stakes slice on `work/round5-combat-audio-stakes`. Regular wave clears now emit a compact
+  in-battle flourish with reward and flawless-state feedback, while final waves still hand off to the existing victory
+  presentation.
+- Low-lives battles now carry a citadel peril state: a red edge vignette, lives-chip emphasis, one-shot warning toast,
+  and a quiet periodic heartbeat while a wave is active.
+- Added small feedback beats for age 2/3 tower upgrades, specialization path choices, player-sold tower demolition, and
+  commander recall. These are presentation-only cues; combat math, saves, assets, waves, economy, and manifests remain
+  unchanged.

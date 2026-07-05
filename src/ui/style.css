@@ -1986,6 +1986,112 @@ body.rtl .challenge-title small { letter-spacing: 0; }
 .challenge-chip.tone-cavalry { border-color: rgba(218,169,88,0.82); }
 body.boss-challenge-active #toasts { top: 164px; }
 body.boss-arrival-active .challenge-chip { display: none !important; }
+
+#dangerVignette {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: inset 0 0 120px 20px rgba(150, 20, 16, 0);
+  transition: opacity 0.5s ease;
+}
+body.lives-critical #dangerVignette {
+  opacity: 1;
+  box-shadow: inset 0 0 150px 24px rgba(170, 26, 20, 0.55);
+  animation: perilPulse 1.5s ease-in-out infinite;
+}
+@keyframes perilPulse {
+  0%, 100% { box-shadow: inset 0 0 120px 18px rgba(150, 20, 16, 0.34); }
+  50% { box-shadow: inset 0 0 175px 30px rgba(196, 40, 30, 0.62); }
+}
+body.lives-critical .lives-chip {
+  border-color: #c23b2a;
+  color: #ffb9a5;
+  animation: perilChip 1.1s ease-in-out infinite;
+}
+@keyframes perilChip {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(194, 59, 42, 0); }
+  50% { box-shadow: 0 0 12px 1px rgba(194, 59, 42, 0.6); }
+}
+
+#waveBanner {
+  position: absolute;
+  top: 15%;
+  left: 50%;
+  z-index: 17;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px 14px;
+  max-width: calc(100vw - 28px);
+  padding: 12px 22px;
+  border-radius: 12px;
+  border-top: 1px solid rgba(244, 205, 110, 0.85);
+  border-bottom: 1px solid rgba(160, 107, 46, 0.6);
+  background: linear-gradient(180deg, rgba(46, 34, 17, 0.94), rgba(24, 16, 9, 0.92));
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5), inset 0 0 24px rgba(216, 169, 62, 0.12);
+  color: var(--gold-bright);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -10px) scale(0.96);
+  transition: opacity 0.28s ease, transform 0.28s cubic-bezier(.2,.85,.25,1);
+}
+#waveBanner.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+#waveBanner.flawless {
+  border-top-color: var(--gold);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5), 0 0 26px rgba(216, 169, 62, 0.3), inset 0 0 24px rgba(216, 169, 62, 0.2);
+}
+.wave-banner-mark {
+  font-size: 1.6rem;
+  color: var(--gold-bright);
+  text-shadow: 0 0 12px rgba(216, 169, 62, 0.5);
+}
+.wave-banner-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  text-align: start;
+}
+.wave-banner-title {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--gold-bright);
+}
+.wave-banner-reward {
+  font-size: 0.82rem;
+  color: #f0d996;
+}
+.wave-banner-flawless {
+  max-width: 100%;
+  padding: 2px 10px;
+  border: 1px solid var(--turquoise);
+  border-radius: 999px;
+  color: #9fe0dc;
+  font-size: 0.74rem;
+  text-align: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  body.lives-critical #dangerVignette,
+  body.lives-critical .lives-chip { animation: none; }
+  body.lives-critical .lives-chip { box-shadow: 0 0 10px 1px rgba(194, 59, 42, 0.5); }
+  #waveBanner { transition: opacity 0.28s ease; transform: translate(-50%, 0); }
+  #waveBanner.show { transform: translate(-50%, 0); }
+}
+@media (max-width: 700px) {
+  #waveBanner {
+    top: 132px;
+    gap: 8px 10px;
+    padding: 9px 12px;
+  }
+  .wave-banner-mark { font-size: 1.22rem; }
+  .wave-banner-title { font-size: 0.88rem; }
+  .wave-banner-reward,
+  .wave-banner-flawless { font-size: 0.68rem; }
+}
+
 #bossBanner {
   position: absolute;
   top: 18%;

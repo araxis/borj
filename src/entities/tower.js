@@ -426,6 +426,7 @@ export class Tower {
     this.maxHp = this._computeMaxHp();
     this.hp = this.maxHp * keepHpFrac;
     this._spawnGarrison();
+    if (!this.game._restoring) this.game.audio.bannerFlap();
   }
 
   canUpgrade() { return this.ageIdx < AGES.length - 1; }
@@ -450,6 +451,11 @@ export class Tower {
     if (!this.game._restoring) { // silent + FX-free when rebuilding from a save snapshot
       this.game.particles.burst(this.pos.clone().setY(this.pos.y + 2), 24, { speed: 2.5, life: 0.9, size: 0.5, color: FXC.gold, grav: 2 });
       this.game.audio.forgeHammer();
+      if (this.ageIdx === 2 || this.ageIdx === 3) {
+        this.game.audio.shimmer();
+        this.game.particles.burst(this.pos.clone().setY(this.pos.y + 2.6), 12, { speed: 1.6, up: 3.2, life: 1.05, size: 0.4, color: FXC.sacred, grav: 0.6, spread: 0.7 });
+        this.game.engine.bloomPulse?.(0.32);
+      }
     }
     return true;
   }
