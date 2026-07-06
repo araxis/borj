@@ -2852,3 +2852,23 @@ and Shahnameh-only language.
 - Madayen settlement smoke passed with the quarter built in the distant band: five far villager spots, fourteen far kit
   meshes, zero road overlaps, nearest far pad at about 67 units, eight loaded Madayen backdrop layers, no overflow, no
   broken images, and no page or console errors.
+
+## 2026-07-06 - Story intro field warmup review package
+
+- Reapplied the story intro field-warmup slice from the preserved Round 5 stack onto current `main` on
+  `work/round5-story-intro-warmup-review`, limited to map-intro menu behavior, cue styling, localization, and this
+  progress note.
+- Stage intros now show a compact preparation cue while palace dressing, horizon ranges, and forest-only tree/enrichment
+  dressing warm behind the story card. Start and resume remain clickable immediately; the cue marks ready after the
+  warmers complete or after the 9s safety timer.
+- This package is presentation/loading polish only: no gameplay, wave, economy, save, renderer, tower, enemy, hero, or
+  asset manifest behavior changed.
+- Verification passed for `node --check src/ui/menus.js`, `node --check src/data/lang/en.js`,
+  `node --check src/data/lang/fa.js`, `npm run build`, `npm run audit:assets`, and `git diff --check`. Build warnings
+  stayed limited to the existing runtime splash asset, mixed material import placement, and large bundle warning.
+- Browser smoke passed for an English non-forest intro and a Farsi forest intro: both showed preparing then ready, kept
+  Start enabled, and showed no raw `mapintro.*` keys or overflow. Starting Zabulistan after the cue opened the board
+  normally with no console errors.
+- Focused Zabulistan QA routes `opening-build`, `combined-combat-readability`, `combined-combat-readability-rtl`,
+  `palace-contact-terrain`, and `gate-hold-state` all reported `ok: true`, no overflow, no broken images, and five
+  loaded backdrop layers. The known two visual-kit artifact reports were unchanged.

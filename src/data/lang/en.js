@@ -15,6 +15,8 @@ export const EN = {
   'campaign.start': 'Begin Defense',
   'mapintro.resume': 'Resume — Wave {wave}',
   'mapintro.newGame': 'New Game',
+  'mapintro.preparing': 'Preparing the field...',
+  'mapintro.ready': 'The field awaits',
   'campaign.waves': 'Waves',
   'campaign.reward': 'Unlocks',
   'campaign.completed': 'Defended',

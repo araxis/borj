@@ -18,6 +18,8 @@ export const FA = {
   'campaign.start': 'شروع دفاع',
   'mapintro.resume': 'ادامه — موج {wave}',
   'mapintro.newGame': 'بازی نو',
+  'mapintro.preparing': 'در حال آماده‌سازی میدان...',
+  'mapintro.ready': 'میدان آماده است',
   'campaign.waves': 'موج‌ها',
   'campaign.reward': 'پاداش‌ها',
   'campaign.completed': 'پیروز',
