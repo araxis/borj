@@ -2852,3 +2852,18 @@ and Shahnameh-only language.
 - Madayen settlement smoke passed with the quarter built in the distant band: five far villager spots, fourteen far kit
   meshes, zero road overlaps, nearest far pad at about 67 units, eight loaded Madayen backdrop layers, no overflow, no
   broken images, and no page or console errors.
+
+## 2026-07-06 - War-Council tower HUD review package
+
+- Reapplied the final compact tower/commander HUD package from the preserved Round 5 stack onto current `main` on
+  `work/round5-war-council-hud-review`, limited to HUD presentation, localization, styling, and this progress note.
+- The tower detail panel now uses a unified War-Council surface with a compact identity crest, stat strip, action rail,
+  path/fusion affordances, commander dock, inline appointment candidates, command preview/action card, recall, bond,
+  mastery, lore, and rank promotion controls. Standalone hero inspection uses the matching compact hero header.
+- This package is presentation-only: no tower stats, hero stats, waves, enemies, saves, economy, renderer logic, or asset
+  manifests changed.
+- Verification passed for `node --check src/ui/hud.js`, `npm run build`, `npm run audit:assets`, and `git diff --check`.
+  Focused Zabulistan QA routes reported `ok: true`, no overflow, no broken images, and five loaded backdrop layers with
+  the known two visual-kit artifact reports unchanged.
+- HUD smoke passed for basic, upgraded, path-available, path-chosen, commander-assigned, promoted, recalled, and
+  unassigned-hero states across desktop, mobile, and RTL checks, with no raw localization keys or page overflow.

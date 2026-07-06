@@ -28,6 +28,26 @@ function put(parent, ...kids) {
 // at render time so they are always complete. TOWER_ROLE_ORDER only curates order.
 const TOWER_ROLE_ORDER = ['archer', 'siege', 'fire', 'magic', 'support', 'aura', 'economy', 'barracks', 'trap', 'wisdom'];
 
+// One restrained per-role accent, reused by the tower + hero cards for the role WORD
+// and a 1px emblem inner-ring only (never fills/rail). Turquoise/red/gold stay reserved.
+const ROLE_TONE = {
+  archer: '#a9ebff', siege: '#ffb06b', fire: '#ffb06b', magic: '#c9a9ff', support: '#bfe3b0',
+  aura: '#c9a9ff', economy: '#ffd98a', barracks: '#ead5ad', trap: '#d8b98a', wisdom: '#a9d0ff',
+};
+// #rrggbb -> rgba() at alpha a (for the soft emblem ring); passthrough if not a hex
+function hexA(hex, a) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+function applyRoleTone(node, role) {
+  const tone = ROLE_TONE[role];
+  if (!tone) return;
+  node.style.setProperty('--role', tone);
+  node.style.setProperty('--role-soft', hexA(tone, 0.32));
+}
+
 // research-locked entries stay out of the catalog until studied in the Ganj-e Danesh
 const listableTowers = () => TOWERS.filter((d) => !d.research || hasResearch(d.research));
 
@@ -1025,6 +1045,8 @@ export class HUD {
         );
         wireAction(card, () => {
           audio.unlock(); audio.ui();
+          // an already-placed commander jumps straight to its unified tower panel
+          if (unlocked && assignedTower?.alive) { this.showTower(assignedTower); return; }
           this.showHero(hero, unlocked);
           if (unlocked) this.setMode({ kind: 'assign', hero });
         });
@@ -1085,6 +1107,7 @@ export class HUD {
     this.game.clearHeroCommandPreview?.();
     this.game.clearPalaceCommandPreview?.();
     $('#rightPanel').classList.remove('visible');
+    $('#heroPanel')?.classList.remove('visible');
     this._hidePalaceContextChip();
     this.selectedEntity = null;
     this.cb.onSelectionCleared?.();
@@ -1211,34 +1234,26 @@ export class HUD {
     };
   }
 
+  // Compact command control: one line (tone glyph · ability name · ready/cooldown
+  // state) over a thin cooldown meter. The whole card is the click target; the full
+  // ability description lives in the title tooltip. Rank/bond are shown elsewhere.
   _heroCommandPanel(tower, activeLabel) {
     const cdMax = this._heroCommandMaxCd(tower.hero);
     const key = tower.hero.special?.key || 'default';
     const tone = heroTone(key);
-    const rank = this.game.heroRank(tower.hero.id);
-    const rankDef = HERO_RANKS[rank] || HERO_RANKS[0];
-    const bond = Math.max(0, Math.min(100, Math.round((tower.getStats()?.bond || 0) * 100)));
     const tip = tOpt('heroActive.tip.' + key, tOpt('heroActive.tip.default', 'Trigger this commander command.'));
     const fill = el('i');
     const state = el('span', { class: 'hcc-state' });
-    const time = el('span', { class: 'hcc-time', 'aria-live': 'polite' });
-    const card = el('div', { class: `hero-command-card tone-${tone}`, 'aria-label': `${t('heroActive.command')}: ${activeLabel}` },
-      el('div', { class: 'hcc-top' },
+    const card = el('div', { class: `hero-command-card tone-${tone}`, title: tip, 'aria-label': `${t('heroActive.command')}: ${activeLabel}` },
+      el('div', { class: 'hcc-line' },
         el('span', { class: 'hcc-mark', 'aria-hidden': 'true' }, tone === 'fire' ? '🔥' : tone === 'heal' ? '🪶' : tone === 'vision' ? '🏹' : tone === 'bind' ? '⛓' : '⚑'),
-        el('div', { class: 'hcc-head' },
-          el('span', { class: 'hcc-kicker' }, t('heroActive.command')),
-          el('b', {}, activeLabel),
-        ),
-      ),
-      el('p', { class: 'hcc-desc' }, tip),
-      el('div', { class: 'hcc-meta' },
-        el('span', {}, `★ ${t('rank.' + rankDef.id)}`),
-        el('span', {}, `${t('panel.bond')} ${tNum(bond)}%`),
+        el('b', { class: 'hcc-name' }, activeLabel),
+        state,
       ),
       el('div', { class: 'hcc-meter', 'aria-hidden': 'true' }, fill),
-      el('div', { class: 'hcc-foot' }, state, time),
     );
-    return { card, fill, state, time, cdMax, label: activeLabel, tone };
+    // `time` aliases `state` so the existing refresh binder never touches a dropped node
+    return { card, fill, state, time: state, cdMax, label: activeLabel, tone };
   }
 
   _bindHeroCommandRefresh(tower, parts) {
@@ -1254,8 +1269,7 @@ export class HUD {
       parts.card.classList.toggle('ready', ready);
       parts.card.classList.toggle('cooldown', !ready);
       parts.fill.style.width = `${pct}%`;
-      parts.state.textContent = ready ? t('heroActive.ready') : t('heroActive.recovering');
-      parts.time.textContent = ready ? t('heroActive.readyNow') : t('heroActive.cooldownLeft', { s: tNum(Math.ceil(cd)) });
+      parts.state.textContent = ready ? t('heroActive.ready') : t('heroActive.cooldownLeft', { s: tNum(Math.ceil(cd)) });
       if (parts.button) {
         parts.button.disabled = !ready;
         parts.button.setAttribute('aria-disabled', ready ? 'false' : 'true');
@@ -1502,6 +1516,7 @@ export class HUD {
     this._clearHeroCommandTimer();
     this.selectedEntity = null;
     this._syncHudState();
+    $('#heroPanel')?.classList.remove('visible');
     const c = clear($('#rpContent'));
     const stats = [
       [t('panel.role'), t('role.' + def.role)],
@@ -1546,215 +1561,285 @@ export class HUD {
     this.game.clearHeroCommandPreview?.();
     this.game.clearPalaceCommandPreview?.();
     this._hidePalaceContextChip();
+    // War-Council Rail: ONE panel, no tabs, no scroll. A fixed flex column — a shared
+    // tower+commander crest, HP, a 6-cell stat strip, the four-verb icon action rail
+    // (with an overlay path-fork drawer), then a bottom commander dock that swaps in
+    // place between an assigned-hero cluster and a 3–4 face appoint strip.
     this.selectedEntity = tower;
     this._syncHudState();
+    const c = clear($('#rpContent'));
+    const dock = this._wcDock(tower);
+    const root = el('div', { class: 'wc-root' }, this._wcBody(tower), dock.node);
+    applyRoleTone(root, tower.def.role);
+    put(c, root);
+    this.openPanel();
+    dock.bind?.();
+  }
+
+  // Body of the War-Council rail: crest + HP + stat strip + action rail + path drawer.
+  _wcBody(tower) {
     const def = tower.def;
     const stats = tower.getStats();
-    const c = clear($('#rpContent'));
     const hpFrac = Math.max(0, tower.hp / tower.maxHp);
-    const rows = [
-      [t('panel.age'), t('age.' + AGES[tower.ageIdx].id)],
-      tower.path ? [t('panel.path'), tName(TOWER_PATHS[tower.def.role][tower.path])] : null,
-      stats.damage ? [t('panel.damage'), tNum(Math.round(stats.damage))] : null,
-      stats.range ? [t('panel.range'), tNum(Math.round(stats.range * 10) / 10)] : null,
-      stats.rate ? [t('panel.dps'), tNum(Math.round(stats.damage * stats.rate))] : null,
-      stats.income ? [t('panel.income'), tNum(Math.round(stats.income))] : null,
-      stats.kherad ? [t('panel.kherad'), tNum(Math.round(stats.kherad))] : null,
-      tower.palaceSynergyT > 0 ? [
-        tOpt('palace.synergy', 'Palace-Commander Synergy'),
-        tOpt('palace.synergyPanel', 'Answered the palace for {s}s').replace('{s}', tNum(Math.ceil(tower.palaceSynergyT))),
-      ] : null,
-      [t('panel.health'), `${tNum(Math.round(tower.hp))} / ${tNum(tower.maxHp)}`],
-    ].filter(Boolean);
 
-    const actions = el('div', { class: 'rp-actions' });
-    let heroCommand = null;
-    // upgrade
-    const upBtn = el('button', { class: 'gbtn primary' },
-      tower.canUpgrade() ? `${t('hud.upgrade')} — ${tNum(tower.upgradeCost())} 🪙` : t('hud.maxAge'));
-    upBtn.disabled = !tower.canUpgrade() || this.game.gold < tower.upgradeCost();
-    upBtn.onclick = () => { if (this.game.upgradeTower(tower)) this.showTower(tower); };
-    actions.append(upBtn);
-    // specialization fork: at Kayanian age the tower takes ONE of its role's two paths
+    // ① CREST — one identity row: tower emblem + name (English · Persian inline).
+    // The commander portrait is intentionally NOT here (it is fully shown in the
+    // dock below); its absence clears the corner the close button occupies.
+    const emblem = el('div', { class: 'wc-emblem' });
+    const place = def.placeRef ? PLACES_BY_ID[def.placeRef] : null;
+    if (place) applyAtlasCell(emblem, PLACE_ATLAS, place.atlas);
+    else emblem.append(el('div', { class: 'wc-emblem-mark' }, roleIconEl(def.role, 'role-icon-img emblem-img')));
+    const crest = el('div', { class: 'wc-crest' },
+      emblem,
+      el('div', { class: 'wc-id' },
+        el('div', { class: 'wc-name', dir: 'auto' }, tName(def),
+          el('span', { class: 'wc-fa' }, tNameAlt(def))),
+        el('div', { class: 'wc-sub', dir: 'auto' },
+          el('span', { class: 'wc-sub-role' }, tOpt('role.' + def.role, def.role)),
+          el('span', { class: 'wc-sub-sep' }),
+          tOpt('age.' + AGES[tower.ageIdx].id, AGES[tower.ageIdx].id)),
+      ),
+    );
+
+    // ② HP BAR — thin bar with its value inline (the strip no longer carries HP)
+    const hp = el('div', { class: 'wc-hpline' },
+      el('div', { class: 'wc-hp bondbar' },
+        el('i', { style: { width: `${hpFrac * 100}%`, background: hpFrac > 0.45 ? undefined : 'linear-gradient(90deg,#8e3a2a,#c23b2a)' } })),
+      el('span', { class: 'wc-hpval' }, `${tNum(Math.round(tower.hp))}/${tNum(tower.maxHp)}`));
+
+    // ③ STAT STRIP — one fenced ledger row: the core combat numbers, plus the chosen
+    // path once specialized (turquoise, tying it to the path color-law)
+    const cells = [
+      stats.damage ? ['⚔', tNum(Math.round(stats.damage)), t('panel.damage'), ''] : null,
+      stats.range ? ['◎', tNum(Math.round(stats.range * 10) / 10), t('panel.range'), ''] : null,
+      stats.rate ? ['⚡', tNum(Math.round(stats.damage * stats.rate)), t('panel.dps'), ''] : null,
+      stats.income ? ['🪙', tNum(Math.round(stats.income)) + '/w', t('panel.income'), '']
+        : stats.kherad ? ['📖', tNum(Math.round(stats.kherad)) + '/w', t('panel.kherad'), ''] : null,
+      tower.path ? ['✦', tName(TOWER_PATHS[def.role][tower.path]), t('panel.path'), 'is-path'] : null,
+    ].filter(Boolean);
+    const statStrip = el('div', { class: 'wc-stats' },
+      ...cells.map(([ico, val, title, cls]) => el('div', { class: 'wc-stat' + (cls ? ' ' + cls : ''), title },
+        el('span', { class: 'wc-stat-ico' }, ico), el('b', { dir: 'auto' }, val))));
+
+    // ④ ACTION RAIL — four fixed verbs: AGE · PATH · FUSE · SELL
+    const op = (cls, glyph, label, chip) => el('button', { class: 'wc-op ' + cls },
+      el('span', { class: 'wc-op-glyph' }, glyph),
+      el('span', { class: 'wc-op-label' }, label),
+      chip ? el('span', { class: 'wc-op-chip' }, chip) : null,
+    );
+
+    // AGE (loudest — the core "upgrade")
+    const canUp = tower.canUpgrade();
+    const ageBtn = op('primary', '▲', t('hud.opAge'), canUp ? `${tNum(tower.upgradeCost())}🪙` : null);
+    if (!canUp) {
+      ageBtn.classList.add('maxed'); ageBtn.disabled = true; ageBtn.title = t('hud.maxAge');
+      ageBtn.querySelector('.wc-op-label').textContent = '●'.repeat(tower.ageIdx + 1) + '○'.repeat(Math.max(0, AGES.length - tower.ageIdx - 1));
+    } else {
+      ageBtn.title = t('hud.opAgeTip');
+      ageBtn.disabled = this.game.gold < tower.upgradeCost();
+      ageBtn.onclick = () => { if (this.game.upgradeTower(tower)) this.showTower(tower); };
+    }
+
+    // (PATH is no longer a rail verb — the specialization choice is presented as a
+    // clearly-labelled "Choose a Path" section below the rail when it becomes available.)
+
+    // FUSE — active when a compatible partner is in range; else a permanent hint line
+    const recipes = FUSIONS.filter((f) => f.a === def.id || f.b === def.id);
+    let fuseReady = null;
+    for (const f of recipes) {
+      const otherId = f.a === def.id ? f.b : f.a;
+      const other = this.game.towers.find((tw) => tw !== tower && tw.alive && tw.def.id === otherId && tw.pos.distanceTo(tower.pos) <= f.maxDist);
+      if (other) { fuseReady = { f, other }; break; }
+    }
+    const fuseBtn = op(fuseReady ? 'fuse-active' : '', '⚭', t('hud.opFuse'), fuseReady ? `${tNum(fuseReady.f.cost)}🪙` : null);
+    let fuseHint = null;
+    if (!recipes.length) {
+      fuseBtn.classList.add('locked'); fuseBtn.disabled = true; fuseBtn.title = t('hud.fuseNone');
+    } else if (fuseReady) {
+      fuseBtn.title = `${t('hud.mergeInto')} ${tName(fuseReady.f)} — ${tNum(fuseReady.f.cost)} 🪙`;
+      fuseBtn.disabled = this.game.gold < fuseReady.f.cost;
+      fuseBtn.onclick = () => { if (this.game.fuseTowers(tower, fuseReady.other)) this.showTower(tower.pad.tower); };
+    } else {
+      const f = recipes[0];
+      const otherId = f.a === def.id ? f.b : f.a;
+      const otherDef = TOWERS.find((td) => td.id === otherId);
+      const otherName = otherDef ? tName(otherDef) : otherId;
+      fuseBtn.classList.add('await'); fuseBtn.disabled = true;
+      fuseBtn.title = `${tName(f)}: ${t('hud.mergeNeed')} ${otherName} ${t('hud.mergeWithin')} ${tNum(Math.round(f.maxDist))}`;
+      fuseHint = el('div', { class: 'wc-fusehint' }, `⚭ ${tName(f)} · ${t('hud.mergeNeed')} ${otherName} ${t('hud.mergeWithin')} ${tNum(Math.round(f.maxDist))}`);
+    }
+
+    // SELL — guarded one-click confirm ("SURE?" for 1.5s)
+    const sellBtn = op('danger', '⌫', t('hud.opSell'), `+${tNum(tower.sellRefund())}🪙`);
+    sellBtn.title = t('hud.opSellTip');
+    let sellArmed = false; let sellTimer = null;
+    sellBtn.onclick = () => {
+      if (!sellArmed) {
+        sellArmed = true; sellBtn.classList.add('confirm');
+        sellBtn.querySelector('.wc-op-label').textContent = t('hud.opSure');
+        sellTimer = setTimeout(() => {
+          sellArmed = false; sellBtn.classList.remove('confirm');
+          const lbl = sellBtn.querySelector('.wc-op-label'); if (lbl) lbl.textContent = t('hud.opSell');
+        }, 1500);
+        return;
+      }
+      clearTimeout(sellTimer);
+      this.game.sellTower(tower); this.closePanel();
+    };
+
+    // RALLY — only for garrison towers that field squads
+    const railBtns = [ageBtn, fuseBtn];
+    if (tower.squads && tower.squads.length) {
+      const rallyBtn = op('', '⚑', t('hud.opRally'), null);
+      rallyBtn.title = t('hud.rally');
+      rallyBtn.onclick = () => this.setMode({ kind: 'rally', tower });
+      railBtns.push(rallyBtn);
+    }
+    railBtns.push(sellBtn);
+    const rail = el('div', { class: 'wc-rail' }, ...railBtns);
+
+    // ⑤ SPECIALIZATION — a clearly-labelled "Choose a Path" section with two rich
+    // option cards (glyph · name · description · cost). Shown ONLY while the tower can
+    // pick (Kayanian age, unchosen). No verb, no toggle, no popup: the one-time
+    // permanent choice is presented plainly, in context.
+    let pathSection = null;
     if (tower.canChoosePath()) {
-      const P = TOWER_PATHS[tower.def.role];
-      for (const key of ['A', 'B']) {
+      const P = TOWER_PATHS[def.role];
+      const cards = ['A', 'B'].map((key) => {
         const p = P[key];
-        if (!p) continue;
-        const btn = el('button', { class: 'gbtn path-btn', title: tf(p, 'desc') },
+        if (!p) return null;
+        const card = el('button', { class: 'wc-pathcard', title: tf(p, 'desc') },
           el('span', { class: `path-glyph p${key}` }, key === 'A' ? '⚔' : '✦'),
-          el('span', { class: 'path-copy' },
-            el('b', {}, tName(p)),
-            el('small', {}, tf(p, 'desc')),
-          ),
+          el('span', { class: 'path-copy' }, el('b', {}, tName(p)), el('small', {}, tf(p, 'desc'))),
           el('span', { class: 'path-cost' }, `${tNum(PATH_COST)} 🪙`),
         );
-        btn.disabled = this.game.gold < PATH_COST;
-        btn.onclick = () => { if (this.game.chooseTowerPath(tower, key)) this.showTower(tower); };
-        actions.append(btn);
-      }
-    } else if (!tower.path && TOWER_PATHS[tower.def.role]) {
-      actions.append(el('div', { class: 'rp-note' }, t('panel.pathLocked')));
+        card.disabled = this.game.gold < PATH_COST;
+        card.onclick = () => { if (this.game.chooseTowerPath(tower, key)) this.showTower(tower); };
+        return card;
+      }).filter(Boolean);
+      pathSection = el('div', { class: 'wc-pathchoose' },
+        el('div', { class: 'wc-pathhead section-head' }, `✦ ${t('hud.choosePath')}`),
+        ...cards);
     }
-    // hero assign / recall + PROMOTE the commander's rank directly from the tower
+
+    return el('div', { class: 'wc-body' }, crest, el('div', { class: 'rule-farr' }), hp, statStrip, rail, fuseHint, pathSection);
+  }
+
+  // Commander dock: an assigned hero (identity+promote / mastery / command / recall)
+  // or, when none is assigned, a compact appoint strip. Returns { node, bind }.
+  _wcDock(tower) {
+    const def = tower.def;
     if (tower.hero) {
-      const rankCost = this.game.heroRankUpCost(tower.hero.id);
+      const hero = tower.hero;
+      const rank = this.game.heroRank(hero.id);
+
+      // Row A — identity + promote
+      const rankCost = this.game.heroRankUpCost(hero.id);
+      let promo;
       if (rankCost != null) {
-        const nextRank = HERO_RANKS[this.game.heroRank(tower.hero.id) + 1];
-        const promo = el('button', { class: 'gbtn primary' },
-          `★ ${tOpt('hud.promote', 'Promote')} — ${tOpt('rank.' + nextRank.id, nextRank.id)} (${tNum(rankCost)} 🪙)`);
+        const nextRank = HERO_RANKS[rank + 1];
+        promo = el('button', { class: 'wc-promo', title: `${t('hud.promote')} — ${tOpt('rank.' + nextRank.id, nextRank.id)} (${tNum(rankCost)} 🪙)` },
+          el('span', { class: 'wc-op-glyph' }, '↑'),
+          el('span', { class: 'wc-op-chip' }, `${tNum(rankCost)}🪙`),
+        );
         promo.disabled = this.game.gold < rankCost;
-        promo.onclick = () => { if (this.game.upgradeHeroRank(tower.hero)) { this.showTower(tower); this.renderCards(); } };
-        actions.append(promo);
+        promo.onclick = () => { if (this.game.upgradeHeroRank(hero)) { this.showTower(tower); this.renderCards(); } };
       } else {
-        actions.append(el('div', { class: 'rp-note' }, `★ ${tName(tower.hero)} — ${tOpt('hud.maxRank', 'max rank')}`));
+        promo = el('span', { class: 'wc-promo maxed', title: t('hud.maxRank') }, '★');
       }
-      // Kherad-bought mastery studies (round 3): persistent, per-hero, wisdom-funded
-      const mastery = getHeroMastery(tower.hero.id);
-      const mRow = el('div', { class: 'mastery-row' });
+      const rowA = el('div', { class: 'wc-hrow' },
+        el('div', { class: 'wc-hname' },
+          el('b', { dir: 'auto' }, tName(hero)),
+          el('span', { class: 'wc-stars' }, '★'.repeat(Math.max(1, rank + 1))),
+        ),
+        promo,
+      );
+      // compact commander bond — a 3px hairline under the name (same bar as HP/candidates)
+      const bondPct = Math.round(Math.max(0, Math.min(1, heroBond(hero, def, tower.ageIdx))) * 100);
+      const bondLine = el('div', { class: 'wc-bondline bondbar', title: `${t('panel.bond')} ${tNum(bondPct)}%` },
+        el('i', { style: { width: `${bondPct}%` } }));
+
+      // Row B — mastery chips (prereqs shown inline, not hover-only)
+      const mastery = getHeroMastery(hero.id);
+      const mRow = el('div', { class: 'mastery-row wc-mastery' });
       for (const node of HERO_MASTERY) {
         const owned = mastery.includes(node.id);
         const reqMet = !node.requires || node.requires.every((q) => mastery.includes(q));
         const afford = kheradBalance() >= node.cost;
+        const reqNames = (node.requires || []).map((q) => { const r = HERO_MASTERY.find((n) => n.id === q); return r ? tName(r) : q; }).join('، ');
         const chip = el('button', {
           class: 'mastery-chip' + (owned ? ' owned' : reqMet && afford ? ' ready' : ' locked'),
-          title: tf(node, 'desc'),
-        }, owned ? `✓ ${tName(node)}` : `${tName(node)} · 📖${tNum(node.cost)}`);
-        if (!owned && reqMet && afford) {
-          chip.onclick = () => { if (unlockHeroMastery(tower.hero.id, node.id, node.cost)) { audio.codex(); this.showTower(tower); } };
-        } else if (!owned) chip.setAttribute('aria-disabled', 'true');
+          title: (!owned && !reqMet && reqNames) ? `${tf(node, 'desc')} — ${t('hud.locked')}: ${reqNames}` : tf(node, 'desc'),
+        }, owned ? `✓ ${tName(node)}` : (!reqMet ? `🔒 ${tName(node)}` : `${tName(node)} · 📖${tNum(node.cost)}`));
+        if (!owned && reqMet && afford) chip.onclick = () => { if (unlockHeroMastery(hero.id, node.id, node.cost)) { audio.codex(); this.showTower(tower); } };
+        else if (!owned) chip.setAttribute('aria-disabled', 'true');
         mRow.append(chip);
       }
-      actions.append(mRow);
-      const hKey = tower.hero.special?.key || 'default';
-      const activeLabel = tOpt('heroActive.' + hKey, tOpt('heroActive.default', 'Hero Command'));
-      heroCommand = this._heroCommandPanel(tower, activeLabel);
-      const active = el('button', {
-        class: 'gbtn fuse hero-command-btn',
-        title: tOpt('heroActive.tip.' + hKey, tOpt('heroActive.tip.default', 'Trigger this commander command.')),
-      });
-      active.onclick = () => {
-        this.game.clearHeroCommandPreview?.();
-        if (this.game.heroActive(tower)) {
-          this.toast(t('heroActive.used', { name: tName(tower.hero) }));
-          this.showTower(tower);
-        }
-      };
-      actions.append(active);
-      const recall = el('button', { class: 'gbtn' }, `${t('hud.unassignHero')} (${tName(tower.hero)})`);
-      recall.onclick = () => { this.game.unassignHero(tower); this.showTower(tower); this.renderCards(); };
-      actions.append(recall);
-    }
-    // rally
-    if (tower.squads.length) {
-      const rally = el('button', { class: 'gbtn' }, `⚑ ${t('hud.rally')}`);
-      rally.onclick = () => this.setMode({ kind: 'rally', tower });
-      actions.append(rally);
-    }
-    // fusion — ALWAYS list every recipe this tower can do, with a live status so it's discoverable:
-    // an active Merge button when a partner tower is already built within range, else guidance.
-    const recipes = FUSIONS.filter((f) => f.a === def.id || f.b === def.id);
-    if (recipes.length) {
-      actions.append(el('div', { class: 'rp-subhead' }, `⚭ ${t('panel.fusions')}`));
-      for (const f of recipes) {
-        const otherId = f.a === def.id ? f.b : f.a;
-        const otherDef = TOWERS.find((td) => td.id === otherId);
-        const other = this.game.towers.find((tw) => tw !== tower && tw.alive && tw.def.id === otherId && tw.pos.distanceTo(tower.pos) <= f.maxDist);
-        if (other) {
-          const fuseBtn = el('button', { class: 'gbtn fuse' }, `⚭ ${tOpt('hud.mergeInto', 'Merge into')} ${tName(f)} — ${tNum(f.cost)} 🪙`);
-          fuseBtn.disabled = this.game.gold < f.cost;
-          fuseBtn.onclick = () => { if (this.game.fuseTowers(tower, other)) this.showTower(tower.pad.tower); };
-          actions.append(fuseBtn);
-        } else {
-          actions.append(el('div', { class: 'rp-note' },
-            `⚭ ${tName(f)}: ${tOpt('hud.mergeNeed', 'build')} ${otherDef ? tName(otherDef) : otherId} ${tOpt('hud.mergeWithin', 'within')} ${tNum(Math.round(f.maxDist))}`));
-        }
-      }
-    }
-    // sell
-    const sell = el('button', { class: 'gbtn danger' }, t('hud.sellRefund', { gold: tNum(tower.sellRefund()) }));
-    sell.onclick = () => { this.game.sellTower(tower); this.closePanel(); };
-    actions.append(sell);
 
-    // hero suggestion list (with bond preview)
-    const heroList = el('div', { class: 'heroassignlist' });
+      // Row C — command ability (the meter card is itself the click target)
+      const hKey = hero.special?.key || 'default';
+      const activeLabel = tOpt('heroActive.' + hKey, tOpt('heroActive.default', 'Hero Command'));
+      const heroCommand = this._heroCommandPanel(tower, activeLabel);
+      const cmd = heroCommand.card;
+      cmd.classList.add('wc-command');
+      cmd.setAttribute('role', 'button');
+      cmd.setAttribute('tabindex', '0');
+      const fire = () => {
+        if ((tower.heroActiveCd || 0) > 0.05) return;
+        this.game.clearHeroCommandPreview?.();
+        if (this.game.heroActive(tower)) { this.toast(t('heroActive.used', { name: tName(hero) })); this.showTower(tower); }
+      };
+      cmd.onclick = fire;
+      cmd.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fire(); } };
+
+      // Row D — recall (quiet, subordinate)
+      const recall = el('button', { class: 'wc-recall', title: t('hud.unassignHero') }, `⤺ ${t('hud.unassignHero')}`);
+      recall.onclick = () => { this.game.unassignHero(tower); this.showTower(tower); this.renderCards(); };
+
+      return {
+        node: el('div', { class: 'wc-dock' },
+          el('div', { class: 'wc-dockhead section-head' }, `⚑ ${t('hud.tabCommander')}`),
+          rowA, bondLine, mRow, cmd, recall,
+        ),
+        bind: () => {
+          this._bindHeroCommandPreview(tower, [cmd]);
+          this._bindHeroCommandRefresh(tower, { ...heroCommand });
+        },
+      };
+    }
+
+    // No commander — compact appoint strip (top candidates by bond)
+    const strip = el('div', { class: 'wc-appoint' });
     const candidates = this.game.heroRoster
       .map((h) => ({ h, bond: heroBond(h, def, tower.ageIdx) }))
       .sort((a, b) => b.bond - a.bond)
-      .slice(0, 6);
+      .slice(0, 4);
     for (const { h, bond } of candidates) {
       const assignedTower = this.game.assignedHeroes.get(h.id);
       const busy = assignedTower && assignedTower !== tower;
-      const assignedHere = assignedTower === tower;
       const hKey = h.special?.key || 'default';
-      const hTone = heroTone(hKey);
       const rank = this.game.heroRank(h.id);
-      const rankDef = HERO_RANKS[rank] || HERO_RANKS[0];
-      const mini = el('div', { class: 'mini' });
-      applyAtlasCell(mini, HERO_ATLAS, h.atlas);
-      const row = el('button', {
-        class: `heroassignrow tone-${hTone}${busy ? ' busy' : ''}${assignedHere ? ' assigned' : ''}`,
-        type: 'button',
-        'aria-label': `${t('hud.assignHero')}: ${tName(h)}`,
-        title: tOpt('heroActive.tip.' + hKey, tOpt('heroActive.tip.default', 'Trigger this commander command.')),
+      const face = el('div', { class: 'wc-cand-face' });
+      applyAtlasCell(face, HERO_ATLAS, h.atlas);
+      const card = el('button', {
+        class: `wc-cand tone-${heroTone(hKey)}${busy ? ' busy' : ''}`, type: 'button',
+        title: tName(h), 'aria-label': `${t('hud.assignHero')}: ${tName(h)}`,
       },
-        mini,
-        el('div', { class: 'hname' },
-          el('span', { class: 'heroassign-title' }, tName(h)),
-          el('span', { class: 'heroassign-command' }, tOpt('heroActive.' + hKey, tOpt('heroActive.default', 'Hero Command'))),
-          el('div', { class: 'bondbar' }, el('i', { style: { width: `${Math.min(100, bond * 100)}%` } })),
-        ),
-        el('span', { class: 'bond' }, `${t('panel.bond')} ${tNum(Math.round(bond * 100))}%`),
-        el('span', { class: 'heroassign-rank', title: t('rank.' + rankDef.id) }, '★'.repeat(Math.max(1, rank + 1))),
+        face,
+        el('span', { class: 'wc-cand-name' }, tName(h)),
+        el('div', { class: 'wc-cand-bond bondbar' }, el('i', { style: { width: `${Math.min(100, bond * 100)}%` } })),
+        el('span', { class: 'wc-cand-stars' }, '★'.repeat(Math.max(1, rank + 1))),
       );
-      row.onclick = () => {
-        this.game.assignHero(h, tower);
-        this.showTower(tower);
-        this.renderCards();
-        const content = $('#rpContent');
-        const commandCard = content?.querySelector('.hero-command-card');
-        if (content && commandCard) {
-          content.scrollTop = Math.max(0, commandCard.offsetTop - 8);
-        }
-      };
-      heroList.append(row);
+      card.onclick = () => { this.game.assignHero(h, tower); this.showTower(tower); this.renderCards(); };
+      strip.append(card);
     }
-
-    put(c, 
-      this._portrait('tower', def),
-      el('div', { class: 'rp-name' }, tName(def)),
-      el('div', { class: 'rp-faname' }, tNameAlt(def)),
-      el('div', { class: 'rp-tags' },
-        el('span', { class: 'tag' }, t('role.' + def.role)),
-        el('span', { class: 'tag' }, t('age.' + AGES[tower.ageIdx].id)),
-        tower.hero ? el('span', { class: 'tag story' }, `⚑ ${tName(tower.hero)}`) : null,
+    return {
+      node: el('div', { class: 'wc-dock' },
+        el('div', { class: 'wc-dockhead section-head' }, `⚑ ${t('hud.appoint')}`),
+        strip,
       ),
-      el('div', { class: 'bondbar', style: { height: '8px', marginBottom: '8px' } },
-        el('i', { style: { width: `${hpFrac * 100}%`, background: hpFrac > 0.45 ? undefined : 'linear-gradient(90deg,#8e3a2a,#c23b2a)' } })),
-      el('div', { class: 'rp-section' }, ...rows.map(([k, v]) => el('div', { class: 'statrow' }, el('span', {}, k), el('b', {}, v)))),
-      tower.hero ? el('div', { class: 'rp-section' },
-        el('h4', {}, t('panel.towerMods')),
-        el('p', {}, `${t('panel.bond')}: ${Math.round(stats.bond * 100)}% — ${tOpt('special.' + tower.hero.id, tower.hero.special?.desc)}`),
-        el('p', { class: 'ledgernote' }, t('panel.bondFormula')),
-      ) : null,
-      heroCommand?.card,
-      actions,
-      el('div', { class: 'rp-section', style: { marginTop: '10px' } },
-        el('h4', {}, t('panel.upgrades')),
-        this._ageTree(def, tower),
-      ),
-      el('div', { class: 'rp-section' },
-        el('h4', {}, t('panel.compatHeroes')),
-        heroList,
-      ),
-      ...this._loreSections({ id: def.id, sourceRef: def.sourceRef, detail: def.lore, detailFa: def.loreFa }),
-    );
-    this.openPanel();
-    if (heroCommand) {
-      const commandButton = actions.querySelector('.hero-command-btn');
-      this._bindHeroCommandPreview(tower, [heroCommand.card, commandButton]);
-      this._bindHeroCommandRefresh(tower, { ...heroCommand, button: commandButton });
-    }
+      bind: null,
+    };
   }
 
   // The central palace: stage lore, Farr state, and royal command choices.
@@ -1762,6 +1847,7 @@ export class HUD {
     this._clearHeroCommandTimer();
     this.game.clearHeroCommandPreview?.();
     this.game.clearPalaceCommandPreview?.();
+    $('#heroPanel')?.classList.remove('visible');
     const wasPalaceDrawer = this.selectedEntity === palace && $('#rightPanel')?.classList.contains('visible');
     this.selectedEntity = palace;
     this._syncHudState();
@@ -2017,11 +2103,16 @@ export class HUD {
   }
 
   showHero(hero, unlocked = true) {
+    // A hero already commanding a tower is shown in the unified War-Council panel,
+    // never as a standalone portrait — tower + commander stay in one HUD surface.
+    const commandingTower = this.game.assignedHeroes?.get(hero.id);
+    if (commandingTower?.alive) { this.showTower(commandingTower); return; }
     this._clearHeroCommandTimer();
     this.game.clearPalaceCommandPreview?.();
     this._hidePalaceContextChip();
     this.selectedEntity = null;
     this._syncHudState();
+    $('#heroPanel')?.classList.remove('visible');
     if (this._lowChrome) {
       $('#rightPanel')?.classList.remove('visible');
       document.body.classList.add('panel-hidden');
@@ -2038,28 +2129,41 @@ export class HUD {
     const c = clear($('#rpContent'));
     const assignedTower = this.game.assignedHeroes.get(hero.id);
     const modRows = Object.entries(hero.mods).filter(([, v]) => v !== 0).map(([k, v]) =>
-      el('div', { class: 'statrow' }, el('span', {}, tOpt('mod.' + k, k)), el('b', {}, (v > 0 ? '+' : '') + tNum(Math.round(v * 100)) + '%')));
-    put(c, 
-      this._portrait('hero', hero),
-      el('div', { class: 'rp-name' }, tName(hero)),
-      el('div', { class: 'rp-faname' }, tNameAlt(hero)),
-      el('div', { class: 'rp-tags' },
-        el('span', { class: 'tag' }, t('role.' + hero.role) !== 'role.' + hero.role ? t('role.' + hero.role) : hero.role),
-        el('span', { class: 'tag' }, t('age.' + hero.ageTier)),
-        ...hero.affinity.slice(0, 3).map((a) => el('span', { class: 'tag' }, tOpt('tag.' + a, a))),
-        assignedTower ? el('span', { class: 'tag story' }, `⚑ ${tName(assignedTower.def)}`) : null,
-        !unlocked ? el('span', { class: 'tag boss' }, t('hud.locked')) : null,
+      el('div', { class: 'statrow' }, el('span', {}, tOpt('mod.' + k, k)),
+        el('b', { class: v > 0 ? 'pos' : 'neg' }, (v > 0 ? '+' : '') + tNum(Math.round(v * 100)) + '%')));
+    const heroThumb = el('div', { class: 'rp-herothumb' });
+    applyAtlasCell(heroThumb, HERO_ATLAS, hero.atlas);
+    // shared identity header — twins the tower crest: ringed thumb · name · role·age caption
+    const herohead = el('div', { class: 'rp-herohead' },
+      heroThumb,
+      el('div', { class: 'rp-heroid' },
+        el('div', { class: 'rp-name', dir: 'auto' }, tName(hero), el('span', { class: 'wc-fa' }, tNameAlt(hero))),
+        el('div', { class: 'wc-sub', dir: 'auto' },
+          el('span', { class: 'wc-sub-role' }, tOpt('role.' + hero.role, hero.role)),
+          el('span', { class: 'wc-sub-sep' }),
+          tOpt('age.' + hero.ageTier, hero.ageTier)),
+        el('div', { class: 'rp-chips' },
+          ...hero.affinity.slice(0, 2).map((a) => el('span', { class: 'rp-chip' }, tOpt('tag.' + a, a))),
+          assignedTower ? el('span', { class: 'rp-chip is-assigned' }, `⚑ ${tName(assignedTower.def)}`) : null,
+          !unlocked ? el('span', { class: 'rp-chip is-locked' }, t('hud.locked')) : null,
+        ),
       ),
+    );
+    applyRoleTone(herohead, hero.role);
+    put(c,
+      herohead,
+      el('div', { class: 'rule-farr' }),
+      unlocked && !assignedTower ? el('div', { class: 'rp-assignhint' }, `⚑ ${t('hud.chooseCommanderTower')}`) : null,
       el('div', { class: 'rp-section' },
-        el('h4', {}, t('panel.special')),
+        el('h4', { class: 'section-head' }, t('panel.special')),
         el('p', {}, tOpt('special.' + hero.id, hero.special.desc)),
       ),
       el('div', { class: 'rp-section' },
-        el('h4', {}, t('panel.rankTree')),
+        el('h4', { class: 'section-head' }, t('panel.rankTree')),
         this._rankTree(hero, unlocked),
       ),
       el('div', { class: 'rp-section' },
-        el('h4', {}, t('panel.towerMods')),
+        el('h4', { class: 'section-head' }, t('panel.towerMods')),
         ...modRows,
         el('p', { class: 'ledgernote' }, t('panel.bondFormula')),
       ),
