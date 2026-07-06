@@ -2852,3 +2852,18 @@ and Shahnameh-only language.
 - Madayen settlement smoke passed with the quarter built in the distant band: five far villager spots, fourteen far kit
   meshes, zero road overlaps, nearest far pad at about 67 units, eight loaded Madayen backdrop layers, no overflow, no
   broken images, and no page or console errors.
+
+## 2026-07-06 - Dez-e Roein backdrop harmony packaged
+
+- Converted Dez-e Roein from the legacy quadrant backdrop path to a four-layer `panorama360` set with iron-grey distant
+  ridges, low scree, and a subdued apron band under `public/assets/backdrops/dez-roein/`. The old quadrant files remain
+  in place.
+- Runtime changes are limited to the Dez-e Roein backdrop configuration; gameplay, saves, maps, towers, enemies, waves,
+  economy, HUD, and asset manifests are unchanged.
+- Verification passed: `node --check src/data/backdrops.js`, `npm run build`, `npm run audit:assets`, and
+  `git diff --check`. Dez-e Roein backdrop sweep passed on desktop and mobile RTL with four loaded image layers, zero
+  failed or missing layers, no overflow, no broken images, and no console errors.
+- Focused Zabulistan regression QA passed for `opening-build`, `combined-combat-readability`,
+  `combined-combat-readability-rtl`, `palace-contact-terrain`, and `gate-hold-state`: each reported `ok: true`,
+  overflow `0`, broken images `0`, and five loaded backdrop layers. The known two visual-kit artifact reports were
+  unchanged.
