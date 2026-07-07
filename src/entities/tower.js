@@ -521,6 +521,7 @@ export class Tower {
     this.squads.length = 0;
     this.pad.tower = null;
     this.pad.rubbleT = 5; // pad unusable while rubble settles
+    this.game.map.setPadRubbleVisual?.(this.pad, true);
     this.game.onTowerDestroyed(this);
     // remove remaining dynamic parts shortly after
     setTimeout(() => this.group.removeFromParent(), 600);

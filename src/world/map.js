@@ -17,6 +17,71 @@ import { buildZabulistanVisualKit, rebuildZabulistanVisualKit } from './zabulist
 import { mergeStaticGroup } from './mergekit.js';
 import { zabulistanVisualProfile } from '../data/zabulistanVisualProfile.js';
 
+const PAD_RUBBLE_GEOMETRIES = {
+  chunk: new THREE.DodecahedronGeometry(0.34, 0),
+  slab: new THREE.BoxGeometry(1, 1, 1),
+  ring: new THREE.TorusGeometry(1.45, 0.035, 5, 20, Math.PI * 0.58),
+};
+
+const PAD_RUBBLE_MATS = {
+  stone: new THREE.MeshStandardMaterial({ color: 0x6f6758, roughness: 1.0 }),
+  dark: new THREE.MeshStandardMaterial({ color: 0x4d4438, roughness: 1.0 }),
+  dust: new THREE.MeshStandardMaterial({ color: 0x8b7a61, roughness: 1.0 }),
+};
+
+function buildPadRubbleVisual() {
+  const group = new THREE.Group();
+  group.name = 'tower-pad-rubble-visual';
+  group.visible = false;
+
+  const chunks = [
+    [-1.15, -0.72, 0.78, 0.34, 0.58, 0.2],
+    [-0.55, 1.12, 0.62, 0.26, 0.42, 1.1],
+    [0.28, -1.06, 0.54, 0.24, 0.66, 2.0],
+    [1.08, 0.64, 0.72, 0.3, 0.46, 2.7],
+    [0.04, 0.2, 0.42, 0.18, 0.36, 0.65],
+    [-1.52, 0.34, 0.44, 0.2, 0.32, 1.7],
+    [1.48, -0.32, 0.48, 0.22, 0.36, 2.35],
+  ];
+  for (let i = 0; i < chunks.length; i++) {
+    const [x, z, sx, sy, sz, ry] = chunks[i];
+    const mesh = new THREE.Mesh(PAD_RUBBLE_GEOMETRIES.chunk, i % 3 === 0 ? PAD_RUBBLE_MATS.dark : PAD_RUBBLE_MATS.stone);
+    mesh.position.set(x, 0.76 + sy * 0.12, z);
+    mesh.scale.set(sx, sy, sz);
+    mesh.rotation.set(0.18 + i * 0.13, ry, -0.09 + i * 0.07);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+
+  const slabs = [
+    [-0.85, 0.08, 0.95, 0.12, 0.36, -0.24],
+    [0.78, -0.08, 0.78, 0.1, 0.3, 0.32],
+    [0.06, 1.38, 1.05, 0.1, 0.28, 0.04],
+  ];
+  for (const [x, z, sx, sy, sz, ry] of slabs) {
+    const mesh = new THREE.Mesh(PAD_RUBBLE_GEOMETRIES.slab, PAD_RUBBLE_MATS.dust);
+    mesh.position.set(x, 0.72, z);
+    mesh.scale.set(sx, sy, sz);
+    mesh.rotation.y = ry;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+
+  for (let i = 0; i < 4; i++) {
+    const arc = new THREE.Mesh(PAD_RUBBLE_GEOMETRIES.ring, PAD_RUBBLE_MATS.dark);
+    arc.position.y = 0.69;
+    arc.rotation.x = Math.PI / 2;
+    arc.rotation.z = i * Math.PI * 0.5 + (i % 2 ? 0.16 : -0.08);
+    arc.scale.set(1 + i * 0.035, 1 + i * 0.02, 1);
+    arc.receiveShadow = true;
+    group.add(arc);
+  }
+
+  return group;
+}
+
 export class GameMap {
   constructor(mapDef, scene) {
     this.def = mapDef;
@@ -155,6 +220,11 @@ export class GameMap {
       mesh.rotation.y = pad.rot;
       this.padGroup.add(mesh);
       pad.mesh = mesh;
+      const rubble = buildPadRubbleVisual();
+      rubble.position.copy(pad.pos);
+      rubble.rotation.y = pad.rot;
+      this.padGroup.add(rubble);
+      pad.rubbleVisual = rubble;
     }
     this.group.add(this.padGroup);
 
@@ -369,6 +439,11 @@ export class GameMap {
       if ((x - fx) * (x - fx) + (z - fz) * (z - fz) < rr * rr) return false;
     }
     return true;
+  }
+
+  setPadRubbleVisual(pad, active) {
+    if (!pad?.rubbleVisual) return;
+    pad.rubbleVisual.visible = !!active;
   }
 
   _placePads(rng, baseHeight) {

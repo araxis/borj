@@ -2883,3 +2883,17 @@ and Shahnameh-only language.
   `palace-contact-terrain`, and `gate-hold-state`. The local browser automation kept backdrop texture readiness at
   `loading` even though the referenced Zabulistan image files existed and served successfully, so that layer-readiness
   counter was treated as unrelated local decode noise for this UI-only package.
+
+## 2026-07-07 - Tower ruin rubble readability packaged
+
+- Added a procedural low-profile rubble marker to each tower pad. Destroyed towers now leave broken stone, dust-darkened
+  foundation slabs, and a subtle blocked ring while the existing `rubbleT` rebuild timer is active.
+- The marker is owned by the map pad layer rather than the tower model, so it survives tower group removal and clears
+  from the existing timer, palace repair, build, sell, and fusion removal paths.
+- No save fields, combat math, rebuild timing, economy, waves, tower or enemy stats, assets, or manifests changed.
+- Verification passed: `node --check src/entities/tower.js`, `node --check src/game/game.js`,
+  `node --check src/world/map.js`, `npm run build`, `npm run audit:assets`, and `git diff --check`. Build warnings and
+  line-ending notices stayed limited to the accepted baseline.
+- Focused Zabulistan route QA passed for `opening-build`, `combined-combat-readability`,
+  `combined-combat-readability-rtl`, `palace-contact-terrain`, and `gate-hold-state`: each reported `ok: true`, overflow
+  `0`, broken images `0`, and five loaded backdrop layers, with the known two visual-kit artifact reports unchanged.
