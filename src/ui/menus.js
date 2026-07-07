@@ -16,6 +16,27 @@ import { loadForestTrees, loadForestEnrich } from '../core/props3d.js';
 import { loadBattle, clearBattle } from '../core/battlesave.js';
 import { currentDifficulty, setDifficulty, DIFFICULTY_ORDER } from '../core/difficulty.js';
 
+const ENDLESS_SEALS = [
+  { id: 'bronze', min: 10, glyph: '◆' },
+  { id: 'silver', min: 20, glyph: '✦' },
+  { id: 'gold', min: 30, glyph: '✪' },
+  { id: 'legend', min: 40, glyph: '✹' },
+];
+
+function endlessSealFor(bestWave = 0) {
+  let current = null;
+  for (const seal of ENDLESS_SEALS) if (bestWave >= seal.min) current = seal;
+  return current;
+}
+
+function nextEndlessSealTarget(bestWave = 0) {
+  return ENDLESS_SEALS.find((seal) => bestWave < seal.min) || null;
+}
+
+function endlessBestFor(mapDef, profile) {
+  return Math.max(0, Number(profile?.bestEndless?.[mapDef?.id] || 0));
+}
+
 export class Menus {
   constructor(callbacks) {
     this.cb = callbacks; // { onStartMap(mapDef, endless), onCodex, onSettings }
@@ -59,6 +80,7 @@ export class Menus {
         el('div', { class: 'introtext', id: 'miText' }),
         el('div', { class: 'introtext', id: 'miText2', style: { fontSize: '0.9rem', color: '#bfae88', fontStyle: 'italic' } }),
         el('div', { class: 'boss-saga-intro', id: 'miBossSaga', hidden: true }),
+        el('div', { class: 'endless-intro-seal', id: 'miEndlessSeal', hidden: true }),
         el('div', { class: 'intro-flourish', 'aria-hidden': 'true' }),
         el('div', { class: 'diffpick', id: 'miDiff' }),
         el('div', { class: 'intro-launch' },
@@ -81,6 +103,7 @@ export class Menus {
         el('div', { class: 'endtitle', id: 'endTitle' }),
         el('p', { class: 'subtitle', id: 'endSub' }),
         el('div', { class: 'end-kherad', id: 'endKherad', hidden: true }),
+        el('div', { class: 'endless-end-seal', id: 'endEndlessSeal', hidden: true }),
         el('div', { class: 'unlocks', id: 'endUnlocks' }),
         el('div', { class: 'end-actions', id: 'endActions' }),
       ),
@@ -173,6 +196,8 @@ export class Menus {
       const img = el('div', { class: 'mapimg' });
       applyAtlasCell(img, PLACE_ATLAS, place.atlas);
       const bossSaga = this._renderCampaignBossSaga(m, profile);
+      const bestEndless = endlessBestFor(m, profile);
+      const endlessSeal = endlessPick && done ? this._renderEndlessSeal(bestEndless, 'card') : null;
       const card = el('div', {
         class: 'mapcard' + (available ? '' : ' locked'),
         'aria-label': `${tName(place)}. ${t('campaign.waves')}: ${tNum(m.waves)}`,
@@ -180,7 +205,10 @@ export class Menus {
         img,
         el('div', { class: 'mapname' }, tName(place)),
         el('div', { class: 'mapsub' },
-          `${t('campaign.waves')}: ${tNum(m.waves)}` + (endlessPick && profile.bestEndless[m.id] ? ` · ∞ ${tNum(profile.bestEndless[m.id])}` : '')),
+          endlessPick && done
+            ? t('endless.best', { wave: bestEndless ? tNum(bestEndless) : t('endless.none') })
+            : `${t('campaign.waves')}: ${tNum(m.waves)}`),
+        endlessSeal,
         bossSaga,
         el('div', { class: 'ordern' }, tNum(m.order)),
         done ? el('div', { class: 'done' }, '✓ ' + t('campaign.completed')) : null,
@@ -314,7 +342,16 @@ export class Menus {
         const ch = bossChallengeDef(m.boss);
         tip.append(el('span', { class: 'tip-saga' }, `◆ ${tOpt(ch.titleKey, t('bossSaga.campaign'))}`));
       }
-      if (endlessPick && profile.bestEndless[m.id]) tip.append(el('span', {}, `∞ ${tNum(profile.bestEndless[m.id])}`));
+      if (endlessPick && done) {
+        const bestEndless = endlessBestFor(m, profile);
+        const seal = endlessSealFor(bestEndless);
+        const next = nextEndlessSealTarget(bestEndless);
+        tip.append(el('span', { class: 'tip-endless' }, t('endless.best', { wave: bestEndless ? tNum(bestEndless) : t('endless.none') })));
+        tip.append(el('span', { class: 'tip-endless' }, `${seal?.glyph || '∞'} ${this._endlessSealLabel(seal)}`));
+        tip.append(el('span', { class: 'tip-endless' }, next
+          ? t('endless.next', { seal: this._endlessSealLabel(next), wave: tNum(next.min) })
+          : t('endless.legendHeld')));
+      }
       if (!available) tip.append(el('span', { class: 'tip-locked' }, t('map.locked')));
       else if (done) tip.append(el('span', { class: 'tip-done' }, '✓ ' + t('campaign.completed')));
       tip.style.left = x + '%';
@@ -332,6 +369,8 @@ export class Menus {
       const available = sandboxPick || (endlessPick ? done : unlocked);
       const frontier = available && !done;
       const state = done ? 'done' : frontier ? 'frontier' : available ? 'done' : 'locked';
+      const bestEndless = endlessBestFor(m, profile);
+      const endlessSeal = endlessSealFor(bestEndless);
       // the stage's real palace, rendered as a 3D portrait miniature (falls back to
       // the glyph medallion until its portrait has been generated once)
       const thumb = palaceThumb(m.id);
@@ -349,6 +388,10 @@ export class Menus {
         medallion,
         m.boss ? el('span', { class: 'map-node-wax', 'aria-hidden': 'true' }) : null,
         el('span', { class: 'map-node-name' }, tName(place)),
+        endlessPick && done ? el('span', {
+          class: `map-node-endless ${endlessSeal?.id || 'none'}`,
+          'aria-label': `${t('endless.best', { wave: bestEndless ? tNum(bestEndless) : t('endless.none') })}. ${this._endlessSealLabel(endlessSeal)}`,
+        }, endlessSeal?.glyph || '∞') : null,
       );
       // locked nodes stay hoverable (a disabled button swallows mouse events),
       // they just refuse the click
@@ -403,6 +446,7 @@ export class Menus {
     const deep = t('intro2.' + mapDef.id);
     $('#miText2').textContent = deep !== 'intro2.' + mapDef.id ? deep : '';
     this._renderIntroBossSaga(mapDef);
+    this._renderIntroEndlessSeal(mapDef, endless);
     const unlockHeroes = HEROES.filter((h) => h.unlock.type === 'campaign' && h.unlock.map === mapDef.id);
     // resume a saved mid-battle for this stage, if one exists (else a normal fresh start)
     const startBtn = $('#miStart');
@@ -445,6 +489,72 @@ export class Menus {
     if (rec.defeated) return { rec, label: t('bossSaga.defeated'), cls: 'defeated' };
     if (rec.best === 'broken') return { rec, label: t('bossSaga.broken'), cls: 'broken' };
     return { rec, label: t('bossSaga.hardened'), cls: 'hardened' };
+  }
+
+  _endlessSealLabel(seal) {
+    return seal ? t('endless.seal.' + seal.id) : t('endless.seal.none');
+  }
+
+  _renderEndlessSeal(bestWave, variant = 'card') {
+    const seal = endlessSealFor(bestWave);
+    const next = nextEndlessSealTarget(bestWave);
+    return el('div', { class: `endless-seal ${variant} ${seal?.id || 'none'}` },
+      el('span', { class: 'endless-seal-glyph', 'aria-hidden': 'true' }, seal?.glyph || '∞'),
+      el('span', { class: 'endless-seal-copy' },
+        el('b', {}, this._endlessSealLabel(seal)),
+        el('small', {}, next
+          ? t('endless.nextShort', { wave: tNum(next.min), seal: this._endlessSealLabel(next) })
+          : t('endless.legendHeld')),
+      ),
+    );
+  }
+
+  _renderIntroEndlessSeal(mapDef, endless) {
+    const box = $('#miEndlessSeal');
+    if (!box) return;
+    clear(box);
+    box.hidden = !endless;
+    if (!endless) return;
+    const bestWave = endlessBestFor(mapDef, loadProfile());
+    const seal = endlessSealFor(bestWave);
+    const next = nextEndlessSealTarget(bestWave);
+    box.append(
+      el('span', { class: `endless-seal-glyph ${seal?.id || 'none'}`, 'aria-hidden': 'true' }, seal?.glyph || '∞'),
+      el('span', { class: 'endless-intro-copy' },
+        el('b', {}, t('endless.bestHeld')),
+        el('small', {}, bestWave ? t('endless.wave', { wave: tNum(bestWave) }) : t('endless.none')),
+      ),
+      el('span', { class: 'endless-intro-copy' },
+        el('b', {}, this._endlessSealLabel(seal)),
+        el('small', {}, next
+          ? t('endless.next', { seal: this._endlessSealLabel(next), wave: tNum(next.min) })
+          : t('endless.legendHeld')),
+      ),
+    );
+  }
+
+  _renderEndlessEndSeal(mapDef, endless, victory) {
+    const box = $('#endEndlessSeal');
+    if (!box) return;
+    clear(box);
+    const show = endless && !victory && mapDef;
+    box.hidden = !show;
+    if (!show) return;
+    const bestWave = endlessBestFor(mapDef, loadProfile());
+    const seal = endlessSealFor(bestWave);
+    const next = nextEndlessSealTarget(bestWave);
+    box.append(
+      el('span', { class: `endless-seal-glyph ${seal?.id || 'none'}`, 'aria-hidden': 'true' }, seal?.glyph || '∞'),
+      el('span', { class: 'endless-end-copy' },
+        el('b', {}, t('endless.endTitle')),
+        el('small', {}, bestWave
+          ? t('endless.endBest', { wave: tNum(bestWave), seal: this._endlessSealLabel(seal) })
+          : t('endless.endNone')),
+      ),
+      el('span', { class: 'endless-end-next' }, next
+        ? t('endless.next', { seal: this._endlessSealLabel(next), wave: tNum(next.min) })
+        : t('endless.legendHeld')),
+    );
   }
 
   _renderCampaignBossSaga(mapDef, profile = loadProfile()) {
@@ -505,6 +615,7 @@ export class Menus {
     kEl.hidden = !kherad;
     if (kherad) kEl.textContent = `📖 ${t('kherad.gained', { n: tNum(kherad) })} · ${t('kherad.total', { n: tNum(kheradBalance()) })}`;
     $('#endSub').textContent = endless ? t('hud.endlessWave', { n: tNum(wave) }) : '';
+    this._renderEndlessEndSeal(mapDef, endless, victory);
     const unl = clear($('#endUnlocks'));
     for (const h of unlockedHeroes) {
       const img = el('div', { class: 'uimg' });

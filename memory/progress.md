@@ -2867,3 +2867,19 @@ and Shahnameh-only language.
   `combined-combat-readability-rtl`, `palace-contact-terrain`, and `gate-hold-state`: each reported `ok: true`,
   overflow `0`, broken images `0`, and five loaded backdrop layers. The known two visual-kit artifact reports were
   unchanged.
+
+## 2026-07-07 - Endless legend seals packaged
+
+- Added presentation-only Endless Mode seal tiers derived from existing `bestEndless` progress: bronze at wave 10,
+  silver at wave 20, gold at wave 30, and legend at wave 40.
+- Endless campaign cards, parchment map nodes/tooltips, map intros, and endless defeat screens now show the best held
+  wave, current seal, and next target. Normal campaign screens stay uncluttered, and incomplete maps remain locked.
+- No save fields, combat math, rewards, waves, maps, towers, enemies, heroes, assets, or manifests changed.
+- Verification passed: `node --check` on touched JS files, `npm run build`, `npm run audit:assets`, `git diff --check`,
+  and seeded English/Farsi browser smoke for seal thresholds, Persian digits, intro readout, endless defeat readout,
+  and normal defeat suppression.
+- Focused Zabulistan route QA reported `ok: true`, overflow `0`, broken images `0`, and the unchanged two visual-kit
+  artifact reports on `opening-build`, `combined-combat-readability`, `combined-combat-readability-rtl`,
+  `palace-contact-terrain`, and `gate-hold-state`. The local browser automation kept backdrop texture readiness at
+  `loading` even though the referenced Zabulistan image files existed and served successfully, so that layer-readiness
+  counter was treated as unrelated local decode noise for this UI-only package.
