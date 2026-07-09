@@ -954,7 +954,17 @@ export class Ambient {
         b.wl.pivotI.rotation.z = 1.0; b.wl.pivotO.rotation.z = -1.9;
         b.wr.pivotI.rotation.z = -1.0; b.wr.pivotO.rotation.z = 1.9;
         this.group.add(b.g);
-        birds.push({ ...b, home, seed: rng() * 10, phase: rng() * 6.28 });
+        // GLB pecking pigeon while roosted (ground clips only — no fly clip exists), the
+        // procedural wing bird still flies the wheeling burst; visibility-swapped on scare
+        const glb = assetCharacter(i % 3 === 0 ? 'a_pigeon_white' : 'a_pigeon', { height: 0.24 });
+        if (glb) {
+          glb.group.position.copy(home);
+          glb.group.rotation.y = rng() * 6.28318;
+          glb.group.traverse((o) => { if (o.isMesh) o.castShadow = false; });
+          this.group.add(glb.group);
+          b.g.visible = false;
+        }
+        birds.push({ ...b, glb: glb || null, home, seed: rng() * 10, phase: rng() * 6.28 });
       }
       this.pigeons = { birds, center, state: 'roost', t: 8 + rng() * 12, flyT: 0 };
     }
@@ -1317,8 +1327,14 @@ export class Ambient {
       const F = this.pigeons;
       if (F.state === 'roost') {
         for (const b of F.birds) {
-          b.g.position.y = b.home.y + Math.max(0, Math.sin(time * 4 + b.seed * 6)) * 0.06; // peck-hop
-          b.g.rotation.y += Math.sin(time * 0.8 + b.seed) * dt * 0.6;
+          if (b.glb) { // GLB pigeon: pecking comes from the clip, not a position bob
+            b.glb.group.rotation.y += Math.sin(time * 0.8 + b.seed) * dt * 0.6;
+            b.glb.anim.play(Math.sin(time * 0.35 + b.seed * 2.1) > 0.15 ? 'eat' : 'idle');
+            b.glb.anim.mixer.update(dt);
+          } else {
+            b.g.position.y = b.home.y + Math.max(0, Math.sin(time * 4 + b.seed * 6)) * 0.06; // peck-hop
+            b.g.rotation.y += Math.sin(time * 0.8 + b.seed) * dt * 0.6;
+          }
         }
         F.t -= dt;
         let scare = F.t <= 0 || waveStarted; // the wave-horn startles the whole flock aloft
@@ -1327,7 +1343,10 @@ export class Ambient {
             if (e.alive && e.group.position.distanceToSquared(F.center) < 225) { scare = true; break; }
           }
         }
-        if (scare) { F.state = 'fly'; F.flyT = 4 + Math.random() * 3; F.t = 18 + Math.random() * 22; }
+        if (scare) {
+          F.state = 'fly'; F.flyT = 4 + Math.random() * 3; F.t = 18 + Math.random() * 22;
+          for (const b of F.birds) if (b.glb) { b.glb.group.visible = false; b.g.visible = true; }
+        }
       } else { // fly: wheel around the roost, wings flapping
         F.flyT -= dt;
         for (let i = 0; i < F.birds.length; i++) {
@@ -1344,6 +1363,7 @@ export class Ambient {
             b.g.position.copy(b.home);
             b.wl.pivotI.rotation.z = 1.0; b.wl.pivotO.rotation.z = -1.9;
             b.wr.pivotI.rotation.z = -1.0; b.wr.pivotO.rotation.z = 1.9;
+            if (b.glb) { b.glb.group.visible = true; b.g.visible = false; }
           }
         }
       }

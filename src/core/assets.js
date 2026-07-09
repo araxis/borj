@@ -160,6 +160,10 @@ const MODEL_FILES = {
   tf_elder: 'assets/townsfolk/tf_elder.glb',              // white-beard elder (de-crowned king, robes)
   tf_woman_basket: 'assets/townsfolk/tf_woman_basket.glb',// hooded woman (sword removed, cloth hood)
   tf_woman_dress: 'assets/townsfolk/tf_woman_dress.glb',  // simple madder-red dress (Female_* clips)
+  // Rooftop pigeons (Quaternius Quirky pigeon, CC0, recolored city-grey/white; ground clips
+  // only — the wheeling FLIGHT keeps the procedural wing birds, see ambient.js this.pigeons)
+  a_pigeon: 'assets/townsfolk/a_pigeon.glb',
+  a_pigeon_white: 'assets/townsfolk/a_pigeon_white.glb',
 };
 
 // facing correction per asset (our convention: models face +Z)
@@ -178,8 +182,10 @@ const CLIP_PREFS = {
   attack: [/Run_swordAttack/i, /Snake_Attack/i, /Attack_Headbutt/i, /\|Attack$/i, /^Attack$/i, /1H_Melee_Attack_Slice/i, /Melee_Attack/i, /attack/i, /Archery_Shot/i, /archery/i], // archer uses Archery_Shot
   death: [/\|Death$/i, /^Death$/i, /^Death_A$/i, /death/i, /dead/i, /^die/i], // some rigs use "Dead"/"Die"
   hit: [/Idle_HitReact1/i, /HitReact/i, /Hit_A/i, /hit/i],
-  // Quaternius Animals: a real grazing clip for ambient wildlife (the headline win)
-  eat: [/^Eating$/i, /eat/i, /graze/i],
+  // Quaternius Animals: a real grazing clip for ambient wildlife (the headline win).
+  // Bite_Front is the Quirky-series peck — binds the rooftop pigeons' pecking to 'eat'.
+  // NOTE: /eat/i must not come first for humanoids — it substring-matches "dEATh".
+  eat: [/^Eating$/i, /Bite_Front/i, /eat/i, /graze/i],
 };
 
 const loader = new GLTFLoader();
