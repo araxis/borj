@@ -2897,3 +2897,13 @@ and Shahnameh-only language.
 - Focused Zabulistan route QA passed for `opening-build`, `combined-combat-readability`,
   `combined-combat-readability-rtl`, `palace-contact-terrain`, and `gate-hold-state`: each reported `ok: true`, overflow
   `0`, broken images `0`, and five loaded backdrop layers, with the known two visual-kit artifact reports unchanged.
+
+## 2026-07-07 - Tower rubble rebuild feedback packaged
+
+- Build mode now distinguishes buildable, occupied, and rubble-blocked foundations. Rubble pads get a muted stone-brown
+  blocked affordance and no range preview while the existing `rubbleT` timer is active.
+- Clicking a rubble-blocked foundation shows a localized countdown toast instead of failing silently. The timer, rebuild
+  block, palace repair clearing, sell, fusion, economy, waves, assets, and manifests remain unchanged.
+- Verification passed: `node --check src/main.js`, `node --check src/data/lang/en.js`,
+  `node --check src/data/lang/fa.js`, `npm run build`, `npm run audit:assets`, and `git diff --check`. The focused
+  Zabulistan route QA set stayed clean with five loaded backdrop layers and the known two visual-kit artifacts unchanged.

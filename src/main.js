@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { Engine } from './core/engine.js';
 import { RTSCamera } from './core/camera.js';
-import { initLangDOM, onLangChange, t } from './core/i18n.js';
+import { initLangDOM, onLangChange, t, tNum } from './core/i18n.js';
 import { settings } from './core/settings.js';
 import { audio } from './core/audio.js';
 import { Game } from './game/game.js';
@@ -162,6 +162,15 @@ buildPadHints.visible = false;
 buildPadHints.userData.visualQaIgnore = true;
 let buildPadHintKey = '';
 let hoveredBuildPad = null;
+let hoveredRubblePad = null;
+
+function isPadRubbleBlocked(pad) {
+  return !!pad && !pad.tower && (pad.rubbleT || 0) > 0;
+}
+
+function padRubbleSeconds(pad) {
+  return Math.max(1, Math.ceil(pad?.rubbleT || 0));
+}
 
 const ROAD_PRESSURE_CUE_MAX = 12;
 const roadPressureRingGeom = new THREE.RingGeometry(0.46, 0.82, 36);
@@ -1555,6 +1564,7 @@ function syncBuildPadHints(force = false) {
   if (!active) {
     buildPadHints.visible = false;
     hoveredBuildPad = null;
+    hoveredRubblePad = null;
     return { active: false, visible: 0, total: 0 };
   }
   const pads = game.map?.pads || [];
@@ -1565,17 +1575,34 @@ function syncBuildPadHints(force = false) {
   const opening = zabulistanOpeningPadScores(pads, hud.mode.def);
   const activePlacement = zabulistanActivePadScores(pads, hud.mode.def, pressureEnemies);
   let visible = 0;
+  let rubbleBlocked = 0;
   pads.forEach((pad, i) => {
     const line = buildPadHints.children[i];
     if (!line) return;
     const available = !pad.tower && (pad.rubbleT || 0) <= 0;
-    line.visible = available;
-    if (!available) return;
-    visible++;
+    const rubble = isPadRubbleBlocked(pad);
+    line.visible = available || rubble;
+    line.userData.rubbleBlocked = rubble;
+    if (!line.visible) return;
+    if (available) visible++;
+    if (rubble) rubbleBlocked++;
     const hover = pad === hoveredBuildPad;
+    const rubbleHover = pad === hoveredRubblePad;
     line.position.set(pad.pos.x, pad.pos.y + 0.33, pad.pos.z);
     line.rotation.y = pad.rot || 0;
     const pulse = settings.get('reducedMotion') ? 0 : Math.sin(engine.elapsed * 3.2 + i * 0.55) * 0.035;
+    if (rubble) {
+      line.scale.setScalar((rubbleHover ? 1.04 : 0.96) + Math.max(0, pulse) * 0.32);
+      line.material.color.setHex(rubbleHover ? 0x8c7860 : 0x6a5f52);
+      line.material.opacity = rubbleHover ? 0.56 : 0.34 + Math.max(0, pulse) * 0.24;
+      line.userData.pressure = 0;
+      line.userData.openingScore = 0;
+      line.userData.openingRank = null;
+      line.userData.activeScore = 0;
+      line.userData.activeRank = null;
+      line.userData.activeUrgent = 0;
+      return;
+    }
     const pressure = zabulistanPadPressure(pad.pos, pressureEnemies);
     const openingEntry = opening?.entries?.[i];
     const openingPick = !!openingEntry?.pick;
@@ -1621,8 +1648,9 @@ function syncBuildPadHints(force = false) {
     line.userData.activeRank = activePick ? activeEntry.rank : null;
     line.userData.activeUrgent = Number((activeEntry?.urgent || 0).toFixed(2));
   });
-  buildPadHints.visible = visible > 0;
+  buildPadHints.visible = visible + rubbleBlocked > 0;
   buildPadHints.userData.visibleCount = visible;
+  buildPadHints.userData.rubbleBlockedCount = rubbleBlocked;
   buildPadHints.userData.totalCount = pads.length;
   buildPadHints.userData.affordable = affordable;
   buildPadHints.userData.pressurePads = pressureEnemies.length
@@ -1638,6 +1666,7 @@ function syncBuildPadHints(force = false) {
     active: true,
     visible,
     total: pads.length,
+    rubbleBlocked,
     affordable,
     openingMode: !!opening,
     openingPicks: opening?.picks || 0,
@@ -1913,9 +1942,21 @@ canvas.addEventListener('pointermove', (e) => {
     const pad = pickPad(e.clientX, e.clientY);
     const zabulistan = game.mapDef?.id === 'zabulistan';
     const affordable = (hud.mode.def?.cost || 0) <= (game.gold || 0);
+    const rubbleBlocked = isPadRubbleBlocked(pad);
     hoveredBuildPad = pad && !pad.tower && (pad.rubbleT || 0) <= 0 ? pad : null;
+    hoveredRubblePad = rubbleBlocked ? pad : null;
     syncBuildPadHints();
-    if (pad && !pad.tower && (pad.rubbleT || 0) <= 0) {
+    if (rubbleBlocked) {
+      padRing.position.set(pad.pos.x, pad.pos.y + 0.35, pad.pos.z);
+      padRing.material.color.setHex(0x8c7860);
+      padRing.material.depthTest = true;
+      padRing.material.blending = THREE.NormalBlending;
+      padRing.material.opacity = 0.46;
+      padRing.material.needsUpdate = true;
+      padRing.visible = true;
+      rangeRing.visible = false;
+      auraLines.visible = false;
+    } else if (pad && !pad.tower && (pad.rubbleT || 0) <= 0) {
       padRing.position.set(pad.pos.x, pad.pos.y + 0.35, pad.pos.z);
       padRing.material.color.setHex(affordable ? 0xf4cd6e : 0xa66d4b);
       padRing.material.depthTest = !!zabulistan;
@@ -1941,9 +1982,14 @@ canvas.addEventListener('pointerup', (e) => {
     const pad = pickPad(e.clientX, e.clientY);
     if (pad) {
       if (pad.tower) { hud.toast(t('hud.padOccupied')); return; }
+      if (isPadRubbleBlocked(pad)) {
+        hud.toast(t('hud.padRubbleClearing', { s: tNum(padRubbleSeconds(pad)) }));
+        return;
+      }
       const tower = game.buildTower(mode.def.id, pad);
       if (tower) {
         hoveredBuildPad = null;
+        hoveredRubblePad = null;
         syncBuildPadHints(true);
         if (!e.shiftKey) { hud.setMode({ kind: 'none' }); padRing.visible = false; hideSelection(); }
         return;
