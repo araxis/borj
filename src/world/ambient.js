@@ -1145,6 +1145,7 @@ export class Ambient {
     // round 4 B2: the town reacts to the battle — detect the wave-horn rising edge
     const waveNow = !!game?.waveActive;
     const waveStarted = waveNow && !this._waveWas;
+    const waveEnded = !waveNow && this._waveWas; // the road is clear — the town breathes out
     this._waveWas = waveNow;
     const camFocus = game?.engine?.rtsCamera?.target || null;
     const animFar = (p) => camFocus ? ((p.x - camFocus.x) ** 2 + (p.z - camFocus.z) ** 2) > 3600 : false;
@@ -1438,6 +1439,15 @@ export class Ambient {
       v.t -= dt;
       const pos = v.group.position;
       const far = animFar(pos);
+      // wave cleared: most visible GLB villagers cheer with their authored Wave clip,
+      // staggered so the town erupts rather than saluting in lockstep
+      if (waveEnded && v.anim?.actions?.wave && v.group.visible && Math.random() < 0.75) {
+        v.cheerT = 0.15 + Math.random() * 1.1;
+      }
+      if (v.cheerT != null && (v.cheerT -= dt) <= 0) {
+        v.cheerT = null;
+        if (!far) v.anim?.gesture?.('wave');
+      }
       if (this._threatT <= 0 && game && v.state !== 'flee' && v.state !== 'fleeIn' && v.state !== 'inside') {
         for (const e of game.enemies) {
           if (e.alive && e.group.position.distanceToSquared(pos) < 121) { // ~11u panic radius

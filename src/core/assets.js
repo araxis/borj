@@ -190,6 +190,8 @@ const CLIP_PREFS = {
   // Bite_Front is the Quirky-series peck — binds the rooftop pigeons' pecking to 'eat'.
   // NOTE: /eat/i must not come first for humanoids — it substring-matches "dEATh".
   eat: [/^Eating$/i, /Bite_Front/i, /eat/i, /graze/i],
+  // Quaternius modular characters: the villagers' wave-clear cheer
+  wave: [/\|Wave$/i, /^Wave$/i],
 };
 
 const loader = new GLTFLoader();
@@ -459,6 +461,7 @@ export function spawnAsset(key, { height = 1.7, tint = null, walkStride = null }
   });
   forEachAction(actions.attack, (action) => action.setLoop(THREE.LoopOnce));
   forEachAction(actions.hit, (action) => action.setLoop(THREE.LoopOnce));
+  forEachAction(actions.wave, (action) => action.setLoop(THREE.LoopOnce));
   const walkAction = firstAction(actions.walk);
   return {
     group, mixer, actions,
@@ -494,6 +497,12 @@ export function spawnAsset(key, { height = 1.7, tint = null, walkStride = null }
       const hit = actionGroup(this.actions.hit);
       if (!hit.length) return;
       hit[(Math.random() * hit.length) | 0].reset().setEffectiveWeight(1).play();
+    },
+    gesture(name) { // one-shot emote over whatever is playing (e.g. villagers' wave cheer)
+      const g = actionGroup(this.actions[name]);
+      if (!g.length) return false;
+      g[(Math.random() * g.length) | 0].reset().setEffectiveWeight(1).play();
+      return true;
     },
   };
 }
