@@ -6,6 +6,7 @@ const DEFAULT_PROFILE = {
   unlockedHeroes: [],       // hero ids beyond 'start' unlocks
   codexSeen: [],            // entry ids viewed at least once
   bestEndless: {},          // mapId -> best wave reached
+  mapStars: {},             // mapId -> best Farr seals earned (1..3, by lives kept)
   heroRanks: {},            // heroId -> 0..3 (persistent hero upgrade tree)
   bossSagas: {},            // bossId -> presentation-only saga record
   kheradEarned: 0,          // lifetime wisdom (Kherad) gathered — round-3 meta currency
@@ -50,6 +51,7 @@ export const KHERAD_REWARDS = {
   bossDefeated: 15,
   codexEntry: 1,
   endlessBest10: 5, // per 10-wave best-milestone crossed
+  starGained: 4,    // per newly-earned Farr seal on a stage (replay incentive)
 };
 
 let kheradSession = 0; // gathered since the last takeSessionKherad() — end-screen tally
@@ -109,6 +111,24 @@ export function takeSessionKherad() {
   const n = kheradSession;
   kheradSession = 0;
   return n;
+}
+
+// ---- Farr seals (per-stage star rating by lives kept) ----
+export function getMapStars(mapId) {
+  return loadProfile().mapStars?.[mapId] || 0;
+}
+
+export function recordMapStars(mapId, stars) {
+  const p = loadProfile();
+  p.mapStars ||= {};
+  const prev = p.mapStars[mapId] || 0;
+  const improved = stars > prev;
+  if (improved) {
+    addKherad((stars - prev) * KHERAD_REWARDS.starGained);
+    p.mapStars[mapId] = stars;
+    saveProfile();
+  }
+  return { stars, best: Math.max(prev, stars), improved };
 }
 
 export function markMapCompleted(mapId) {

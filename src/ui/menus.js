@@ -7,7 +7,7 @@ import { PLACES_BY_ID, PLACE_ATLAS } from '../data/places.js';
 import { HEROES, HERO_ATLAS } from '../data/heroes.js';
 import { ENEMIES_BY_ID } from '../data/enemies.js';
 import { bossChallengeDef } from '../data/bosschallenges.js';
-import { loadProfile, takeSessionKherad, kheradBalance, hasResearch, unlockResearch } from '../core/save.js';
+import { loadProfile, takeSessionKherad, kheradBalance, hasResearch, unlockResearch, getMapStars } from '../core/save.js';
 import { RESEARCH, RESEARCH_DISCIPLINES, RESEARCH_BY_ID } from '../data/research.js';
 import { palaceThumb, generateThumbs } from './palaceThumbs.js';
 import { audio } from '../core/audio.js';
@@ -102,6 +102,7 @@ export class Menus {
     this.endScreen = el('div', { class: 'overlay', id: 'endScreen' },
       el('div', { class: 'dialog frame', style: { textAlign: 'center', minWidth: 'min(560px, 90vw)' } },
         el('div', { class: 'endtitle', id: 'endTitle' }),
+        el('div', { class: 'end-stars', id: 'endStars', hidden: true }),
         el('p', { class: 'subtitle', id: 'endSub' }),
         el('div', { class: 'end-kherad', id: 'endKherad', hidden: true }),
         el('div', { class: 'endless-end-seal', id: 'endEndlessSeal', hidden: true }),
@@ -389,6 +390,9 @@ export class Menus {
         medallion,
         m.boss ? el('span', { class: 'map-node-wax', 'aria-hidden': 'true' }) : null,
         el('span', { class: 'map-node-name' }, tName(place)),
+        // Farr seals: best defense rating (lives kept) under the stage name
+        done && !endlessPick ? el('span', { class: 'map-node-stars', 'aria-hidden': 'true' },
+          ...[1, 2, 3].map((i) => el('span', { class: 'seal' + (i <= getMapStars(m.id) ? ' lit' : '') }, '✦'))) : null,
         endlessPick && done ? el('span', {
           class: `map-node-endless ${endlessSeal?.id || 'none'}`,
           'aria-label': `${t('endless.best', { wave: bestEndless ? tNum(bestEndless) : t('endless.none') })}. ${this._endlessSealLabel(endlessSeal)}`,
@@ -656,11 +660,19 @@ export class Menus {
     );
   }
 
-  showEnd({ victory, unlockedHeroes = [], wave, endless, mapDef, onRetry, onContinueEndless, onExit }) {
+  showEnd({ victory, unlockedHeroes = [], wave, endless, mapDef, stars = 0, starImproved = false, onRetry, onContinueEndless, onExit }) {
     this.hideAll();
     this.endScreen.classList.add('visible');
     $('#endTitle').textContent = victory ? t('hud.victory') : t('hud.defeat');
     $('#endTitle').className = 'endtitle ' + (victory ? 'win' : 'lose');
+    // Farr seals earned this defense (lives kept); pulse when it's a new best
+    const starsEl = $('#endStars');
+    starsEl.hidden = !(victory && !endless && stars > 0);
+    if (!starsEl.hidden) {
+      clear(starsEl);
+      for (let i = 1; i <= 3; i++) starsEl.append(el('span', { class: 'seal' + (i <= stars ? ' lit' : '') }, '✦'));
+      starsEl.classList.toggle('improved', starImproved);
+    }
     // wisdom gathered this battle (milestones + knowledge buildings) → treasury tally
     const kherad = takeSessionKherad();
     const kEl = $('#endKherad');

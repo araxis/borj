@@ -24,7 +24,7 @@ import { bossChallengeDef } from '../data/bosschallenges.js';
 import { hasPalace, loadPalace } from '../core/assets.js';
 import { makeRng } from '../world/noise.js';
 import { audio } from '../core/audio.js';
-import { loadProfile, markMapCompleted, unlockHero, recordEndless, getHeroRank, setHeroRank, recordBossSaga, addKherad, hasResearch } from '../core/save.js';
+import { loadProfile, markMapCompleted, unlockHero, recordEndless, getHeroRank, setHeroRank, recordBossSaga, addKherad, hasResearch, recordMapStars } from '../core/save.js';
 import { saveBattle, clearBattle } from '../core/battlesave.js';
 import { updateFire } from '../fx/fire.js';
 import { OathField } from '../fx/oathfield.js';
@@ -4220,6 +4220,10 @@ export class Game {
     if (isLastCampaignWave && this.phase !== 'lost') {
       this.phase = 'won';
       markMapCompleted(this.mapDef.id);
+      // Farr seals: rate the defense by lives kept (3 = near-flawless, 2 = half, 1 = won)
+      const livesFrac = this.maxLives ? this.lives / this.maxLives : 1;
+      const stars = livesFrac >= 0.9 ? 3 : livesFrac >= 0.5 ? 2 : 1;
+      const starRec = this.sandbox ? null : recordMapStars(this.mapDef.id, stars);
       const newHeroes = HEROES.filter((h) => h.unlock.type === 'campaign' && h.unlock.map === this.mapDef.id);
       for (const h of newHeroes) unlockHero(h.id);
       this.audio.victory();
@@ -4230,7 +4234,7 @@ export class Game {
       this.engine.bloomPulse(1.1);
       this.engine.addShake(0.7);
       this._cameraFocusBeat(this.map.citadel?.group?.position || this.map.exitPos, { dur: 1.85, strength: 0.46, dist: 50, pitch: 0.8, yawOffset: -0.08 });
-      this.emit('victory', { unlockedHeroes: newHeroes });
+      this.emit('victory', { unlockedHeroes: newHeroes, stars, starImproved: !!starRec?.improved });
     }
     if (this.endlessMode) recordEndless(this.mapDef.id, this.waveIdx);
 

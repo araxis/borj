@@ -4133,6 +4133,25 @@ body.hud-low-chrome .quick-build-more:active { transform: translateY(1px); }
   font-size: 0.72rem;
 }
 .map-node.locked .map-node-name { color: #6d5731; opacity: 0.8; }
+
+/* Farr seals — per-stage defense rating on the campaign map */
+.map-node-stars { display: flex; gap: 1px; justify-content: center; font-size: 0.56rem; line-height: 1; margin-top: 1px; }
+.map-node-stars .seal { color: #b5a06c; opacity: 0.42; }
+.map-node-stars .seal.lit { color: #d8a93e; opacity: 1; text-shadow: 0 0 4px rgba(216, 169, 62, 0.55); }
+
+/* Farr seals — victory end screen */
+.end-stars { display: flex; gap: 10px; justify-content: center; font-size: 1.7rem; margin: 2px 0 6px; }
+.end-stars .seal { color: #7a6a48; opacity: 0.35; }
+.end-stars .seal.lit { color: #ffd35e; opacity: 1; text-shadow: 0 0 12px rgba(255, 200, 80, 0.75), 0 0 3px rgba(255, 240, 200, 0.9); }
+.end-stars.improved .seal.lit { animation: sealPop 0.7s ease-out backwards; }
+.end-stars.improved .seal.lit:nth-child(2) { animation-delay: 0.18s; }
+.end-stars.improved .seal.lit:nth-child(3) { animation-delay: 0.36s; }
+@keyframes sealPop {
+  0% { transform: scale(0.2); opacity: 0; }
+  55% { transform: scale(1.45); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
 /* red wax seal pip: this stage guards a boss saga */
 .map-node-wax {
   position: absolute;

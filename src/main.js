@@ -2133,10 +2133,10 @@ function startBattle(mapDef, endless, sandbox = false, snapshot = null) {
   engine.speed = 1;
   game.debris.setHeightFn((x, z) => game.map.heightAt(x, z));
 
-  game.on('victory', ({ unlockedHeroes }) => {
+  game.on('victory', ({ unlockedHeroes, stars, starImproved }) => {
     if (game?._qaSuppressEndScreen) return;
     setTimeout(() => menus.showEnd({
-      victory: true, unlockedHeroes, mapDef,
+      victory: true, unlockedHeroes, mapDef, stars, starImproved,
       endless: false, wave: game.waveIdx,
       onContinueEndless: () => { game.endlessMode = true; game.phase = 'build'; menus.hideAll(); },
       onExit: () => { cleanupBattle(); menus.showCampaign(false); },
