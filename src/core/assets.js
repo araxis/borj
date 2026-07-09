@@ -458,6 +458,7 @@ export function spawnAsset(key, { height = 1.7, tint = null, walkStride = null }
     action.clampWhenFinished = true;
   });
   forEachAction(actions.attack, (action) => action.setLoop(THREE.LoopOnce));
+  forEachAction(actions.hit, (action) => action.setLoop(THREE.LoopOnce));
   const walkAction = firstAction(actions.walk);
   return {
     group, mixer, actions,
@@ -488,6 +489,11 @@ export function spawnAsset(key, { height = 1.7, tint = null, walkStride = null }
       const attack = actionGroup(this.actions.attack);
       if (!attack.length) return;
       attack.forEach((action) => action.reset().setEffectiveWeight(1).play());
+    },
+    flinch() { // one-shot hit-react over whatever is playing (random pick for variety)
+      const hit = actionGroup(this.actions.hit);
+      if (!hit.length) return;
+      hit[(Math.random() * hit.length) | 0].reset().setEffectiveWeight(1).play();
     },
   };
 }

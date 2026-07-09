@@ -295,6 +295,12 @@ export class Enemy {
     this.hitReactKind = dmgType;
 
     const heavy = opts.command || explicit >= 0.75 || dmgType === 'impact' || (major && hpRatio > 0.035);
+    // authored flinch clip layered over locomotion (procedural lean still applies);
+    // own cooldown so rapid fire can't reset the clip into a spasm; never over death
+    if (heavy && this.hp > 0 && (this._flinchCd || 0) <= 0 && this.model?.anim?.actions?.hit) {
+      this.model.anim.flinch();
+      this._flinchCd = 0.8;
+    }
     if (heavy && (this._hitFxCd || 0) <= 0) {
       this._hitFxCd = opts.command ? 0.05 : 0.12;
       const p = this.group.position.clone().setY(this.group.position.y + (this.model.headH || 1.7) * 0.45);
@@ -334,6 +340,7 @@ export class Enemy {
 
   _updateHitReaction(dt) {
     this._hitFxCd = Math.max(0, (this._hitFxCd || 0) - dt);
+    this._flinchCd = Math.max(0, (this._flinchCd || 0) - dt);
     if (this.gateReadT > 0) this.gateReadT = Math.max(0, this.gateReadT - dt);
     if (this.gateRecoilT > 0) {
       this.gateRecoilT = Math.max(0, this.gateRecoilT - dt);

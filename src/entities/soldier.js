@@ -61,6 +61,12 @@ export class Soldier {
     }
     if (this.squad.tower?.auraCache?.armorBonus) dmg *= 1 - Math.min(0.5, this.squad.tower.auraCache.armorBonus);
     this.hp -= dmg;
+    // authored flinch clip on meaningful hits (threshold skips poison DoT ticks;
+    // cooldown so a surrounded soldier doesn't spasm; never over the death clip)
+    if (this.hp > 0 && dmg >= 3 && (this._flinchCd || 0) <= 0 && this.model?.anim?.actions?.hit) {
+      this.model.anim.flinch();
+      this._flinchCd = 0.9;
+    }
     if (this.hp <= 0) {
       if (this.def.ability?.key === 'lastStand' && !this.lastStandUsed) {
         this.lastStandUsed = true;
@@ -159,6 +165,7 @@ export class Soldier {
       return this.deadT > 0;
     }
     this.stunT -= dt; this.fearT -= dt;
+    if ((this._flinchCd || 0) > 0) this._flinchCd -= dt;
     if (this.model.anim) this.model.anim.mixer.update(dt); // skeletal clip playback
     if (this.poisonT > 0) { this.poisonT -= dt; this.takeDamage(6 * dt, 'true'); if (!this.alive) return true; }
     if (this.sortieT > 0) this.sortieT = Math.max(0, this.sortieT - dt);
