@@ -14,6 +14,11 @@ All third-party assets are free-licensed and bundled locally (no runtime downloa
   Snake/Snake_angry (easy enemies pack), Wolf/Stag/Deer/Horse/Horse White/Bull (animals
   pack), Modular Men/Women (King, Witch, Adventurer — currently unused/static).
   Files prefixed `q_` in `public/assets/models/`.
+- **Quaternius animated characters** (quaternius.com, downloaded via poly.pizza) — **CC0 1.0** —
+  Farmer, Adventurer, King, Medieval woman, Woman-in-dress: complete rigged+animated versions
+  of the modular-pack characters. Persian-recolored, accessory-stripped (sword/crown/backpack
+  where off-theme) and clip-trimmed in Blender; registered as `tf_*` townsfolk in
+  `public/assets/townsfolk/`.
 - **Quaternius Animals pack** (quaternius.com) — **CC0 1.0** — Alpaca, Bull, Cow, Deer,
   Donkey, Fox, Horse, Horse_White, Husky, ShibaInu, Stag, Wolf (animated). In
   `public/assets/animals/`, registered as `a_*` keys. Alpaca/ShibaInu unused by design.

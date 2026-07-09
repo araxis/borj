@@ -142,12 +142,24 @@ const MODEL_FILES = {
   a_wpn_dagger: 'assets/weapons/Khanjar.glb',    // khanjar — hangs tip-down like the sword
   a_wpn_banner: 'assets/weapons/Drafsh.glb',     // drafsh war-standard — dead vertical, tip-up
   a_wpn_lantern: 'assets/weapons/Fanus.glb',     // fanus lantern — carried forward, hanging
-  // NOTE: the Quaternius Modular Characters (people/p1) are NOT registered — investigated and
-  // rejected (see memory/progress.md). Blockers: the free pack's PEASANT outfits are HEADLESS
-  // (no head mesh/part), the bound T-pose needs reposing (solved: rotateOnWorldAxis(X,-90°) on
-  // the shared upperarm bones), and the textures are ~5 MB each (2048²) — ~60 MB for 4 figures,
-  // ~doubling the offline deploy for a few background NPCs. The world's "life" comes instead
-  // from the existing animated q_knight guards/soldiers + ambient wildlife.
+  // NOTE: the Quaternius Modular Characters *parts* pack (people/p1) was investigated and
+  // rejected (headless peasant outfits, T-pose reposing, ~5 MB textures each — see
+  // memory/progress.md). The tf_* townsfolk below solve those blockers a different way:
+  // COMPLETE pre-rigged+animated Quaternius characters (CC0, via poly.pizza), flat-color
+  // materials (no textures), clips trimmed to Idle/Walk/Run/Wave/Interact/Death/HitRecieve
+  // in Blender, Persian-recolored, quantized — 0.2-0.9 MB each. Same 'CharacterArmature|*'
+  // clip family; ambient.js townsfolk pick these up via chooseTownspersonKey and fall back
+  // to the procedural commoner while loading. Rebuild lane: memory/roadmap-craftsmanship.md.
+  tf_farmer: 'assets/townsfolk/tf_farmer.glb',            // straw hat, earth-brown overall tunic
+  tf_potter: 'assets/townsfolk/tf_potter.glb',            // farmer body, terracotta clay-stained
+  tf_spice_seller: 'assets/townsfolk/tf_spice_seller.glb',// farmer body, plum + saffron band
+  tf_porter: 'assets/townsfolk/tf_porter.glb',            // bearded man WITH pack (carrier)
+  tf_shepherd: 'assets/townsfolk/tf_shepherd.glb',        // bearded man, sage-green tunic
+  tf_water_carrier: 'assets/townsfolk/tf_water_carrier.glb', // bearded man, muted indigo
+  tf_bread_seller: 'assets/townsfolk/tf_bread_seller.glb',// bearded man, cream/sand tunic
+  tf_elder: 'assets/townsfolk/tf_elder.glb',              // white-beard elder (de-crowned king, robes)
+  tf_woman_basket: 'assets/townsfolk/tf_woman_basket.glb',// hooded woman (sword removed, cloth hood)
+  tf_woman_dress: 'assets/townsfolk/tf_woman_dress.glb',  // simple madder-red dress (Female_* clips)
 };
 
 // facing correction per asset (our convention: models face +Z)

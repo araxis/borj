@@ -39,6 +39,7 @@ const TOWNSFOLK_HEIGHT = {
   tf_mobed: 1.74,
   tf_farmer: 1.74,
   tf_spice_seller: 1.72,
+  tf_woman_dress: 1.62,
 };
 const COMMON_TOWNSFOLK = [
   ['tf_water_carrier', 2.2],
@@ -65,7 +66,7 @@ function weightedTownsperson(rng, entries) {
 
 function chooseTownspersonKey({ mobed, female, rng }) {
   if (mobed) return 'tf_mobed';
-  if (female) return 'tf_woman_basket';
+  if (female) return rng() < 0.55 ? 'tf_woman_basket' : 'tf_woman_dress';
   return weightedTownsperson(rng, COMMON_TOWNSFOLK);
 }
 
