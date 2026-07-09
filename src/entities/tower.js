@@ -601,6 +601,12 @@ export class Tower {
     this.lastTarget = target;
     this.lastTargetT = this.game?._time || 0;
     this.lastTargetKind = vfx || role || this.def.id || null;
+    // the assigned hero visibly joins the volley (attack clip is LoopOnce via strike();
+    // throttled so rapid-fire towers don't reset the swing into a spasm)
+    if (this._heroModel?.anim?.actions?.attack && (this._heroAtkCd ?? 0) <= 0) {
+      this._heroModel.anim.strike();
+      this._heroAtkCd = 1.2;
+    }
     // hero signature: Rostam's mace shockwave every 6th shot
     // 'Signature Perfected' mastery: the hero's signature gift strikes one shot sooner
     const sigStep = (n) => (this.hero && getHeroMastery(this.hero.id).includes('signature') ? Math.max(2, n - 1) : n);
@@ -691,7 +697,8 @@ export class Tower {
 
   update(dt, time) {
     if (!this.alive) return;
-    if (this._heroModel?.anim) this._heroModel.anim.mixer.update(dt); // hero idle clip
+    if (this._heroModel?.anim) this._heroModel.anim.mixer.update(dt); // hero idle + strike overlays
+    if ((this._heroAtkCd ?? 0) > 0) this._heroAtkCd -= dt;
     this.silencedT -= dt; this.disabledT -= dt; this.garrisonDisabledT -= dt;
     this.heroActiveCd -= dt;
     this.palaceDamageT -= dt;
