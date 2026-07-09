@@ -927,7 +927,12 @@ export class Ambient {
     if (['desert', 'steppe', 'plains', 'valley', 'river'].includes(biomeId) && map.def?.id !== 'zabulistan') {
       const camels = [];
       const n = 3 + ((rng() * 3) | 0);
-      for (let i = 0; i < n; i++) { const c = makeCamel(rng); c.g.visible = false; this.group.add(c.g); camels.push(c); }
+      for (let i = 0; i < n; i++) {
+        // laden Bactrian GLB (rigged amble walk + idle); procedural boxes stay the fallback
+        const glb = assetCharacter('a_camel', { height: 2.0 });
+        const c = glb ? { g: glb.group, anim: glb.anim, legs: null, headPivot: null, ts: 0.95 + rng() * 0.2 } : makeCamel(rng);
+        c.g.visible = false; this.group.add(c.g); camels.push(c);
+      }
       // cross perpendicular to the incoming road so the train never walks the battle lane
       const path0 = map.paths?.[0];
       const inS = path0 ? (path0.samples[path0.samples.length - 8] || path0.samples[0]) : null;
@@ -1283,7 +1288,7 @@ export class Ambient {
       const C = this.caravan;
       const map = this.map;
       const pathLen = Math.hypot(C.dest.x - C.edge.x, C.dest.z - C.edge.z) || 1;
-      const placeTrain = (headS, facingIn) => {
+      const placeTrain = (headS, facingIn, moving = true) => {
         for (let i = 0; i < C.camels.length; i++) {
           const cs = Math.max(0, Math.min(1, headS - (i * C.gap) / pathLen));
           const x = C.edge.x + (C.dest.x - C.edge.x) * cs;
@@ -1291,8 +1296,13 @@ export class Ambient {
           const cam = C.camels[i];
           cam.g.position.set(x, map.heightAt(x, z), z);
           cam.g.rotation.y = facingIn ? Math.atan2(C.dest.x - C.edge.x, C.dest.z - C.edge.z) : Math.atan2(C.edge.x - C.dest.x, C.edge.z - C.dest.z);
-          for (let l = 0; l < cam.legs.length; l++) cam.legs[l].rotation.x = Math.sin(time * 4 + l * 1.6 + i) * 0.32;
-          cam.headPivot.rotation.x = Math.sin(time * 2 + i) * 0.12;
+          if (cam.anim) {
+            cam.anim.play(moving ? 'walk' : 'idle', { timeScale: cam.ts });
+            cam.anim.mixer.update(dt);
+          } else {
+            for (let l = 0; l < cam.legs.length; l++) cam.legs[l].rotation.x = moving ? Math.sin(time * 4 + l * 1.6 + i) * 0.32 : 0;
+            cam.headPivot.rotation.x = Math.sin(time * 2 + i) * 0.12;
+          }
         }
       };
       if (C.state === 'away') {
@@ -1303,7 +1313,7 @@ export class Ambient {
         placeTrain(C.s, true);
         if (C.s >= 1) { C.state = 'resting'; C.t = 10 + Math.random() * 8; }
       } else if (C.state === 'resting') {
-        placeTrain(1, true);
+        placeTrain(1, true, false);
         C.t -= dt;
         if (C.t <= 0) { C.state = 'leaving'; C.s = 1; }
       } else if (C.state === 'leaving') {
@@ -1316,7 +1326,8 @@ export class Ambient {
           const cam = C.camels[i];
           cam.g.position.set(x, map.heightAt(x, z), z);
           cam.g.rotation.y = Math.atan2(C.edge.x - C.dest.x, C.edge.z - C.dest.z);
-          for (let l = 0; l < cam.legs.length; l++) cam.legs[l].rotation.x = Math.sin(time * 4 + l * 1.6 + i) * 0.32;
+          if (cam.anim) { cam.anim.play('walk', { timeScale: cam.ts }); cam.anim.mixer.update(dt); }
+          else for (let l = 0; l < cam.legs.length; l++) cam.legs[l].rotation.x = Math.sin(time * 4 + l * 1.6 + i) * 0.32;
         }
         if (C.s <= 0) { C.state = 'away'; C.t = 30 + Math.random() * 30; for (const c of C.camels) c.g.visible = false; }
       }

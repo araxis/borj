@@ -14,6 +14,10 @@ All third-party assets are free-licensed and bundled locally (no runtime downloa
   Snake/Snake_angry (easy enemies pack), Wolf/Stag/Deer/Horse/Horse White/Bull (animals
   pack), Modular Men/Women (King, Witch, Adventurer — currently unused/static).
   Files prefixed `q_` in `public/assets/models/`.
+- **Bactrian Camel** (base mesh from the Google Poly archive, by "Poly by Google", via
+  poly.pizza) — **CC-BY 3.0**. Rigged, amble Walk/Idle animations authored, and Persian
+  caravan cargo (blanket/panniers/carpet roll) added in Blender for this game.
+  `public/assets/animals/Camel.glb`.
 - **Quaternius animated characters** (quaternius.com, downloaded via poly.pizza) — **CC0 1.0** —
   Farmer, Adventurer, King, Medieval woman, Woman-in-dress: complete rigged+animated versions
   of the modular-pack characters. Persian-recolored, accessory-stripped (sword/crown/backpack

@@ -164,6 +164,9 @@ const MODEL_FILES = {
   // only — the wheeling FLIGHT keeps the procedural wing birds, see ambient.js this.pigeons)
   a_pigeon: 'assets/townsfolk/a_pigeon.glb',
   a_pigeon_white: 'assets/townsfolk/a_pigeon_white.glb',
+  // Laden Bactrian caravan camel — CC-BY base mesh (Google Poly archive via poly.pizza),
+  // rigged + amble Walk/Idle authored + Persian cargo added in Blender (see CREDITS.md)
+  a_camel: 'assets/animals/Camel.glb',
 };
 
 // facing correction per asset (our convention: models face +Z)
@@ -171,6 +174,7 @@ const ROT_FIX = {
   kk_knight: Math.PI, kk_barbarian: Math.PI,
   fox: -Math.PI / 2,
   a_dragon: Math.PI / 2, // Azhdahā head faces -X natively → +Z so it crawls head-first (worm already faces +Z)
+  a_camel: Math.PI, // authored +Y-forward in Blender → glTF -Z; flip to our +Z convention
 };
 export function rotFix(key) { return ROT_FIX[key] ?? 0; }
 
