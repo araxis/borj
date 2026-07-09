@@ -11,8 +11,8 @@ import { loadProfile, takeSessionKherad, kheradBalance, hasResearch, unlockResea
 import { RESEARCH, RESEARCH_DISCIPLINES, RESEARCH_BY_ID } from '../data/research.js';
 import { palaceThumb, generateThumbs } from './palaceThumbs.js';
 import { audio } from '../core/audio.js';
-import { loadPalace } from '../core/assets.js';
-import { loadForestTrees, loadForestEnrich } from '../core/props3d.js';
+import { hasPalace, loadPalace } from '../core/assets.js';
+import { loadForestTrees, loadForestEnrich, loadRanges } from '../core/props3d.js';
 import { loadBattle, clearBattle } from '../core/battlesave.js';
 import { currentDifficulty, setDifficulty, DIFFICULTY_ORDER } from '../core/difficulty.js';
 
@@ -83,6 +83,7 @@ export class Menus {
         el('div', { class: 'endless-intro-seal', id: 'miEndlessSeal', hidden: true }),
         el('div', { class: 'intro-flourish', 'aria-hidden': 'true' }),
         el('div', { class: 'diffpick', id: 'miDiff' }),
+        el('div', { class: 'intro-prepare', id: 'miPreparing', 'aria-live': 'polite' }),
         el('div', { class: 'intro-launch' },
           el('button', { class: 'gbtn primary launch', id: 'miStart' }, t('campaign.start')),
         ),
@@ -435,9 +436,8 @@ export class Menus {
   showMapIntro(mapDef, endless) {
     this.hideAll();
     this.mapIntro.classList.add('visible');
-    loadPalace(mapDef.id); // warm the giant palace GLB while the player reads the intro
     const place = PLACES_BY_ID[mapDef.id];
-    if (place?.biome === 'forest') { loadForestTrees(); loadForestEnrich(); } // warm forest trees + floor enrichment
+    this._prepareField(mapDef, place);
     applyAtlasCell($('#miImg'), PLACE_ATLAS, place.atlas);
     $('#miName').textContent = tName(place);
     $('#miFa').textContent = tNameAlt(place);
@@ -465,6 +465,58 @@ export class Menus {
     }
     $('#miBack').onclick = () => this.showCampaign(endless);
     this._renderDiff();
+  }
+
+  _prepareField(mapDef, place) {
+    const box = $('#miPreparing');
+    const startBtn = $('#miStart');
+    const seq = (this._prepareSeq || 0) + 1;
+    this._prepareSeq = seq;
+    clearTimeout(this._prepareTimer);
+    clearTimeout(this._prepareReadyTimer);
+    startBtn?.classList.remove('field-ready');
+    if (box) {
+      box.className = 'intro-prepare loading';
+      box.textContent = t('mapintro.preparing');
+    }
+
+    const tasks = [
+      (done) => { if (hasPalace(mapDef.id)) loadPalace(mapDef.id, done); else done(); },
+      (done) => loadRanges(done),
+    ];
+    if (place?.biome === 'forest') {
+      tasks.push((done) => loadForestTrees(done));
+      tasks.push((done) => loadForestEnrich(done));
+    }
+
+    let done = 0;
+    let ready = false;
+    const minReadyAt = performance.now() + 1200;
+    const markReady = () => {
+      if (ready || this._prepareSeq !== seq) return;
+      const wait = minReadyAt - performance.now();
+      if (wait > 0) {
+        this._prepareReadyTimer = setTimeout(markReady, wait);
+        return;
+      }
+      ready = true;
+      clearTimeout(this._prepareTimer);
+      clearTimeout(this._prepareReadyTimer);
+      if (box) {
+        box.className = 'intro-prepare ready';
+        box.textContent = `✦ ${t('mapintro.ready')}`;
+      }
+      startBtn?.classList.add('field-ready');
+    };
+    const tick = () => {
+      if (ready || this._prepareSeq !== seq) return;
+      done += 1;
+      if (done >= tasks.length) markReady();
+    };
+    for (const run of tasks) {
+      try { run(tick); } catch { tick(); }
+    }
+    this._prepareTimer = setTimeout(markReady, 9000);
   }
 
   // pre-map difficulty picker (Easy/Normal/Hard) — global, persisted via settings

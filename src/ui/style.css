@@ -2876,6 +2876,20 @@ body.rtl .diff-opt { letter-spacing: 0; padding-bottom: 2px; }
   min-width: min(15rem, 100%);
   max-width: 100%;
 }
+.intro-prepare {
+  min-height: 1.15em;
+  margin: 2px auto 8px;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  transition: color 0.35s ease, text-shadow 0.35s ease;
+}
+body.rtl .intro-prepare { letter-spacing: 0; }
+.intro-prepare.loading { color: #9c8b63; }
+.intro-prepare.loading::before { content: '⏳ '; animation: introPrepPulse 1.4s ease-in-out infinite; }
+.intro-prepare.ready { color: var(--gold-bright); text-shadow: 0 0 12px rgba(216,169,62,0.4); }
+.intro-launch .gbtn.launch.field-ready { box-shadow: 0 0 0 1px var(--gold) inset, 0 0 22px rgba(216,169,62,0.35); }
+@keyframes introPrepPulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .intro-prepare.loading::before { animation: none; } }
 
 /* ---- map-intro: the stage reveals line by line (portrait → name → lore → launch) ---- */
 #mapIntro.visible .mapintro > * { animation: introReveal 0.5s cubic-bezier(.2,.8,.25,1) both; }
