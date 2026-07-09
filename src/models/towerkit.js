@@ -3,7 +3,7 @@
 // Persepolis-style capitals, turquoise domes, badgirs (wind-catchers), banners, torches,
 // relief bands, spear racks, shields — never toy cones.
 //
-// buildTower(modelKey, ageIdx) -> { group, layers: {base, mid, crown}, animated: {banners, flames, spinners}, height, radius }
+// buildTower(modelKey, ageIdx, spec, role) -> { group, layers: {base, mid, crown}, animated: {banners, flames, spinners}, height, radius }
 // layers enable staged destruction: crown falls first, then mid, then base ruins.
 import * as THREE from 'three';
 import { MeshBuilder, MATS } from './materials.js';
@@ -1048,16 +1048,33 @@ function attachPathAddon(t, spec) {
   delete t._addonFlame;
 }
 
-export function buildTower(modelKey, ageIdx = 0, spec = null) {
+// Later tower ages gain a default role weapon. A chosen specialization path
+// still replaces this with its own signature addon.
+const ROLE_AGE_WEAPONS = {
+  archer: [null, null, 'crossbowBattery', 'ballista', 'ballista'],
+  siege: [null, null, 'naftLauncher', 'greatArm', 'greatArm'],
+  fire: [null, null, 'brazierCrown', 'fireWings', 'fireWings'],
+  magic: [null, null, 'sealRing', 'stormFinial', 'stormFinial'],
+  support: [null, null, 'featherCrown', 'watchLantern', 'watchLantern'],
+  aura: [null, null, 'greatBanner', 'greatBanner', 'greatBanner'],
+  economy: [null, null, 'mintPress', 'bazaarAwnings', 'bazaarAwnings'],
+  barracks: [null, null, 'shieldRack', 'lanceRack', 'lanceRack'],
+  trap: [null, null, 'stakeRing', 'ironJaws', 'ironJaws'],
+  wisdom: [null, null, 'scrollSpires', 'endowmentDome', 'endowmentDome'],
+};
+
+export function buildTower(modelKey, ageIdx = 0, spec = null, role = null) {
+  const ageWeapon = !spec && role ? ROLE_AGE_WEAPONS[role]?.[ageIdx] : null;
+  const mount = spec || (ageWeapon ? { path: 'A', addon: ageWeapon } : null);
   const a = assetTower(modelKey, ageIdx);           // GLB body if loaded, else procedural
   if (a) {
-    if (spec) attachPathAddon(a, spec);
+    if (mount) attachPathAddon(a, mount);
     a.group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     return a;
   }
   const recipe = RECIPES[modelKey] || RECIPES.watchtower;
   const t = recipe(ageIdx);
-  if (spec) attachPathAddon(t, spec);
+  if (mount) attachPathAddon(t, mount);
   t.group.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return t;
 }
