@@ -116,6 +116,7 @@ export const EN = {
   'hud.heroAssigned': '{hero} commands {tower}',
   'hud.notEnoughGold': 'Not enough gold',
   'hud.padOccupied': 'This foundation is occupied',
+  'hud.padRubbleClearing': 'Foundation clearing: {s}s',
   'hud.chooseFoundation': 'Choose a clear foundation',
   'hud.chooseCommanderTower': 'Choose a tower for this commander',
   'hud.fxPreview': 'Sandbox command preview — press F again to cycle',

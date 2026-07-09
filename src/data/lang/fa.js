@@ -119,6 +119,7 @@ export const FA = {
   'hud.heroAssigned': '{hero} فرماندهی {tower} را بر عهده گرفت',
   'hud.notEnoughGold': 'طلا کافی نیست',
   'hud.padOccupied': 'این جایگاه اشغال است',
+  'hud.padRubbleClearing': 'پاکسازی جایگاه: {s} ثانیه',
   'hud.chooseFoundation': 'یک جایگاه خالی را انتخاب کن',
   'hud.chooseCommanderTower': 'برای این فرمانده یک برج انتخاب کن',
   'hud.fxPreview': 'پیش‌نمایش فرمان در آزمون — برای چرخش دوباره F را بزن',
