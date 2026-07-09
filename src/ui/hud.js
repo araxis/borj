@@ -538,6 +538,7 @@ export class HUD {
       el('div', { id: 'challengeChip', class: 'challenge-chip', 'aria-live': 'polite', style: { display: 'none' } }),
       el('div', { id: 'dangerVignette', 'aria-hidden': 'true' }),
       el('div', { id: 'waveBanner', 'aria-live': 'polite' }),
+      el('div', { id: 'streakBanner', 'aria-live': 'polite' }),
       el('div', { id: 'quickBuildTray', class: 'quick-build-tray', role: 'toolbar', 'aria-label': t('hud.towers') }),
       el('button', { id: 'palaceContextChip', class: 'palace-context-chip', type: 'button', style: { display: 'none' }, 'aria-live': 'polite' },
         el('span', { class: 'palace-context-mark', 'aria-hidden': 'true' }, '🏛'),
@@ -637,6 +638,7 @@ export class HUD {
       this.updateCombatFlow();
       this._setWaveMod(null);
       if (!final) this.waveClearedBanner(wave, income, flawless);
+      this.hideKillStreak?.();
       const btn = $('#waveBtn');
       btn.disabled = false;
       document.body.classList.remove('wave-active');
@@ -651,6 +653,8 @@ export class HUD {
       this.updateCombatFlow();
     });
     g.on('earlyBonus', (gold) => this.toast(t('hud.earlyBonus', { gold: tNum(gold) })));
+    g.on('killStreak', ({ streak, tier }) => this.killStreakBanner(streak, tier));
+    g.on('killStreakBroken', () => this.hideKillStreak());
     g.on('bossSpawned', (def) => this.bossBanner(tName(def), null, bossChallengeDef(def.id).saga));
     g.on('bossChallengeStarted', (ch) => {
       this.updateBossChallenge(ch);
@@ -2351,6 +2355,28 @@ export class HUD {
     this._waveBannerTimer = setTimeout(() => b.classList.remove('show'), 2600);
   }
 
+  // Presentation-only kill-streak chip — fires at fixed milestones (5/10/15/20/25/30),
+  // escalates visually by tier, auto-hides. No reward/gold effect (see game._tickKillStreak).
+  killStreakBanner(streak, tier = 0) {
+    const b = $('#streakBanner');
+    if (!b) return;
+    clearTimeout(this._streakBannerTimer);
+    b.className = 'streak-banner tier' + Math.min(3, tier);
+    clear(b);
+    b.append(
+      el('div', { class: 'streak-mark', 'aria-hidden': 'true' }, '⚔'),
+      el('div', { class: 'streak-count' }, t('hud.killStreak', { n: tNum(streak) })),
+    );
+    void b.offsetWidth;
+    b.classList.add('show');
+    this._streakBannerTimer = setTimeout(() => b.classList.remove('show'), 2000);
+  }
+
+  hideKillStreak() {
+    clearTimeout(this._streakBannerTimer);
+    $('#streakBanner')?.classList.remove('show');
+  }
+
   palaceCommandBanner({ kind = 'boon', palace, type = 'default', unit = null, count = 0, targetCount = 0, synergyCount = 0 } = {}) {
     const b = $('#commandBanner');
     if (!b || !palace) return;
@@ -2458,6 +2484,7 @@ export class HUD {
     clearTimeout(this._challengeRevealTimer);
     clearTimeout(this._commandBannerTimer);
     clearTimeout(this._waveBannerTimer);
+    clearTimeout(this._streakBannerTimer);
     this._clearHeroCommandTimer();
     this.game.clearHeroCommandPreview?.();
     this.game.clearPalaceCommandPreview?.();

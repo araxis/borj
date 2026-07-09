@@ -86,6 +86,7 @@ export const EN = {
   'hud.waveCleared': 'Wave {n} repelled',
   'hud.waveClearedGeneric': 'Wave repelled',
   'hud.flawless': 'Flawless — not a soul lost',
+  'hud.killStreak': 'Chain ×{n}!',
   'hud.victory': 'The Land Stands — Victory',
   'hud.defeat': 'The Road Has Fallen',
   'hud.endlessWave': 'Endless — Wave {n}',

@@ -4121,10 +4121,32 @@ export class Game {
     this.addFarr(enemy.boss ? 22 : enemy.def.bounty >= 55 ? 3 : 1, enemy.boss ? 'bossKill' : 'kill');
     if (this.bossChallenge?.enemyId === enemy.id) this._completeBossChallenge(enemy);
     if (enemy.boss) recordBossSaga(enemy.def.id, this.mapDef.id, 'defeated');
+    this._tickKillStreak(enemy);
+  }
+
+  // Presentation-only kill-streak read: consecutive kills within a rolling window escalate
+  // a HUD chip at fixed milestones. No reward/gold/balance effect — purely a "you're on a
+  // roll" cue. Decays on its own in update(); a leak (onEnemyReachedEnd) breaks the chain.
+  _tickKillStreak(enemy) {
+    if (enemy.isLarva) return; // larvae are trivial fodder — don't inflate the chain
+    this._streak = (this._streak || 0) + 1;
+    this._streakDecayT = 3.2;
+    const milestones = [5, 10, 15, 20, 25, 30];
+    if (milestones.includes(this._streak)) {
+      const tier = Math.min(3, milestones.indexOf(this._streak));
+      this.emit('killStreak', { streak: this._streak, tier });
+    }
+  }
+
+  _breakKillStreak() {
+    if ((this._streak || 0) >= 5) this.emit('killStreakBroken', { streak: this._streak });
+    this._streak = 0;
+    this._streakDecayT = 0;
   }
 
   onEnemyReachedEnd(enemy) {
     if (this.bossChallenge?.enemyId === enemy.id) this._failBossChallenge(enemy);
+    this._breakKillStreak();
     if (this.sandbox) { this.engine.addShake(0.15); return; } // invulnerable while testing
     this.lives -= enemy.boss ? 3 : 1;
     this.engine.addShake(0.3);
@@ -4373,6 +4395,12 @@ export class Game {
     if (this.waveActive && this.phase === 'combat') {
       this._saveAcc += dt;
       if (this._saveAcc >= 5) { this._saveAcc = 0; saveBattle(this); }
+    }
+
+    // kill-streak decay — the chain quietly expires if no kill lands within the window
+    if (this._streakDecayT > 0) {
+      this._streakDecayT -= dt;
+      if (this._streakDecayT <= 0) { this._streakDecayT = 0; this._streak = 0; }
     }
 
     // auto-wave countdown (build phase only; frozen while paused since dt is 0)

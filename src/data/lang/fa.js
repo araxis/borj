@@ -89,6 +89,7 @@ export const FA = {
   'hud.waveCleared': 'موج {n} دفع شد',
   'hud.waveClearedGeneric': 'موج دفع شد',
   'hud.flawless': 'بی‌خدشه — بی هیچ تلفات',
+  'hud.killStreak': 'زنجیره ×{n}!',
   'hud.victory': 'پیروزی — سرزمین پابرجاست',
   'hud.defeat': 'شکست — دشمن از راه گذشت',
   'hud.endlessWave': 'بی‌پایان — موج {n}',

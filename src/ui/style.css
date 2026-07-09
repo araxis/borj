@@ -2073,12 +2073,43 @@ body.lives-critical .lives-chip {
   font-size: 0.74rem;
   text-align: center;
 }
+/* kill-streak chip — a small, escalating "you're on a roll" cue at fixed milestones.
+   Presentation-only (see game._tickKillStreak); tiers 0-3 climb bronze -> gold -> turquoise-white. */
+#streakBanner {
+  position: absolute;
+  top: 9%;
+  left: 50%;
+  z-index: 16;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--bronze);
+  background: linear-gradient(180deg, rgba(46, 34, 17, 0.92), rgba(24, 16, 9, 0.9));
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  color: #f0d996;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -8px) scale(0.9);
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(.2,.85,.25,1);
+}
+#streakBanner.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+#streakBanner .streak-mark { font-size: 1rem; }
+#streakBanner .streak-count { font-size: 0.9rem; font-weight: 700; white-space: nowrap; }
+#streakBanner.tier1 { border-color: var(--gold); color: var(--gold-bright); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45), 0 0 16px rgba(216, 169, 62, 0.25); }
+#streakBanner.tier2 { border-color: var(--gold-bright); color: #ffe9b0; box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45), 0 0 20px rgba(244, 205, 110, 0.4); }
+#streakBanner.tier2 .streak-count { font-size: 1.02rem; }
+#streakBanner.tier3 { border-color: var(--turquoise); color: #fff6dd; box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45), 0 0 26px rgba(47, 167, 160, 0.5); }
+#streakBanner.tier3 .streak-count { font-size: 1.1rem; }
 @media (prefers-reduced-motion: reduce) {
   body.lives-critical #dangerVignette,
   body.lives-critical .lives-chip { animation: none; }
   body.lives-critical .lives-chip { box-shadow: 0 0 10px 1px rgba(194, 59, 42, 0.5); }
   #waveBanner { transition: opacity 0.28s ease; transform: translate(-50%, 0); }
   #waveBanner.show { transform: translate(-50%, 0); }
+  #streakBanner { transition: opacity 0.22s ease; transform: translate(-50%, 0); }
+  #streakBanner.show { transform: translate(-50%, 0); }
 }
 @media (max-width: 700px) {
   #waveBanner {
@@ -2090,6 +2121,8 @@ body.lives-critical .lives-chip {
   .wave-banner-title { font-size: 0.88rem; }
   .wave-banner-reward,
   .wave-banner-flawless { font-size: 0.68rem; }
+  #streakBanner { top: 96px; padding: 6px 12px; }
+  #streakBanner .streak-count { font-size: 0.78rem; }
 }
 
 #bossBanner {
