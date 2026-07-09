@@ -198,6 +198,7 @@ export class Game {
     if (def.research && !hasResearch(def.research)) return null; // not yet studied in the Ganj-e Danesh
     if (!this.canAfford(def.cost)) { this.emit('toast', 'hud.notEnoughGold'); return null; }
     this.gold -= def.cost;
+    this.map.setPadRubbleVisual?.(pad, false);
     const tower = new Tower(this, def, pad);
     pad.tower = tower;
     this.towers.push(tower);
@@ -310,6 +311,7 @@ export class Game {
     this.audio.stoneBreak();
     this.engine.addShake?.(0.15);
     tower.pad.tower = null;
+    this.map.setPadRubbleVisual?.(tower.pad, false);
     tower.alive = false;
     tower.destroy();
     this.towers = this.towers.filter((t) => t !== tower);
@@ -3349,7 +3351,10 @@ export class Game {
       const amt = cfg.amount || 0.4;
       for (const tw of affectedTowers) tw.hp = Math.min(tw.maxHp, tw.hp + tw.maxHp * amt);
       for (const pad of this.map.pads) {
-        if ((pad.rubbleT || 0) > 0 && (pad.pos.distanceTo(front) <= radius || pad.pos.distanceTo(keep) <= radius)) pad.rubbleT = 0;
+        if ((pad.rubbleT || 0) > 0 && (pad.pos.distanceTo(front) <= radius || pad.pos.distanceTo(keep) <= radius)) {
+          pad.rubbleT = 0;
+          this.map.setPadRubbleVisual?.(pad, false);
+        }
       }
       this.audio.forgeHammer();
     }
@@ -3487,6 +3492,7 @@ export class Game {
 
   sellRefundless(tower) {
     tower.pad.tower = null;
+    this.map.setPadRubbleVisual?.(tower.pad, false);
     tower.alive = false;
     tower.destroy();
     this.towers = this.towers.filter((t) => t !== tower);
@@ -4397,7 +4403,10 @@ export class Game {
     this._updateGatePressureOmen(dt);
 
     // pad rubble timers
-    for (const pad of this.map.pads) if (pad.rubbleT > 0) pad.rubbleT -= dt;
+    for (const pad of this.map.pads) {
+      if (pad.rubbleT > 0) pad.rubbleT = Math.max(0, pad.rubbleT - dt);
+      this.map.setPadRubbleVisual?.(pad, (pad.rubbleT || 0) > 0);
+    }
 
     // spawn queue
     if (this.waveActive) {
