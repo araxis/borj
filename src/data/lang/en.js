@@ -112,6 +112,7 @@ export const EN = {
   'hud.endlessWave': 'Endless — Wave {n}',
   'hud.returnCampaign': 'Return to Campaign',
   'hud.retry': 'Try Again',
+  'cinematic.skip': 'Click to skip ›',
   'hud.continueEndless': 'Hold the Line (Endless)',
   'hud.heroAssigned': '{hero} commands {tower}',
   'hud.notEnoughGold': 'Not enough gold',

@@ -115,6 +115,7 @@ export const FA = {
   'hud.endlessWave': 'بی‌پایان — موج {n}',
   'hud.returnCampaign': 'بازگشت به لشکرکشی',
   'hud.retry': 'تلاش دوباره',
+  'cinematic.skip': 'برای رد شدن کلیک کنید ‹',
   'hud.continueEndless': 'ادامه در حالت بی‌پایان',
   'hud.heroAssigned': '{hero} فرماندهی {tower} را بر عهده گرفت',
   'hud.notEnoughGold': 'طلا کافی نیست',

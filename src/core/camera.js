@@ -118,6 +118,7 @@ export class RTSCamera {
   flyIn(from, dur = 4.5) {
     if (settings.get('reducedMotion')) { this.reset(); return; }
     this._focusBeat = null;
+    this._cine = null;
     this._fly = {
       t: 0, dur,
       fromTarget: from.clone(),
@@ -132,7 +133,74 @@ export class RTSCamera {
     this.dist = this.distGoal = this._fly.fromDist;
   }
 
+  // scripted multi-shot cinematic (stage intros): waypoints of {target,yaw,pitch,dist};
+  // each shot eases from the previous pose (or its own `from`), overrides input like
+  // the fly-in, and is skippable. onDone(skipped) fires exactly once.
+  playCinematic(shots, { onShot = null, onDone = null } = {}) {
+    if (settings.get('reducedMotion') || !shots?.length) { onDone?.(false); return false; }
+    this._focusBeat = null;
+    this._fly = null;
+    this._cine = { shots, i: -1, t: 0, cur: null, onShot, onDone };
+    this._cineNext();
+    return true;
+  }
+
+  _cineNext() {
+    const c = this._cine;
+    if (!c) return;
+    c.i++;
+    if (c.i >= c.shots.length) {
+      const done = c.onDone;
+      this._cine = null;
+      done?.(false);
+      return;
+    }
+    const s = c.shots[c.i];
+    const from = s.from
+      ? { target: s.from.target.clone(), yaw: s.from.yaw, pitch: s.from.pitch, dist: s.from.dist }
+      : { target: this.target.clone(), yaw: this.yaw, pitch: this.pitch, dist: this.dist };
+    c.cur = {
+      from,
+      to: { target: s.to.target.clone(), yaw: s.to.yaw, pitch: s.to.pitch, dist: s.to.dist },
+      dur: Math.max(0.1, s.dur || 3),
+      ease: s.ease || 'inout',
+    };
+    c.t = 0;
+    if (s.from) {
+      this.target.copy(from.target); this.targetGoal.copy(from.target);
+      this.yaw = this.yawGoal = from.yaw;
+      this.pitch = this.pitchGoal = from.pitch;
+      this.dist = this.distGoal = from.dist;
+    }
+    c.onShot?.(c.i);
+  }
+
+  skipCinematic() {
+    if (!this._cine) return false;
+    const done = this._cine.onDone;
+    this._cine = null;
+    done?.(true);
+    return true;
+  }
+
   update(rawDt) {
+    // scripted stage cinematic overrides input until done or skipped
+    if (this._cine) {
+      const c = this._cine, s = c.cur;
+      c.t += rawDt;
+      const k = Math.min(1, c.t / s.dur);
+      const e = s.ease === 'out'
+        ? 1 - Math.pow(1 - k, 3)
+        : k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; // ease-in-out cubic
+      this.target.lerpVectors(s.from.target, s.to.target, e);
+      this.targetGoal.copy(this.target);
+      this.yaw = this.yawGoal = s.from.yaw + (s.to.yaw - s.from.yaw) * e;
+      this.pitch = this.pitchGoal = s.from.pitch + (s.to.pitch - s.from.pitch) * e;
+      this.dist = this.distGoal = s.from.dist + (s.to.dist - s.from.dist) * e;
+      if (k >= 1) this._cineNext();
+      this._apply();
+      return;
+    }
     // cinematic fly-in overrides input until done
     if (this._fly) {
       const f = this._fly;

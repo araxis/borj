@@ -19,6 +19,7 @@ import { Menus } from './ui/menus.js';
 import { Codex } from './ui/codex.js';
 import { SettingsUI } from './ui/settingsui.js';
 import { floaters } from './ui/floaters.js';
+import { playStageCinematic, stopStageCinematic } from './ui/cinematic.js';
 import { $ } from './ui/dom.js';
 import { zabulistanVisualProfile } from './data/zabulistanVisualProfile.js';
 
@@ -2158,14 +2159,21 @@ function startBattle(mapDef, endless, sandbox = false, snapshot = null) {
   audio.setScene('battle');
   audio.setIntensity(0.12);
 
-  // cinematic fly-in: sweep from the enemy gate to the citadel (skip it when resuming a saved battle)
+  // stage-intro cinematic: letterboxed reveal of the citadel + story line, then the
+  // classic gate→citadel fly-in (skippable). Saved-battle resumes skip it entirely;
+  // sandbox/QA battles keep the plain fly-in so automation owns the camera.
   if (!snapshot) {
-    const s0 = game.map.paths[0].samples[0].pos;
-    rts.flyIn(new THREE.Vector3(s0.x, s0.y, s0.z), 4.2);
     const startedGame = game;
-    setTimeout(() => {
+    const emitStart = () => {
       if (game === startedGame && !startedGame._qaSuppressBattleStartBanner) startedGame.emit('battleStarted', { mapDef });
-    }, 520);
+    };
+    if (sandbox) {
+      const s0 = game.map.paths[0].samples[0].pos;
+      rts.flyIn(new THREE.Vector3(s0.x, s0.y, s0.z), 4.2);
+      setTimeout(emitStart, 520);
+    } else {
+      playStageCinematic({ rts, game, mapDef, onDone: emitStart });
+    }
   }
 
   if (game.sandbox) hud.toast(t('hud.sandboxOn'));
@@ -2174,6 +2182,7 @@ function startBattle(mapDef, endless, sandbox = false, snapshot = null) {
 function cleanupBattle() {
   audio.setScene('menu');
   floaters.clear();
+  stopStageCinematic();
   if (gameUpdateOff) { gameUpdateOff(); gameUpdateOff = null; }
   if (hud) { hud.destroy(); hud = null; }
   if (game) { game.dispose(); game = null; }
