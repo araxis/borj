@@ -19,7 +19,7 @@ import { Menus } from './ui/menus.js';
 import { Codex } from './ui/codex.js';
 import { SettingsUI } from './ui/settingsui.js';
 import { floaters } from './ui/floaters.js';
-import { playStageCinematic, stopStageCinematic } from './ui/cinematic.js';
+import { playStageCinematic, playVictoryCinematic, stopStageCinematic } from './ui/cinematic.js';
 import { $ } from './ui/dom.js';
 import { zabulistanVisualProfile } from './data/zabulistanVisualProfile.js';
 
@@ -2136,12 +2136,18 @@ function startBattle(mapDef, endless, sandbox = false, snapshot = null) {
 
   game.on('victory', ({ unlockedHeroes, stars, starImproved }) => {
     if (game?._qaSuppressEndScreen) return;
-    setTimeout(() => menus.showEnd({
-      victory: true, unlockedHeroes, mapDef, stars, starImproved,
-      endless: false, wave: game.waveIdx,
-      onContinueEndless: () => { game.endlessMode = true; game.phase = 'build'; menus.hideAll(); },
-      onExit: () => { cleanupBattle(); menus.showCampaign(false); },
-    }), 1400);
+    const startedGame = game;
+    const show = () => {
+      if (game !== startedGame) return; // battle was torn down mid-lap
+      menus.showEnd({
+        victory: true, unlockedHeroes, mapDef, stars, starImproved,
+        endless: false, wave: game.waveIdx,
+        onContinueEndless: () => { game.endlessMode = true; game.phase = 'build'; menus.hideAll(); },
+        onExit: () => { cleanupBattle(); menus.showCampaign(false); },
+      });
+    };
+    // let the kill-shot slow-mo land, then a golden victory lap, then the end screen
+    setTimeout(() => { if (game === startedGame) playVictoryCinematic({ rts, game, onDone: show }); }, 900);
   });
   game.on('defeat', () => {
     if (game?._qaSuppressEndScreen) return;

@@ -112,3 +112,45 @@ export function playStageCinematic({ rts, game, mapDef, onDone = null }) {
   if (!played) return; // reducedMotion inside the player already finished
   audio.bannerFlap?.();
 }
+
+// Victory lap: after the last foe falls, the camera takes a slow golden orbit around the
+// defended citadel before the end screen lands. Continues seamlessly from wherever the
+// kill-shot focus beat left the camera; skippable; reducedMotion goes straight through.
+export function playVictoryCinematic({ rts, game, onDone = null }) {
+  const map = game?.map;
+  const cit = map?.citadel?.group?.position || map?.exitPos;
+  const finish = () => { stopStageCinematic(); onDone?.(); };
+  if (!cit || settings.get('reducedMotion')) { onDone?.(); return; }
+  stopStageCinematic();
+
+  const citadel = new THREE.Vector3(cit.x, cit.y + 6, cit.z);
+  const root = el('div', { class: 'cine victory', 'aria-hidden': 'true' },
+    el('div', { class: 'cine-bar top' }),
+    el('div', { class: 'cine-bar bottom' }),
+    el('div', { class: 'cine-skip' }, t('cinematic.skip')),
+  );
+  document.body.append(root);
+  document.body.classList.add('cinema');
+  setTimeout(() => root.classList.add('cine-in'), 30);
+
+  const skip = (ev) => {
+    if (ev.type === 'keydown' && ev.key !== 'Escape' && ev.key !== ' ' && ev.key !== 'Enter') return;
+    rts.skipCinematic();
+  };
+  window.addEventListener('pointerdown', skip, true);
+  window.addEventListener('keydown', skip, true);
+  active = {
+    root,
+    off: () => {
+      window.removeEventListener('pointerdown', skip, true);
+      window.removeEventListener('keydown', skip, true);
+    },
+  };
+
+  const yaw0 = rts.yaw; // continue from the current pose — no cut
+  const shots = [
+    { to: { target: citadel, yaw: yaw0 + 1.7, pitch: 0.36, dist: 26 }, dur: 2.3, ease: 'inout' },
+    { to: { target: citadel, yaw: yaw0 + 3.3, pitch: 0.46, dist: 31 }, dur: 2.3, ease: 'out' },
+  ];
+  rts.playCinematic(shots, { onDone: () => finish() });
+}
