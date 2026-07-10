@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { t, tOpt, tName, tNameAlt } from '../core/i18n.js';
 import { settings } from '../core/settings.js';
 import { PLACES_BY_ID } from '../data/places.js';
+import { ENEMIES_BY_ID } from '../data/enemies.js';
 import { audio } from '../core/audio.js';
 
 function el(tag, attrs = {}, ...children) {
@@ -49,16 +50,21 @@ export function playStageCinematic({ rts, game, mapDef, onDone = null }) {
   const citadel = new THREE.Vector3(cit.x, cit.y + 6, cit.z);
 
   // ---- overlay: letterbox bars + illuminated title + story line + skip hint ----
+  const boss = mapDef.boss ? ENEMIES_BY_ID[mapDef.boss] : null;
   const title = el('div', { class: 'cine-title' },
     el('div', { class: 'cine-fa' }, tName(place) || mapDef.id),
     el('div', { class: 'cine-en' }, tNameAlt(place) || ''),
     el('div', { class: 'cine-ref' }, tOpt('storyref.' + place.id, place.sourceRef || '')),
   );
   const story = el('div', { class: 'cine-story' }, mapDef.introKey ? t(mapDef.introKey) : '');
-  const root = el('div', { class: 'cine', 'aria-hidden': 'true' },
+  const bossCard = boss ? el('div', { class: 'cine-boss' },
+    el('div', { class: 'cine-boss-name' }, tName(boss)),
+    el('div', { class: 'cine-boss-line' }, t('cinematic.bossAwaits')),
+  ) : null;
+  const root = el('div', { class: 'cine' + (boss ? ' boss' : ''), 'aria-hidden': 'true' },
     el('div', { class: 'cine-bar top' }),
     el('div', { class: 'cine-bar bottom' }),
-    title, story,
+    title, story, bossCard,
     el('div', { class: 'cine-skip' }, t('cinematic.skip')),
   );
   document.body.append(root);
@@ -91,11 +97,15 @@ export function playStageCinematic({ rts, game, mapDef, onDone = null }) {
       dur: 3.1, ease: 'inout',
     },
   ];
+  // boss stages: a menacing push-in on the enemy gate under the boss's name
+  if (boss) shots.push({ to: { target: gate, yaw: baseYaw + 0.2, pitch: 0.3, dist: 16 }, dur: 2.5, ease: 'inout' });
   const played = rts.playCinematic(shots, {
     onShot: (i) => {
       root.classList.toggle('beat-title', i === 0);
       root.classList.toggle('beat-story', i === 1);
+      root.classList.toggle('beat-boss', i === 2);
       if (i === 1) audio.bannerFlap?.();
+      if (i === 2) { audio.stoneBreak?.(); game.engine?.addShake?.(0.25); }
     },
     onDone: (skipped) => finish(skipped),
   });

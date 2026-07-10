@@ -113,6 +113,7 @@ export const EN = {
   'hud.returnCampaign': 'Return to Campaign',
   'hud.retry': 'Try Again',
   'cinematic.skip': 'Click to skip ›',
+  'cinematic.bossAwaits': 'awaits at the gate',
   'hud.continueEndless': 'Hold the Line (Endless)',
   'hud.heroAssigned': '{hero} commands {tower}',
   'hud.notEnoughGold': 'Not enough gold',

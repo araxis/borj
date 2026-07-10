@@ -116,6 +116,7 @@ export const FA = {
   'hud.returnCampaign': 'بازگشت به لشکرکشی',
   'hud.retry': 'تلاش دوباره',
   'cinematic.skip': 'برای رد شدن کلیک کنید ‹',
+  'cinematic.bossAwaits': 'در دروازه در کمین است',
   'hud.continueEndless': 'ادامه در حالت بی‌پایان',
   'hud.heroAssigned': '{hero} فرماندهی {tower} را بر عهده گرفت',
   'hud.notEnoughGold': 'طلا کافی نیست',
