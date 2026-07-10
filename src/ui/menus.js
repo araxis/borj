@@ -523,20 +523,27 @@ export class Menus {
     this._prepareTimer = setTimeout(markReady, 9000);
   }
 
-  // pre-map difficulty picker (Easy/Normal/Hard) — global, persisted via settings
+  // pre-map difficulty picker (Easy/Normal/Hard) — three hanging war-banner pennants;
+  // the chosen banner is raised and lit, the others hang dim until called
   _renderDiff() {
     const box = $('#miDiff');
     if (!box) return;
     clear(box);
     box.append(el('div', { class: 'diff-cap' }, t('difficulty.label')));
-    const seg = el('div', { class: 'diff-seg' });
+    const row = el('div', { class: 'diff-banners' });
+    const GLYPH = { easy: '❁', normal: '⚔', hard: '☠' };
     const cur = currentDifficulty();
     for (const d of DIFFICULTY_ORDER) {
-      const b = el('button', { class: 'diff-opt' + (d === cur ? ' active' : '') }, t('difficulty.' + d));
+      const b = el('button', { class: `diff-banner ${d}` + (d === cur ? ' active' : ''), 'aria-pressed': d === cur ? 'true' : 'false' },
+        el('span', { class: 'db-inner' },
+          el('span', { class: 'db-glyph', 'aria-hidden': 'true' }, GLYPH[d]),
+          el('span', { class: 'db-label' }, t('difficulty.' + d)),
+        ),
+      );
       b.onclick = () => { audio.ui(); setDifficulty(d); this._renderDiff(); };
-      seg.append(b);
+      row.append(b);
     }
-    box.append(seg);
+    box.append(row);
   }
 
   _bossSagaState(profile, bossId) {
